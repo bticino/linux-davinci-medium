@@ -1071,6 +1071,14 @@ config HPET_MMAP
 	  exposed to the user.  If this applies to your hardware,
 	  say N here.
 
+config DM646x_PCI_TARGET_DRV
+        tristate "DaVinci DM646x PCI Target Driver"
+        default n
+        depends on ARCH_DAVINCI_DM646x && PCI
+        help
+                This option builds driver for DM646x PCI target connected to
+                the DM646x configured as PCI Host. Use 'M' to build as module.
+
 config HANGCHECK_TIMER
 	tristate "Hangcheck timer"
 	depends on X86 || IA64 || PPC64 || S390

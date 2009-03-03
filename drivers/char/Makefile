@@ -107,6 +107,8 @@ obj-$(CONFIG_AGP)		+= agp/
 obj-$(CONFIG_PCMCIA)		+= pcmcia/
 obj-$(CONFIG_IPMI_HANDLER)	+= ipmi/
 
+obj-$(CONFIG_DM646x_PCI_TARGET_DRV) += dm646x_pci_targetdrv.o
+
 obj-$(CONFIG_HANGCHECK_TIMER)	+= hangcheck-timer.o
 obj-$(CONFIG_TCG_TPM)		+= tpm/
 
