@@ -255,6 +255,15 @@ static int __init vpss_probe(struct platform_device *pdev)
 	} else
 		oper_cfg.hw_ops.clear_wbl_overflow = dm644x_clear_wbl_overflow;
 
+	if (dm355) {
+		/*
+		 * These values being written to INTSEL and EVTSEL
+		 * registers match those in LSP 2.10
+		 */
+		bl_regw(0xff83ff10, 0x10);
+		bl_regw(0x7b3c0004, 0x14);
+	}
+
 	spin_lock_init(&oper_cfg.vpss_lock);
 	dev_info(&pdev->dev, "%s vpss probe success\n", oper_cfg.vpss_name);
 	return 0;
