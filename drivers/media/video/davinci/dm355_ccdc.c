@@ -772,7 +772,7 @@ static int ccdc_config_raw(void)
 	return 0;
 }
 
-static int ccdc_configure(void)
+static int ccdc_configure(int mode)
 {
 	if (ccdc_if_type == VPFE_RAW_BAYER)
 		return ccdc_config_raw();

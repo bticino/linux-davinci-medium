@@ -38,12 +38,34 @@ MODULE_AUTHOR("Texas Instruments");
 /* vpss BL register offsets */
 #define DM355_VPSSBL_CCDCMUX		0x1c
 /* vpss CLK register offsets */
-#define DM355_VPSSCLK_CLKCTRL		0x04
+#define DM355_VPSSCLK_CLKCTRL		0x4
+#define DM355_VPSSBL_PCR		0x4
+#define DM355_VPSSBL_MEMCTRL		0x18
+
 /* masks and shifts */
+#define DM365_PCCR 			0x04
+#define DM365_ISP_REG_BASE 		0x01c70000
+#define DM365_VPSS_REG_BASE 		0x01c70200
+#define DM365_VPBE_CLK_CTRL 		0x00
+#define DM365_ISP5_CCDCMUX 		0x20
+#define DM365_ISP5_PG_FRAME_SIZE 	0x28
+#define DM365_CCDC_PG_VD_POL_SHIFT 	0
+#define DM365_CCDC_PG_HD_POL_SHIFT 	1
+#define DM365_VPSS_INTSTAT		0x0C
+#define DM365_VPSS_INTSEL1		0x10
+
+
+#define VPSS_CLK_CTRL			0x01C40044
+#define CCD_SRC_SEL_MASK		(BIT_MASK(5) | BIT_MASK(4))
+#define CCD_SRC_SEL_SHIFT		4
+#define CCD_INT_SEL_MASK		(BIT_MASK(12) | BIT_MASK(11)|\
+					BIT_MASK(10) | BIT_MASK(9)  |\
+					BIT_MASK(8)  | BIT_MASK(4)  |\
+					BIT_MASK(3)  | BIT_MASK(2)  |\
+					BIT_MASK(1)  | BIT_MASK(0))
+
 #define VPSS_HSSISEL_SHIFT		4
 
-/* lock to write into common register */
-static spinlock_t vpss_lock;
 
 /**
  * vpss operations. Depends on platform. Not all functions are available
@@ -58,10 +80,12 @@ struct vpss_hw_ops {
 	void (*select_ccdc_source)(enum vpss_ccdc_source_sel src_sel);
 	/* clear wbl overflow bit */
 	int (*clear_wbl_overflow)(enum vpss_wbl_sel wbl_sel);
-	/*set sync polarity */
+	/* set sync polarity */
 	void (*set_sync_pol)(struct vpss_sync_pol);
-	/*set the PG_FRAME_SIZE register*/
+	/* set the PG_FRAME_SIZE register*/
 	void (*set_pg_frame_size)(struct vpss_pg_frame_size);
+	/* check and clear interrupt if occured */ 
+	int (*dma_complete_interrupt)(void);
 };
 
 /* vpss configuration */
@@ -128,6 +152,35 @@ static void dm365_select_ccdc_source(enum vpss_ccdc_source_sel src_sel)
 	isp5_write(temp, DM365_ISP5_CCDCMUX);
 }
 
+/**
+ *  dm365_dma_complete_interrupt - check and clear RSZ_INT_DMA 
+ *
+ *  This is called to update check and clear RSZ_INT_DMA interrupt
+ */
+int dm365_dma_complete_interrupt(void)
+{
+	u32 status;
+
+	status = isp5_read(DM365_VPSS_INTSTAT);	
+	/* Check and clear bit 15 */
+	if (status & 0x8000) {
+		status &= 0x8000;
+		isp5_write(status, DM365_VPSS_INTSTAT);
+		/* clear the interrupt */
+		return 0;
+	}
+	return 1;
+}
+
+int vpss_dma_complete_interrupt(void)
+{
+	if (!oper_cfg.hw_ops.dma_complete_interrupt)
+		return 2;
+	
+	return oper_cfg.hw_ops.dma_complete_interrupt(); 	
+}
+EXPORT_SYMBOL(vpss_dma_complete_interrupt);
+
 int vpss_select_ccdc_source(enum vpss_ccdc_source_sel src_sel)
 {
 	if (!oper_cfg.hw_ops.select_ccdc_source)
@@ -155,6 +208,131 @@ static int dm644x_clear_wbl_overflow(enum vpss_wbl_sel wbl_sel)
 	return 0;
 }
 
+/**
+ *  vpss_pcr_control - common function for updating vpsssbl pcr register
+ *  @val: value to be written
+ *  @mask: bit mask
+ *  @shift: shift for mask and val 
+ *
+ *  This is called to update VPSSSBL PCR register
+ */
+static void vpss_pcr_control(int val, int mask, int shift)
+{
+	unsigned long flags;
+	u32 utemp;
+
+	spin_lock_irqsave(&oper_cfg.vpss_lock, flags);
+
+	utemp = bl_regr(DM355_VPSSBL_PCR);
+	mask <<= shift;
+	val <<= shift;
+	utemp &= (~mask);
+	utemp |= val;
+
+	bl_regw(utemp, DM355_VPSSBL_PCR);
+	spin_unlock_irqrestore(&oper_cfg.vpss_lock, flags);
+}
+
+/**
+ *  vpss_dm355_assign_wblctrl_master - select WBLCTRL/DDR2 read master 
+ *  @master: memory master
+ *
+ *  This is called to assign DDR2/WBLCTRL master. Use this in only DM355
+ */
+void vpss_dm355_assign_wblctrl_master(enum dm355_wblctrl master)
+{
+	/* WBLCTRL is bit 6 */
+	vpss_pcr_control(master, 1, 6);
+}
+EXPORT_SYMBOL(vpss_dm355_assign_wblctrl_master);
+
+/**
+ *  vpss_dm355_assign_rblctrl_master - select RBLCTRL/DDR2 read master 
+ *  @master: memory master
+ *
+ *  This is called to assign DDR2/RBLCTRL master. Use this in only DM355
+ */
+void vpss_dm355_assign_rblctrl_master(enum dm355_rblctrl master)
+{
+	/* RBLCTRL is bit 5 & 4 */
+	vpss_pcr_control(master, 3, 5);
+}
+EXPORT_SYMBOL(vpss_dm355_assign_rblctrl_master);
+
+/**
+ *  vpss_memory_control - common function for updating memory
+ *  control register
+ *  @en: enable/disable
+ *  @mask: bit mask
+ *
+ *  This is called to update memory control register
+ */
+static void vpss_mem_control(int en, u32 mask)
+{
+	unsigned long flags;
+	u32 utemp;
+
+	spin_lock_irqsave(&oper_cfg.vpss_lock, flags);
+	utemp = bl_regr(DM355_VPSSBL_MEMCTRL);
+	if (en)
+		utemp |= mask;
+	else
+		utemp &= (~mask);
+
+	bl_regw(utemp, DM355_VPSSBL_MEMCTRL);
+	spin_unlock_irqrestore(&oper_cfg.vpss_lock, flags);
+}
+
+/**
+ *  vpss_dm355_assign_dfc_memory_master - select dfc memory by IPIPE/CCDC
+ *  @master: memory master
+ *
+ *  This is called to assign dfc memory mastership to IPIPE or CCDC.
+ *  Use this in only DM355
+ */
+void vpss_dm355_assign_dfc_memory_master(enum dm355_dfc_mem_sel master)
+{
+	if (master == DM355_DFC_MEM_IPIPE)
+		vpss_mem_control(0, 0x1);
+	else
+		vpss_mem_control(1, 0x1);
+}
+EXPORT_SYMBOL(vpss_dm355_assign_dfc_memory_master);
+
+/**
+ *  vpss_dm355_ipipe_enable_any_address - IPIPE can use any address type 
+ *  @en: enable/disable non-aligned buffer address use.
+ *
+ *  This is called to allow IPIPE to use non-aligned buffer address.
+ *  Applicable only to DM355.
+ */
+void vpss_dm355_ipipe_enable_any_address(int en)
+{
+	if (en)
+		vpss_mem_control(1, 0x4);
+	else
+		vpss_mem_control(0, 0x4);
+}
+EXPORT_SYMBOL(vpss_dm355_ipipe_enable_any_address);
+
+/*
+ *  vpss_dm355_assign_int_memory_master - assign internal module memory 
+ *  @master: master for internal memory
+ *
+ *  This function will select the module that gets access to internal memory.
+ *  Choice is either IPIPE or CFALD. Applicable only on DM355
+ */
+void vpss_dm355_assign_int_memory_master(enum dm355_int_mem_sel master)
+{
+	if (master == DM355_INT_MEM_IPIPE)
+		vpss_mem_control(0, 0x2);
+	else
+		vpss_mem_control(1, 0x2);
+
+}
+EXPORT_SYMBOL(vpss_dm355_assign_int_memory_master);
+
+#if 0
 static void dm365_enable_irq(void)
 {
 	u32 current_val = isp5_read(DM365_VPSS_INTSEL1);
@@ -163,6 +341,7 @@ static void dm365_enable_irq(void)
 	current_val |= BIT_MASK(8);
 	isp5_write(current_val, DM365_VPSS_INTSEL1);
 }
+#endif
 
 void dm365_set_sync_pol(struct vpss_sync_pol sync)
 {
@@ -332,7 +511,7 @@ static int dm365_enable_clock(enum vpss_clock_sel clock_sel, int en)
 		return -1;
 	}
 
-	spin_lock_irqsave(&vpss_lock, flags);
+	spin_lock_irqsave(&oper_cfg.vpss_lock, flags);
 	utemp = read(offset);
 	if (!en) {
 		mask = ~mask;
@@ -341,7 +520,7 @@ static int dm365_enable_clock(enum vpss_clock_sel clock_sel, int en)
 		utemp |= (mask << shift);
 
 	write(utemp, offset);
-	spin_unlock_irqrestore(&vpss_lock, flags);
+	spin_unlock_irqrestore(&oper_cfg.vpss_lock, flags);
 
 	return 0;
 }
@@ -419,13 +598,13 @@ static int __init vpss_probe(struct platform_device *pdev)
 	if (dm355) {
 		oper_cfg.hw_ops.enable_clock = dm355_enable_clock;
 		oper_cfg.hw_ops.select_ccdc_source = dm355_select_ccdc_source;
-		oper_cfg.hw_ops.set_sync_pol = NULL;
-		oper_cfg.hw_ops.set_pg_frame_size = NULL;
 	} else if (dm365) {
 		oper_cfg.hw_ops.enable_clock = dm365_enable_clock;
 		oper_cfg.hw_ops.select_ccdc_source = dm365_select_ccdc_source;
 		oper_cfg.hw_ops.set_sync_pol = dm365_set_sync_pol;
 		oper_cfg.hw_ops.set_pg_frame_size = dm365_set_pg_frame_size;
+		oper_cfg.hw_ops.dma_complete_interrupt =
+				dm365_dma_complete_interrupt;
 
 	} else if (!strcmp(oper_cfg.vpss_name, "dm644x_vpss"))
 		oper_cfg.hw_ops.clear_wbl_overflow = dm644x_clear_wbl_overflow;
@@ -439,21 +618,21 @@ static int __init vpss_probe(struct platform_device *pdev)
 		bl_regw(0x7b3c0004, 0x14);
 	}
 	if (dm365) {
-		/*
+		/**
 		 * These values being written to INTSEL and EVTSEL
 		 * registers match those in LSP 2.10
 		 */
 		isp5_write((isp5_read(0x4) | 0x0000007f), 0x4);
 		isp5_write((isp5_read(0x8) | 0x00000002), 0x8);
-
-		isp5_write((isp5_read(0x10) | 0x0b000000), 0x10);
-		isp5_write((isp5_read(0x14) | 0x000a0000), 0x14);
+		/* INT0, INT1, AF */
+		isp5_write((isp5_read(0x10) | 0x0b1f0100), 0x10);
+		/* AEW, RSZ_INT_DMA */
+		isp5_write((isp5_read(0x14) | 0x1f0a0f1f), 0x14);
+		/* VENC */
 		isp5_write((isp5_read(0x18) | 0x00000015), 0x18);
+		/* No event selected */
 		isp5_write((isp5_read(0x1c) | 0x00000000), 0x1c);
 	}
-
-	if (dm365)
-		dm365_enable_irq();
 
 	spin_lock_init(&oper_cfg.vpss_lock);
 	dev_info(&pdev->dev, "%s vpss probe success\n", oper_cfg.vpss_name);

@@ -684,6 +684,30 @@ void __init dm365_init_spi0(unsigned chipselect_mask,
 	platform_device_register(&dm365_spi0_device);
 }
 
+
+/* IPIPEIF device configuration */
+static u64 dm365_ipipeif_dma_mask = DMA_BIT_MASK(32);
+static struct resource dm365_ipipeif_resources[] = {
+	{
+		.start          = 0x01C71200,
+		.end            = 0x01C71200 + 0x60,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device dm365_ipipeif_dev = {
+	.name		= "dm3xx_ipipeif",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(dm365_ipipeif_resources),
+	.resource	= dm365_ipipeif_resources,
+	.dev = {
+		.dma_mask		= &dm365_ipipeif_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+		/* For IPIPEIF device type. 1 - DM365 */
+		.platform_data		= (void *)1,
+	},
+};
+
 static u64 dm365_osd_dma_mask = DMA_BIT_MASK(32);
 
 static struct davinci_osd_platform_data dm365_osd_pdata = {
@@ -1187,6 +1211,18 @@ static struct resource isif_resource[] = {
 		.end            = 0x01c71000 + 0x1ff,
 		.flags          = IORESOURCE_MEM,
 	},
+	/* ISIF Linearization table 0 */
+	{
+		.start          = 0x1C7C000,
+		.end            = 0x1C7C000 + 0x2ff,
+		.flags          = IORESOURCE_MEM,
+	},
+	/* ISIF Linearization table 1 */
+	{
+		.start          = 0x1C7C400,
+		.end            = 0x1C7C400 + 0x2ff,
+		.flags          = IORESOURCE_MEM,
+	},
 };
 static struct platform_device dm365_isif_dev = {
 	.name           = "dm365_isif",
@@ -1213,6 +1249,7 @@ static int __init dm365_init_devices(void)
 	* vpfe capture platform device
 	*/
 	platform_device_register(&dm365_vpss_device);
+	platform_device_register(&dm365_ipipeif_dev);
 	platform_device_register(&dm365_isif_dev);
 	platform_device_register(&vpfe_capture_dev);
 

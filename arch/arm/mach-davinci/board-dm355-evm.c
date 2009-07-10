@@ -235,10 +235,10 @@ static struct platform_device dm355evm_dm9000 = {
 };
 
 /**
- * dm355_enable_i2c_switch() - Enable/Disable I2C switch PCA9543A for sensor
+ * dm355evm_enable_pca9543a() - Enable/Disable I2C switch PCA9543A for sensor
  * @en: enable/disbale flag
  */
-static int dm355evm_enable_i2c_switch(int en)
+static int dm355evm_enable_pca9543a(int en)
 {
 	static char val = 1;
 	int status;
@@ -274,10 +274,10 @@ static int dm355evm_setup_video_input(enum vpfe_subdev_id id)
 		ret = dm355evm_msp_write(MSP_VIDEO_IMAGER,
 					 DM355EVM_MSP_VIDEO_IN);
 		if (ret >= 0)
-			ret = dm355evm_enable_i2c_switch(1);
+			ret = dm355evm_enable_pca9543a(1);
 		else
 			/* switch off i2c switch since we failed */
-			ret = dm355evm_enable_i2c_switch(0);
+			ret = dm355evm_enable_pca9543a(0);
 		break;
 	}
 	case VPFE_SUBDEV_TVP5146:

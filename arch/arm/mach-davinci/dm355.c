@@ -767,7 +767,27 @@ void dm355_set_vpfe_config(struct vpfe_config *cfg)
 	vpfe_capture_dev.dev.platform_data = cfg;
 }
 
-/*----------------------------------------------------------------------*/
+/* IPIPEIF device configuration */
+static u64 dm355_ipipeif_dma_mask = DMA_BIT_MASK(32);
+static struct resource dm355_ipipeif_resources[] = {
+	{
+		.start          = 0x01C70100,
+		.end            = 0x01C70100 + 0x60,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device dm355_ipipeif_dev = {
+	.name		= "dm3xx_ipipeif",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(dm355_ipipeif_resources),
+	.resource	= dm355_ipipeif_resources,
+	.dev = {
+		.dma_mask		= &dm355_ipipeif_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+};
+
 static u64 dm355_osd_dma_mask = DMA_BIT_MASK(32);
 
 static struct davinci_osd_platform_data dm355_osd_pdata = {
@@ -959,6 +979,7 @@ static int __init dm355_init_devices(void)
 	davinci_cfg_reg(DM355_INT_EDMA_CC);
 	platform_device_register(&dm355_edma_device);
 	platform_device_register(&dm355_vpss_device);
+	platform_device_register(&dm355_ipipeif_dev);
 	platform_device_register(&dm355_ccdc_dev);
 	platform_device_register(&vpfe_capture_dev);
 

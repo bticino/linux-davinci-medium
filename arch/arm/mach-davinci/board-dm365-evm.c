@@ -40,6 +40,7 @@
 #include <mach/i2c.h>
 #include <mach/serial.h>
 #include <mach/mmc.h>
+#include <mach/mux.h>
 #include <mach/nand.h>
 #include <mach/keyscan.h>
 #include <mach/gpio.h>
@@ -48,10 +49,17 @@
 #include <media/tvp7002.h>
 #include <media/davinci/videohd.h>
 
+
+
+/* have_imager() - Check if we have support for imager interface */
 static inline int have_imager(void)
 {
-	/* REVISIT when it's supported, trigger via Kconfig */
+#if defined(CONFIG_SOC_CAMERA_MT9T031) || \
+    defined(CONFIG_SOC_CAMERA_MT9T031_MODULE)
+	return 1;
+#else
 	return 0;
+#endif
 }
 
 static inline int have_tvp7002(void)
@@ -228,6 +236,9 @@ static struct i2c_board_info i2c_info[] = {
 	{
 		I2C_BOARD_INFO("ths7303", 0x2c),
 	},
+	{
+		I2C_BOARD_INFO("PCA9543A", 0x73),
+	},
 };
 
 static struct davinci_i2c_platform_data i2c_pdata = {
@@ -285,6 +296,105 @@ static int cpld_mmc_get_ro(int module)
 	return !!(__raw_readb(cpld + CPLD_CARDSTAT) & BIT(module ? 5 : 1));
 }
 
+
+static struct i2c_client *pca9543a;
+
+static int pca9543a_probe(struct i2c_client *client,
+		const struct i2c_device_id *id)
+{
+	printk("pca9543a_probe\n");
+	pca9543a = client;
+	return 0;
+}
+
+static int pca9543a_remove(struct i2c_client *client)
+{
+	pca9543a = NULL;
+	return 0;
+}
+
+static const struct i2c_device_id pca9543a_ids[] = {
+	{ "PCA9543A", 0, },
+	{ /* end of list */ },
+};
+
+/* This is for i2c driver for the MT9T031 header i2c switch */
+static struct i2c_driver pca9543a_driver = {
+	.driver.name	= "PCA9543A",
+	.id_table	= pca9543a_ids,
+	.probe		= pca9543a_probe,
+	.remove		= pca9543a_remove,
+};
+
+/**
+ * dm365evm_reset_imager() - reset the image sensor
+ * @en: enable/disable flag
+ */
+static void dm365evm_reset_imager(int rst)
+{
+	u8 val;
+	
+	/* Reset bit6 of CPLD_IMG_DIR2 */
+	val = __raw_readb(cpld + CPLD_IMG_DIR2) & ~BIT(6);
+	__raw_writeb(val, (cpld + CPLD_IMG_DIR2));	
+
+	/* Set bit5 of CPLD_IMG_MUX5 */
+	val = __raw_readb(cpld + CPLD_IMG_MUX5) | BIT(5);
+	__raw_writeb(val, (cpld + CPLD_IMG_MUX5));	
+
+	/* Reset bit 0 of CPLD_IMG_MUX5 */
+	val = __raw_readb(cpld + CPLD_IMG_MUX5) & ~BIT(0);
+	__raw_writeb(val, (cpld + CPLD_IMG_MUX5));	
+
+	/**
+	 * Configure GPIO40 to be output and high. This has dependency on MMC1
+	 */
+	davinci_cfg_reg(DM365_GPIO40);
+	gpio_request(40, "sensor_reset");
+	if (rst)
+		gpio_direction_output(40, 1);
+	else
+		gpio_direction_output(40, 0);
+}
+
+/**
+ * dm365evm_enable_pca9543a() - Enable/Disable I2C switch PCA9543A for sensor
+ * @en: enable/disable flag
+ */
+static int dm365evm_enable_pca9543a(int en)
+{
+	static char val = 1;
+	int status;
+	struct i2c_msg msg = {
+			.flags = 0,
+			.len = 1,
+			.buf = &val,
+		};
+
+	printk("dm365evm_enable_pca9543a\n");	
+	if (!en)
+		val = 0;
+
+	if (!pca9543a)
+		return -ENXIO;
+
+	msg.addr = pca9543a->addr;
+	/* turn i2c switch, pca9543a, on/off */
+	status = i2c_transfer(pca9543a->adapter, &msg, 1);
+	printk("dm365evm_enable_pca9543a, status = %d\n", status);	
+	return status;
+	return 0;
+}
+
+/* Input available at the mt9t031 */
+static struct v4l2_input mt9t031_inputs[] = {
+	{
+		.index = 0,
+		.name = "Camera",
+		.type = V4L2_INPUT_TYPE_CAMERA,
+	}
+};
+
 #define TVP514X_STD_ALL        (V4L2_STD_NTSC | V4L2_STD_PAL)
 /* Inputs available at the TVP5146 */
 static struct v4l2_input tvp5146_inputs[] = {
@@ -335,7 +445,7 @@ static struct vpfe_route tvp5146_routes[] = {
 };
 
 static struct vpfe_subdev_info vpfe_sub_devs[] = {
-{
+	{
 		.module_name = "tvp5146",
 		.grp_id = VPFE_SUBDEV_TVP5146,
 		.num_inputs = ARRAY_SIZE(tvp5146_inputs),
@@ -373,6 +483,23 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 			I2C_BOARD_INFO("ths7353", 0x2e),
 		},
 	},
+	{
+		.module_name = "mt9t031",
+		.is_camera = 1,
+		.grp_id = VPFE_SUBDEV_MT9T031,
+		.num_inputs = ARRAY_SIZE(mt9t031_inputs),
+		.inputs = mt9t031_inputs,
+		.ccdc_if_params = {
+			.if_type = VPFE_RAW_BAYER,
+			.hdpol = VPFE_PINPOL_POSITIVE,
+			.vdpol = VPFE_PINPOL_POSITIVE,
+		},
+		.board_info = {
+			I2C_BOARD_INFO("mt9t031", 0x5d),
+			/* this is for PCLK rising edge */
+			.platform_data = (void *)1,
+		},
+	}
 };
 
 /* Set the input mux for TVP7002/TVP5146/MTxxxx sensors */
@@ -389,11 +516,17 @@ static int dm365evm_setup_video_input(enum vpfe_subdev_id id)
 			mux |= CPLD_VIDEO_INPUT_MUX_TVP5146;
 			resets &= ~BIT(0);
 			label = "tvp5146 SD";
+			dm365evm_reset_imager(0);
 			break;
 		case VPFE_SUBDEV_MT9T031:
 			mux |= CPLD_VIDEO_INPUT_MUX_IMAGER;
 			resets |= BIT(0); /* Put TVP5146 in reset */
 			label = "HD imager";
+
+			dm365evm_reset_imager(1);
+			/* Switch on pca9543a i2c switch */
+			if (have_imager())
+				dm365evm_enable_pca9543a(1);
 			break;
 		case VPFE_SUBDEV_TVP7002:
 			resets &= ~BIT(2);
@@ -405,6 +538,7 @@ static int dm365evm_setup_video_input(enum vpfe_subdev_id id)
 	}
 	__raw_writeb(mux, cpld + CPLD_MUX);
 	__raw_writeb(resets, cpld + CPLD_RESETS);
+
 	pr_info("EVM: switch to %s video input\n", label);
 	return 0;
 }
@@ -490,6 +624,8 @@ static void dm365evm_usb_configure(void)
 static void __init evm_init_i2c(void)
 {
 	davinci_init_i2c(&i2c_pdata);
+	if (have_imager())
+		i2c_add_driver(&pca9543a_driver);
 	i2c_register_board_info(1, i2c_info, ARRAY_SIZE(i2c_info));
 }
 
@@ -584,6 +720,7 @@ static void __init evm_init_cpld(void)
 	u8 mux, resets;
 	const char *label;
 	struct clk *aemif_clk;
+	struct davinci_soc_info *soc_info = &davinci_soc_info;
 
 	/* Make sure we can configure the CPLD through CS1.  Then
 	 * leave it on for later access to MMC and LED registers.
@@ -625,6 +762,15 @@ fail:
 	/* Leave external chips in reset when unused. */
 	resets = BIT(3) | BIT(2) | BIT(1) | BIT(0);
 
+	/* ... and ENET ... */
+	dm365evm_emac_configure();
+	soc_info->emac_pdata->phy_mask = DM365_EVM_PHY_MASK;
+	soc_info->emac_pdata->mdio_max_freq = DM365_EVM_MDIO_FREQUENCY;
+	resets &= ~BIT(3);
+
+	/* ... and AIC33 */
+	resets &= ~BIT(1);
+
 	/* Static video input config with SN74CBT16214 1-of-3 mux:
 	 *  - port b1 == tvp7002 (mux lowbits == 1 or 6)
 	 *  - port b2 == imager (mux lowbits == 2 or 7)
@@ -635,24 +781,15 @@ fail:
 	if (have_imager()) {
 		label = "HD imager";
 		mux |= CPLD_VIDEO_INPUT_MUX_IMAGER;
-
 		/* externally mux MMC1/ENET/AIC33 to imager */
-		mux |= BIT(6) | BIT(5) | BIT(3);
+		/* mux |= BIT(6) | BIT(5) | BIT(3); */
+		dm365evm_reset_imager(1);
+
 	} else {
-		struct davinci_soc_info *soc_info = &davinci_soc_info;
 
 		/* we can use MMC1 ... */
 		dm365evm_mmc_configure();
 		davinci_setup_mmc(1, &dm365evm_mmc_config);
-
-		/* ... and ENET ... */
-		dm365evm_emac_configure();
-		soc_info->emac_pdata->phy_mask = DM365_EVM_PHY_MASK;
-		soc_info->emac_pdata->mdio_max_freq = DM365_EVM_MDIO_FREQUENCY;
-		resets &= ~BIT(3);
-
-		/* ... and AIC33 */
-		resets &= ~BIT(1);
 
 		if (have_tvp7002()) {
 			mux |= CPLD_VIDEO_INPUT_MUX_TVP7002;
@@ -663,6 +800,7 @@ fail:
 			mux |= CPLD_VIDEO_INPUT_MUX_TVP5146;
 			resets &= ~BIT(0);
 			label = "tvp5146 SD";
+			dm365evm_reset_imager(0);
 		}
 	}
 	__raw_writeb(mux, cpld + CPLD_MUX);

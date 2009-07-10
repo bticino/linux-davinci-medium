@@ -118,6 +118,22 @@ obj-$(CONFIG_PS3_FLASH)		+= ps3flash.o
 
 obj-$(CONFIG_JS_RTC)		+= js-rtc.o
 js-rtc-y = rtc.o
+obj-$(CONFIG_ARCH_DAVINCI_DM644x)	+= dm6446_imp.o
+
+dm355_imp-objs			:= dm355_ipipe.o dm355_def_para.o \
+					dm355_ipipe_hw.o
+obj-$(CONFIG_DM355_IPIPE)	+= dm355_imp.o
+
+dm365_imp-objs			:= dm365_ipipe.o dm365_def_para.o \
+					dm365_ipipe_hw.o dm3xx_ipipe.o
+obj-$(CONFIG_DM365_IPIPE)	+= dm365_imp.o
+
+imp_prev_driver-objs		:= imp_previewer.o
+imp_rsz_driver-objs		:= imp_resizer.o
+obj-$(CONFIG_DM355_IPIPE)	+= imp_common.o
+obj-$(CONFIG_DM365_IPIPE)	+= imp_common.o
+obj-$(CONFIG_IMP_PREVIEWER)	+= imp_prev_driver.o
+obj-$(CONFIG_IMP_RESIZER)	+= imp_rsz_driver.o
 
 # Files generated that shall be removed upon make clean
 clean-files := consolemap_deftbl.c defkeymap.c
