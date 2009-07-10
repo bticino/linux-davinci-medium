@@ -596,6 +596,15 @@ config VIDEO_DM355_CCDC
 	   To compile this driver as a module, choose M here: the
 	   module will be called vpfe.
 
+config VIDEO_DM355_AF
+	tristate "DM355 Auto Focus Driver"
+	depends on ARCH_DAVINCI_DM355
+	default y
+	help
+	  DM355 Auto Focus Driver. Auto Focus driver is used to support
+	  control loop for Auto Focus. It collects metrics about the image or
+	  video data
+
 source "drivers/media/video/bt8xx/Kconfig"
 
 config VIDEO_PMS
