@@ -48,20 +48,26 @@
  * swap chips, maybe with a different block size, partitioning may
  * need to be changed.
  */
-#define NAND_BLOCK_SIZE		SZ_128K
+/*define NAND_BLOCK_SIZE		SZ_128K*/
+
+/* For Samsung 4K NAND (K9KAG08U0M) with 256K sectors */
+/*#define NAND_BLOCK_SIZE		SZ_256K*/
+
+/* For Micron 4K NAND with 512K sectors */
+#define NAND_BLOCK_SIZE		SZ_512K
 
 static struct mtd_partition davinci_nand_partitions[] = {
 	{
 		/* UBL (a few copies) plus U-Boot */
 		.name		= "bootloader",
 		.offset		= 0,
-		.size		= 15 * NAND_BLOCK_SIZE,
+		.size		= 30 * NAND_BLOCK_SIZE,
 		.mask_flags	= MTD_WRITEABLE, /* force read-only */
 	}, {
 		/* U-Boot environment */
 		.name		= "params",
 		.offset		= MTDPART_OFS_APPEND,
-		.size		= 1 * NAND_BLOCK_SIZE,
+		.size		= 2 * NAND_BLOCK_SIZE,
 		.mask_flags	= 0,
 	}, {
 		.name		= "kernel",
