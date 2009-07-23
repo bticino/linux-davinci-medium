@@ -84,8 +84,11 @@ int __init davinci_serial_init(struct davinci_uart_config *info)
 	 * You have to mux them off in device drivers later on if not needed.
 	 */
 	for (i = 0; i < DAVINCI_MAX_NR_UARTS; i++, p++) {
-		if (!(info->enabled_uarts & (1 << i)))
-			continue;
+		if (!cpu_is_davinci_dm355() &&
+			!cpu_is_davinci_dm365()) {
+			if (!(info->enabled_uarts & (1 << i)))
+				continue;
+		}
 
 		sprintf(name, "uart%d", i);
 		uart_clk = clk_get(dev, name);
