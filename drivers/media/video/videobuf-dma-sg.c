@@ -587,7 +587,7 @@ static int __videobuf_mmap_mapper(struct videobuf_queue *q,
 			retval = -EBUSY;
 			goto done;
 		}
-		size += q->bufs[last]->bsize;
+		size += PAGE_ALIGN(q->bufs[last]->bsize);
 		if (size == (vma->vm_end - vma->vm_start))
 			break;
 	}
@@ -609,7 +609,7 @@ static int __videobuf_mmap_mapper(struct videobuf_queue *q,
 			continue;
 		q->bufs[i]->map   = map;
 		q->bufs[i]->baddr = vma->vm_start + size;
-		size += q->bufs[i]->bsize;
+		size += PAGE_ALIGN(q->bufs[i]->bsize);
 	}
 
 	map->count    = 1;
