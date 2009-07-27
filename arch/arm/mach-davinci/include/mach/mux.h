@@ -94,6 +94,12 @@ enum davinci_dm646x_index {
 	/* ATA function */
 	DM646X_ATAEN,
 
+	/* PCI function */
+	DM646X_PCIEN,
+
+	/* HPI 32-bit */
+	DM646X_HPI32EN,
+
 	/* AUDIO Clock */
 	DM646X_AUDCK1,
 	DM646X_AUDCK0,

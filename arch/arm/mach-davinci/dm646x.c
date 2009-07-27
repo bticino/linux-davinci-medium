@@ -323,6 +323,12 @@ static struct clk vpif1_clk = {
 	.flags = ALWAYS_ENABLED,
 };
 
+static struct clk pci_clk = {
+	.name = "pci",
+	.parent = &pll1_sysclk2,
+	.lpsc = DM646X_LPSC_PCI,
+};
+
 struct davinci_clk dm646x_clks[] = {
 	CLK(NULL, "ref", &ref_clk),
 	CLK(NULL, "aux", &aux_clkin),
@@ -360,6 +366,7 @@ struct davinci_clk dm646x_clks[] = {
 	CLK(NULL, "pwm1", &pwm1_clk),
 	CLK(NULL, "timer0", &timer0_clk),
 	CLK(NULL, "timer1", &timer1_clk),
+	CLK(NULL, "pci", &pci_clk),
 	CLK("watchdog", NULL, &timer2_clk),
 	CLK("palm_bk3710", NULL, &ide_clk),
 	CLK(NULL, "vpif0", &vpif0_clk),
@@ -470,6 +477,10 @@ static struct platform_device dm646x_emac_device = {
 static const struct mux_config dm646x_pins[] = {
 #ifdef CONFIG_DAVINCI_MUX
 MUX_CFG(DM646X, ATAEN,		0,   0,     5,	  1,	 true)
+
+MUX_CFG(DM646X, PCIEN,		0,   0,     7,	  4,	 true)
+
+MUX_CFG(DM646X, HPI32EN,	0,   0,     7,	  2,	 true)
 
 MUX_CFG(DM646X, AUDCK1,		0,   29,    1,	  0,	 false)
 
