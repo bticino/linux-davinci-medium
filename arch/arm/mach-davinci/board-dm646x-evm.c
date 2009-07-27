@@ -51,6 +51,7 @@
 
 #include <mach/dm646x.h>
 #include <mach/common.h>
+#include <mach/mux.h>
 #include <mach/psc.h>
 #include <mach/serial.h>
 #include <mach/i2c.h>
@@ -61,6 +62,19 @@
 #include <mach/clock.h>
 #include "clock.h"
 
+
+#if defined(CONFIG_PCI)
+#define HAS_PCI 1
+#else
+#define HAS_PCI 0
+#endif
+
+#if defined(CONFIG_MTD_NAND_DAVINCI) || \
+	defined(CONFIG_MTD_NAND_DAVINCI_MODULE)
+#define HAS_NAND 1
+#else
+#define HAS_NAND 0
+#endif
 
 #if defined(CONFIG_BLK_DEV_PALMCHIP_BK3710) || \
     defined(CONFIG_BLK_DEV_PALMCHIP_BK3710_MODULE)
@@ -187,13 +201,63 @@ static struct platform_device davinci_nand_device = {
 	},
 };
 
-struct i2c_client *cple_reg0_client;
+/* Setup DM6467 for PCI mode. In case of default EVM, the CPLD along with FET
+ * switches takes care of switching to PCI Boot mode when the EVM is put in
+ * the PCI slot and this funtion needs to do nothing. While in case when the
+ * CPLD code/ Hardware is reworked (not to do autoswitch), the code below
+ * handles mux configurations to switch to PCI (Host) mode  and takes care of
+ * driving RST# over PCI Bus.
+ *
+ * Note: This function relies on h/w setting of PCIEN to distinguish between
+ * modified and unmodified EVM and might not work in case s/w (e.g., bootloader)
+ * is manipulating PCIEN after booting.
+ */
+static void dm646xevm_pci_setup(void)
+{
+	void __iomem *base = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE);
+
+	/* Skip this if PCIEN is already set in  PINMUX0 */
+	if (!((__raw_readl(base + PINMUX0)) & (1<<2))) {
+		/* Power up the I/O cells for PCI interface */
+		__raw_writel(__raw_readl(base + DM64XX_VDD3P3V_PWDN)
+				& ~(3<<16), base + DM64XX_VDD3P3V_PWDN);
+
+		davinci_cfg_reg(DM646X_HPI32EN);
+
+		/* Drive GPIO[13] High to avoid reset when PCI is
+		 * enabled
+		 */
+		if (gpio_request(13, "RST#") != 0) {
+			pr_err("Request for GPIO13 failed.\n");
+			return;
+		}
+
+		gpio_direction_output(13, 1);
+
+		/* Ensure AUDCK1 is disabled to control GPIO[2] */
+		davinci_cfg_reg(DM646X_AUDCK1);
+
+		davinci_cfg_reg(DM646X_PCIEN);
+
+		/* Drive GPIO[2] high to take the PCI bus out of reset
+		 * (drive RST#) and select B2 of the FET mux on EVM to
+		 * deselect NAND and switch to PCI Bus
+		 */
+		if (gpio_request(2, "PCIRST#") != 0) {
+			pr_err("Request for GPIO2 failed.\n");
+			return;
+		}
+		gpio_direction_output(2, 1);
+	} else {
+		pr_info("PCI_EN is already asserted.\n");
+	}
+}
 
 /* CPLD Register 0 Client: used for I/O Control */
 static int cpld_reg0_probe(struct i2c_client *client,
 			   const struct i2c_device_id *id)
 {
-	if (HAS_ATA) {
+	if (HAS_ATA && !HAS_PCI) {
 		u8 data;
 		struct i2c_msg msg[2] = {
 			{
@@ -822,11 +886,23 @@ static __init void evm_init(void)
 	dm646x_init_mcasp0(&dm646x_evm_snd_data[0]);
 	dm646x_init_mcasp1(&dm646x_evm_snd_data[1]);
 
-	if (HAS_NAND)
-		platform_device_register(&davinci_nand_device);
+	if (HAS_PCI) {
+		if (HAS_ATA)
+			pr_warning("WARNING: both PCI and IDE are "
+					"enabled, but they share some pins.\n"
+					"\tDisable PCI for IDE support.\n");
+		if (HAS_NAND)
+			pr_warning("WARNING: both PCI and NAND are "
+					"enabled, but they share AEMIF pins.\n"
+					"\tDisable PCI for NAND support.\n");
+		dm646xevm_pci_setup();
+	} else {
+		if (HAS_ATA)
+			dm646x_init_ide();
 
-	if (HAS_ATA)
-		dm646x_init_ide();
+		if (HAS_NAND)
+			platform_device_register(&davinci_nand_device);
+	}
 
 	soc_info->emac_pdata->phy_mask = DM646X_EVM_PHY_MASK;
 	soc_info->emac_pdata->mdio_max_freq = DM646X_EVM_MDIO_FREQUENCY;
