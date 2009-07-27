@@ -26,6 +26,11 @@
 
 #define DM646X_ATA_REG_BASE		(0x01C66000)
 
+/* System module register offsets */
+#define PINMUX0				0x00
+#define PINMUX1				0x04
+#define BOOTCFG				0x14
+
 void __init dm646x_init(void);
 void __init dm646x_init_ide(void);
 void __init dm646x_init_mcasp0(struct snd_platform_data *pdata);
