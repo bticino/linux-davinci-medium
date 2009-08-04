@@ -46,7 +46,7 @@
 /*
  * Device specific clocks
  */
-#define DM646X_REF_FREQ		27000000
+#define DM646X_REF_FREQ		33000000
 #define DM646X_AUX_FREQ		24000000
 
 static struct pll_data pll1_data = {
