@@ -246,8 +246,9 @@ static void otg_timer(unsigned long _musb)
 		 * NOTE setting the session flag is _supposed_ to trigger
 		 * SRP, but clearly it doesn't.
 		 */
-		musb_writeb(mregs, MUSB_DEVCTL,
+/*		musb_writeb(mregs, MUSB_DEVCTL,
 				devctl | MUSB_DEVCTL_SESSION);
+*/
 		devctl = musb_readb(mregs, MUSB_DEVCTL);
 		if (devctl & MUSB_DEVCTL_BDEVICE)
 			mod_timer(&otg_workaround, jiffies + POLL_SECONDS * HZ);

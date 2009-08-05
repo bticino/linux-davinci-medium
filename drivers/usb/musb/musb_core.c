@@ -909,8 +909,6 @@ void musb_start(struct musb *musb)
 		 */
 		if ((devctl & MUSB_DEVCTL_VBUS) == MUSB_DEVCTL_VBUS)
 			musb->is_active = 1;
-		else
-			devctl |= MUSB_DEVCTL_SESSION;
 
 	} else if (is_host_enabled(musb)) {
 		/* assume ID pin is hard-wired to ground */
