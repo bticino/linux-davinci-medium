@@ -441,7 +441,7 @@ void musb_g_tx(struct musb *musb, u8 epnum)
 				musb->dma_controller->channel_abort(dma);
 			}
 
-			if (request)
+			if (request && musb_ep->busy)
 				musb_g_giveback(musb_ep, request, -EPIPE);
 
 			break;
@@ -771,7 +771,7 @@ void musb_g_rx(struct musb *musb, u8 epnum)
 		csr &= ~MUSB_RXCSR_P_SENTSTALL;
 		musb_writew(epio, MUSB_RXCSR, csr);
 
-		if (request)
+		if (request && musb_ep->busy)
 			musb_g_giveback(musb_ep, request, -EPIPE);
 		goto done;
 	}
