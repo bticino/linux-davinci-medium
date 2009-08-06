@@ -31,6 +31,7 @@
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/mmc/mmc.h>
+#include <linux/mmc/card.h>
 
 #include <mach/mmc.h>
 #include <mach/edma.h>
@@ -65,8 +66,8 @@
 #define DAVINCI_MMCBLNC      0x60
 #define DAVINCI_SDIOCTL      0x64
 #define DAVINCI_SDIOST0      0x68
-#define DAVINCI_SDIOEN       0x6C
-#define DAVINCI_SDIOST       0x70
+#define DAVINCI_SDIOIEN      0x6C
+#define DAVINCI_SDIOIST      0x70
 #define DAVINCI_MMCFIFOCTL   0x74 /* FIFO Control Register             */
 
 /* DAVINCI_MMCCTL definitions */
@@ -99,6 +100,8 @@
 #define MMCST0_DRRDY          BIT(10)	/* data receive ready (data in fifo)*/
 #define MMCST0_DATED          BIT(11)	/* DAT3 edge detect */
 #define MMCST0_TRNDNE         BIT(12)	/* transfer done */
+
+#define MMCST0_ERR_MASK         (0x00F8)
 
 /* DAVINCI_MMCST1 definitions */
 #define MMCST1_BUSY           (1 << 0)
@@ -133,6 +136,23 @@
 /* MMCSD Init clock in Hz in opendrain mode */
 #define MMCSD_INIT_CLOCK		200000
 
+/* DAVINCI_SDIOCTL definitions */
+#define SDIOCTL_RDWTRQ_SET	  BIT(0)
+#define SDIOCTL_RDWTCR_SET	  BIT(1)
+
+/* DAVINCI_SDIOST0 definitions */
+#define SDIOST0_DAT1_HI		  BIT(0)
+#define SDIOST0_INTPRD		  BIT(1)
+#define SDIOST0_RDWTST		  BIT(2)
+
+/* DAVINCI_SDIOIEN definitions */
+#define SDIOIEN_IOINTEN		  BIT(0)
+#define SDIOIEN_RWSEN		  BIT(1)
+
+/* DAVINCI_SDIOIST definitions */
+#define SDIOIST_IOINT		  BIT(0)
+#define SDIOIST_RWS			  BIT(1)
+
 /*
  * One scatterlist dma "segment" is at most MAX_CCNT rw_threshold units,
  * and we handle up to NR_SG segments.  MMC_BLOCK_BOUNCE kicks in only
@@ -144,6 +164,9 @@
 #define MAX_CCNT	((1 << 16) - 1)
 
 #define NR_SG		16
+
+#define DM355_SDIO_IRQ(deviceId)             \
+    (((deviceId) == 0) ? "sdio0" : "sdio1")
 
 static unsigned rw_threshold = 32;
 module_param(rw_threshold, uint, S_IRUGO);
@@ -162,7 +185,7 @@ struct mmc_davinci_host {
 	unsigned int mmc_input_clk;
 	void __iomem *base;
 	struct resource *mem_res;
-	int irq;
+	int mmc_irq, sdio_irq;
 	unsigned char bus_mode;
 
 #define DAVINCI_MMC_DATADIR_NONE	0
@@ -181,6 +204,7 @@ struct mmc_davinci_host {
 	u32 rxdma, txdma;
 	bool use_dma;
 	bool do_dma;
+	u32 sdio_int;
 
 	/* Scatterlist DMA uses one or more parameter RAM entries:
 	 * the main one (associated with rxdma or txdma) plus zero or
@@ -386,6 +410,16 @@ static void mmc_davinci_dma_cb(unsigned channel, u16 ch_status, void *data)
 {
 	if (DMA_COMPLETE != ch_status) {
 		struct mmc_davinci_host *host = data;
+
+		if (!(host->data)) {
+			dev_warn(mmc_dev(host->mmc),
+				"DMA Event Miss / NULL Transfr\n");
+			edma_stop(host->txdma);
+			edma_clean_channel(host->txdma);
+			edma_stop(host->rxdma);
+			edma_clean_channel(host->rxdma);
+			return;
+		}
 
 		/* Currently means:  DMA Event Missed, or "null" transfer
 		 * request was seen.  In the future, TC errors (like bad
@@ -664,6 +698,14 @@ mmc_davinci_prepare_data(struct mmc_davinci_host *host, struct mmc_request *req)
 	host->buffer = NULL;
 	host->bytes_left = data->blocks * data->blksz;
 
+	if (host->mmc->card) {
+		if (mmc_card_sdio(host->mmc->card)) {
+			if ((data->blksz == 64)) {
+				mdelay(5);
+			}
+		}
+	}
+
 	/* For now we try to use DMA whenever we won't need partial FIFO
 	 * reads or writes, either for the whole transfer (as tested here)
 	 * or for any individual scatterlist segment (tested when we call
@@ -826,17 +868,26 @@ static void mmc_davinci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 static void
 mmc_davinci_xfer_done(struct mmc_davinci_host *host, struct mmc_data *data)
 {
-	host->data = NULL;
+	davinci_abort_dma(host);
+
+	if (host->mmc->caps & MMC_CAP_SDIO_IRQ) {
+		if (host->sdio_int && (!((readl(host->base + DAVINCI_SDIOST0))
+					& SDIOST0_DAT1_HI))) {
+			writel(SDIOIST_IOINT, host->base + DAVINCI_SDIOIST);
+			mmc_signal_sdio_irq(host->mmc);
+		}
+	}
+	host->data_dir = DAVINCI_MMC_DATADIR_NONE;
 
 	if (host->do_dma) {
-		davinci_abort_dma(host);
-
 		dma_unmap_sg(mmc_dev(host->mmc), data->sg, data->sg_len,
 			     (data->flags & MMC_DATA_WRITE)
 			     ? DMA_TO_DEVICE
 			     : DMA_FROM_DEVICE);
 		host->do_dma = false;
 	}
+
+	host->data = NULL;
 	host->data_dir = DAVINCI_MMC_DATADIR_NONE;
 
 	if (!data->stop || (host->cmd && host->cmd->error)) {
@@ -887,6 +938,22 @@ davinci_abort_data(struct mmc_davinci_host *host, struct mmc_data *data)
 	writel(temp, host->base + DAVINCI_MMCCTL);
 }
 
+static irqreturn_t mmc_davinci_sdio_irq(int irq, void *dev_id)
+{
+	struct mmc_davinci_host *host = (struct mmc_davinci_host *)dev_id;
+	unsigned int status;
+
+	status = readl(host->base + DAVINCI_SDIOIST);
+	if (status & SDIOIST_IOINT) {
+		dev_dbg(mmc_dev(host->mmc),
+				"SDIO interrupt status %x\n", status);
+		writel(status | SDIOIST_IOINT,
+				host->base + DAVINCI_SDIOIST);
+		mmc_signal_sdio_irq(host->mmc);
+	}
+	return IRQ_HANDLED;
+}
+
 static irqreturn_t mmc_davinci_irq(int irq, void *dev_id)
 {
 	struct mmc_davinci_host *host = (struct mmc_davinci_host *)dev_id;
@@ -907,6 +974,73 @@ static irqreturn_t mmc_davinci_irq(int irq, void *dev_id)
 	status = readl(host->base + DAVINCI_MMCST0);
 	qstatus = status;
 
+	if (qstatus & MMCST0_ERR_MASK) {
+		if (qstatus & MMCST0_TOUTRD) {
+			/* Read data timeout */
+			data->error = -ETIMEDOUT;
+			end_transfer = 1;
+
+			dev_err(mmc_dev(host->mmc),
+					"read data timeout, status %x\n",
+					qstatus);
+
+			davinci_abort_data(host, data);
+			goto end_data;
+		}
+
+		if (qstatus & (MMCST0_CRCWR | MMCST0_CRCRD)) {
+			/* Data CRC error */
+			data->error = -EILSEQ;
+			end_transfer = 1;
+
+			/* NOTE:  this controller uses CRCWR to report both CRC
+			 * errors and timeouts (on writes).  MMCDRSP values are
+			 * only weakly documented, but 0x9f was clearly a
+			 * timeout case and the two three-bit patterns in
+			 * various SD specs (101, 010) aren't part of it ...
+			 */
+			if (qstatus & MMCST0_CRCWR) {
+				u32 temp = readb(host->base + DAVINCI_MMCDRSP);
+
+				if (temp == 0x9f)
+					data->error = -ETIMEDOUT;
+			}
+			dev_err(mmc_dev(host->mmc), "data %s %s error\n",
+				(qstatus & MMCST0_CRCWR) ? "write" :
+				"read",	(data->error == -ETIMEDOUT) ?
+				"timeout" : "CRC");
+
+			davinci_abort_data(host, data);
+			goto end_data;
+		}
+
+		if (qstatus & MMCST0_TOUTRS) {
+			/* Command timeout */
+			if (host->cmd) {
+				dev_err(mmc_dev(host->mmc),
+						"CMD%d timeout, status %x\n",
+						host->cmd->opcode, qstatus);
+				host->cmd->error = -ETIMEDOUT;
+				if (data) {
+					end_transfer = 1;
+					davinci_abort_data(host, data);
+				} else
+					end_command = 1;
+			}
+			goto end_cmd;
+		}
+
+		if (qstatus & MMCST0_CRCRS) {
+			/* Command CRC error */
+			dev_err(mmc_dev(host->mmc), "Command CRC error\n");
+			if (host->cmd) {
+				host->cmd->error = -EILSEQ;
+				end_command = 1;
+			}
+			goto end_cmd;
+		}
+	}
+
 	/* handle FIFO first when using PIO for data.
 	 * bytes_left will decrease to zero as I/O progress and status will
 	 * read zero over iteration because this controller status
@@ -920,6 +1054,11 @@ static irqreturn_t mmc_davinci_irq(int irq, void *dev_id)
 		if (!status)
 			break;
 		qstatus |= status;
+	}
+
+	if (qstatus & MMCST0_RSPDNE) {
+		/* End of command phase */
+		end_command = (int) host->cmd;
 	}
 
 	if (qstatus & MMCST0_DATDNE) {
@@ -939,73 +1078,10 @@ static irqreturn_t mmc_davinci_irq(int irq, void *dev_id)
 		}
 	}
 
-	if (qstatus & MMCST0_TOUTRD) {
-		/* Read data timeout */
-		data->error = -ETIMEDOUT;
-		end_transfer = 1;
-
-		dev_dbg(mmc_dev(host->mmc),
-			"read data timeout, status %x\n",
-			qstatus);
-
-		davinci_abort_data(host, data);
-	}
-
-	if (qstatus & (MMCST0_CRCWR | MMCST0_CRCRD)) {
-		/* Data CRC error */
-		data->error = -EILSEQ;
-		end_transfer = 1;
-
-		/* NOTE:  this controller uses CRCWR to report both CRC
-		 * errors and timeouts (on writes).  MMCDRSP values are
-		 * only weakly documented, but 0x9f was clearly a timeout
-		 * case and the two three-bit patterns in various SD specs
-		 * (101, 010) aren't part of it ...
-		 */
-		if (qstatus & MMCST0_CRCWR) {
-			u32 temp = readb(host->base + DAVINCI_MMCDRSP);
-
-			if (temp == 0x9f)
-				data->error = -ETIMEDOUT;
-		}
-		dev_dbg(mmc_dev(host->mmc), "data %s %s error\n",
-			(qstatus & MMCST0_CRCWR) ? "write" : "read",
-			(data->error == -ETIMEDOUT) ? "timeout" : "CRC");
-
-		davinci_abort_data(host, data);
-	}
-
-	if (qstatus & MMCST0_TOUTRS) {
-		/* Command timeout */
-		if (host->cmd) {
-			dev_dbg(mmc_dev(host->mmc),
-				"CMD%d timeout, status %x\n",
-				host->cmd->opcode, qstatus);
-			host->cmd->error = -ETIMEDOUT;
-			if (data) {
-				end_transfer = 1;
-				davinci_abort_data(host, data);
-			} else
-				end_command = 1;
-		}
-	}
-
-	if (qstatus & MMCST0_CRCRS) {
-		/* Command CRC error */
-		dev_dbg(mmc_dev(host->mmc), "Command CRC error\n");
-		if (host->cmd) {
-			host->cmd->error = -EILSEQ;
-			end_command = 1;
-		}
-	}
-
-	if (qstatus & MMCST0_RSPDNE) {
-		/* End of command phase */
-		end_command = (int) host->cmd;
-	}
-
+end_cmd:
 	if (end_command)
 		mmc_davinci_cmd_done(host, host->cmd);
+end_data:
 	if (end_transfer)
 		mmc_davinci_xfer_done(host, data);
 	return IRQ_HANDLED;
@@ -1031,11 +1107,34 @@ static int mmc_davinci_get_ro(struct mmc_host *mmc)
 	return config->get_ro(pdev->id);
 }
 
+static void mmc_davinci_enable_sdio_irq(struct mmc_host *mmc, int enable)
+{
+	struct mmc_davinci_host *host = mmc_priv(mmc);
+
+	if (enable) {
+		if (!((readl(host->base + DAVINCI_SDIOST0))
+			    & SDIOST0_DAT1_HI)) {
+			writel(SDIOIST_IOINT,
+					host->base + DAVINCI_SDIOIST);
+			mmc_signal_sdio_irq(host->mmc);
+		} else {
+			host->sdio_int = 1;
+			writel(readl(host->base + DAVINCI_SDIOIEN) |
+				SDIOIEN_IOINTEN, host->base + DAVINCI_SDIOIEN);
+		}
+	} else {
+		host->sdio_int = 0;
+		writel(readl(host->base + DAVINCI_SDIOIEN) & ~SDIOIEN_IOINTEN,
+				host->base + DAVINCI_SDIOIEN);
+	}
+
+}
 static struct mmc_host_ops mmc_davinci_ops = {
 	.request	= mmc_davinci_request,
 	.set_ios	= mmc_davinci_set_ios,
 	.get_cd		= mmc_davinci_get_cd,
 	.get_ro		= mmc_davinci_get_ro,
+	.enable_sdio_irq	= mmc_davinci_enable_sdio_irq,
 };
 
 /*----------------------------------------------------------------------*/
@@ -1072,15 +1171,14 @@ static int __init davinci_mmcsd_probe(struct platform_device *pdev)
 	struct mmc_davinci_host *host = NULL;
 	struct mmc_host *mmc = NULL;
 	struct resource *r, *mem = NULL;
-	int ret = 0, irq = 0;
+	int ret = 0;
 	size_t mem_size;
 
 	/* REVISIT:  when we're fully converted, fail if pdata is NULL */
 
 	ret = -ENODEV;
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	irq = platform_get_irq(pdev, 0);
-	if (!r || irq == NO_IRQ)
+	if (!r)
 		goto out;
 
 	ret = -EBUSY;
@@ -1096,6 +1194,16 @@ static int __init davinci_mmcsd_probe(struct platform_device *pdev)
 
 	host = mmc_priv(mmc);
 	host->mmc = mmc;	/* Important */
+
+	r = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!r)
+		goto out;
+	host->mmc_irq = r->start;
+
+	r = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
+	if (!r)
+		goto out;
+	host->sdio_irq = r->start;
 
 	r = platform_get_resource(pdev, IORESOURCE_DMA, 0);
 	if (!r)
@@ -1124,7 +1232,6 @@ static int __init davinci_mmcsd_probe(struct platform_device *pdev)
 	init_mmcsd_host(host);
 
 	host->use_dma = use_dma;
-	host->irq = irq;
 
 	if (host->use_dma && davinci_acquire_dma_channels(host) != 0)
 		host->use_dma = 0;
@@ -1173,9 +1280,21 @@ static int __init davinci_mmcsd_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto out;
 
-	ret = request_irq(irq, mmc_davinci_irq, 0, mmc_hostname(mmc), host);
+	ret = request_irq(host->mmc_irq, mmc_davinci_irq, 0,
+		mmc_hostname(mmc), host);
 	if (ret)
 		goto out;
+
+	if (host->sdio_irq > 0) {
+		ret = request_irq(host->sdio_irq,
+				mmc_davinci_sdio_irq, 0,
+				DM355_SDIO_IRQ(pdev->id), host);
+		if (ret == 0) {
+			mmc->caps |= MMC_CAP_SDIO_IRQ;
+			host->sdio_int = 0;
+		} else
+			goto out;
+	}
 
 	rename_region(mem, mmc_hostname(mmc));
 
@@ -1215,10 +1334,19 @@ static int __exit davinci_mmcsd_remove(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, NULL);
 	if (host) {
-		mmc_remove_host(host->mmc);
-		free_irq(host->irq, host);
 
-		davinci_release_dma_channels(host);
+		writel((readl(host->base + DAVINCI_MMCCLK) & ~MMCCLK_CLKEN),
+				host->base + DAVINCI_MMCCLK);
+
+		mmc_remove_host(host->mmc);
+
+		free_irq(host->mmc_irq, host);
+
+		if (host->mmc->caps & MMC_CAP_SDIO_IRQ)
+			free_irq(host->sdio_irq, host);
+
+		if (host->use_dma)
+			davinci_release_dma_channels(host);
 
 		clk_disable(host->clk);
 		clk_put(host->clk);
