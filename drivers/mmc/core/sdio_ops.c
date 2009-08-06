@@ -19,6 +19,28 @@
 #include "core.h"
 #include "sdio_ops.h"
 
+int mmc_reset_sdio(struct mmc_host *host)
+{
+	struct mmc_command cmd;
+	int err = 0;
+
+	BUG_ON(!host);
+
+	memset(&cmd, 0, sizeof(struct mmc_command));
+
+	cmd.opcode = SD_IO_RW_DIRECT;
+	cmd.arg = 0x80000000;
+	cmd.arg |= (SDIO_CCCR_ABORT) << 9;
+	cmd.arg |= (1<<3);
+	cmd.flags = MMC_RSP_R5 | MMC_CMD_AC;
+
+	err = mmc_wait_for_cmd(host, &cmd, 0);
+	if (err)
+		return err;
+
+	return 0;
+}
+
 int mmc_send_io_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr)
 {
 	struct mmc_command cmd;

@@ -1017,7 +1017,7 @@ static irqreturn_t mmc_davinci_irq(int irq, void *dev_id)
 		if (qstatus & MMCST0_TOUTRS) {
 			/* Command timeout */
 			if (host->cmd) {
-				dev_err(mmc_dev(host->mmc),
+				dev_dbg(mmc_dev(host->mmc),
 						"CMD%d timeout, status %x\n",
 						host->cmd->opcode, qstatus);
 				host->cmd->error = -ETIMEDOUT;
