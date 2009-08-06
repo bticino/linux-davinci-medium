@@ -14,6 +14,7 @@
 #include <linux/serial_8250.h>
 #include <linux/platform_device.h>
 #include <linux/gpio.h>
+#include <linux/spi/spi.h>
 
 #include <asm/mach/map.h>
 
@@ -28,6 +29,7 @@
 #include <mach/serial.h>
 #include <mach/common.h>
 #include <mach/asp.h>
+#include <mach/spi.h>
 
 #include "clock.h"
 #include "mux.h"
@@ -262,6 +264,12 @@ static struct clk emac_clk = {
 	.lpsc = DM646X_LPSC_EMAC,
 };
 
+static struct clk spi0_clk = {
+	.name = "spi0",
+	.parent = &pll1_sysclk3,
+	.lpsc = DM646X_LPSC_SPI,
+};
+
 static struct clk pwm0_clk = {
 	.name = "pwm0",
 	.parent = &pll1_sysclk3,
@@ -347,6 +355,7 @@ struct davinci_clk dm646x_clks[] = {
 	CLK("davinci-mcasp.1", NULL, &mcasp1_clk),
 	CLK(NULL, "aemif", &aemif_clk),
 	CLK("davinci_emac.1", NULL, &emac_clk),
+	CLK("spi_davinci.0", NULL, &spi0_clk),
 	CLK(NULL, "pwm0", &pwm0_clk),
 	CLK(NULL, "pwm1", &pwm1_clk),
 	CLK(NULL, "timer0", &timer0_clk),
@@ -357,6 +366,50 @@ struct davinci_clk dm646x_clks[] = {
 	CLK(NULL, "vpif1", &vpif1_clk),
 	CLK(NULL, NULL, NULL),
 };
+
+static u64 dm646x_spi0_dma_mask = DMA_BIT_MASK(32);
+
+static struct davinci_spi_platform_data dm646x_spi0_pdata = {
+	.version 	= SPI_VERSION_1,
+	.num_chipselect = 2,
+	.clk_internal	= 1,
+	.cs_hold	= 1,
+	.intr_level	= 0,
+	.poll_mode	= 1,
+	.c2tdelay	= 8,
+	.t2cdelay	= 8,
+};
+
+static struct resource dm646x_spi0_resources[] = {
+	{
+		.start = 0x01c66800,
+		.end   = 0x01c66fff,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = IRQ_DM646X_SPINT0,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device dm646x_spi0_device = {
+	.name = "spi_davinci",
+	.id = 0,
+	.dev = {
+		.dma_mask = &dm646x_spi0_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		.platform_data = &dm646x_spi0_pdata,
+	},
+	.num_resources = ARRAY_SIZE(dm646x_spi0_resources),
+	.resource = dm646x_spi0_resources,
+};
+
+void __init dm646x_init_spi0(struct spi_board_info *info, unsigned len)
+{
+	spi_register_board_info(info, len);
+
+	platform_device_register(&dm646x_spi0_device);
+}
 
 static struct emac_platform_data dm646x_emac_pdata = {
 	.ctrl_reg_offset	= DM646X_EMAC_CNTRL_OFFSET,
