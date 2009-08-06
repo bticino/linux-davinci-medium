@@ -24,6 +24,9 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/nand.h>
+#include <linux/spi/spi.h>
+#include <linux/spi/eeprom.h>
+
 #include <asm/setup.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -470,6 +473,24 @@ static void __init dm365_evm_map_io(void)
 	dm365_init();
 }
 
+static struct spi_eeprom at25640 = {
+	.byte_len	= SZ_64K / 8,
+	.name		= "at25640",
+	.page_size	= 32,
+	.flags		= EE_ADDR2,
+};
+
+static struct spi_board_info dm365_evm_spi_info[] __initconst = {
+	{
+		.modalias	= "at25",
+		.platform_data	= &at25640,
+		.max_speed_hz	= 10 * 1000 * 1000,	/* at 3v3 */
+		.bus_num	= 0,
+		.chip_select	= 0,
+		.mode		= SPI_MODE_0,
+	},
+};
+
 static __init void dm365_evm_init(void)
 {
 	evm_init_i2c();
@@ -484,6 +505,8 @@ static __init void dm365_evm_init(void)
 	evm_init_cpld();
 
 	dm365_init_asp(&dm365_evm_snd_data);
+	dm365_init_spi0(BIT(0), dm365_evm_spi_info,
+			ARRAY_SIZE(dm365_evm_spi_info));
 }
 
 static __init void dm365_evm_irq_init(void)
