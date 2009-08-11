@@ -172,6 +172,14 @@ config DAVINCI_RESET_CLOCKS
 	  probably do not want this option enabled until your
 	  device drivers work properly.
 
+config OSC_CLK_FREQ
+	int "Input oscillator clock frequency"
+	default 27000000
+	depends on ARCH_DAVINCI
+	help
+	  Specify external clock input frequency for system oscillator. Make
+	  sure this matches as per your board specification.
+
 endmenu
 
 endif
