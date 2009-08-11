@@ -104,18 +104,23 @@ static void __iomem *cpld;
 
 /* NOTE:  this is geared for the standard config, with a socketed
  * 2 GByte Micron NAND (MT29F16G08FAA) using 128KB sectors.  If you
- * swap chips with a different block size, partitioning will
- * need to be changed. This NAND chip MT29F16G08FAA is the default
- * NAND shipped with the Spectrum Digital DM365 EVM
+ * swap chips, maybe with a different block size, partitioning may
+ * need to be changed.
  */
-#define NAND_BLOCK_SIZE		SZ_128K
+/*define NAND_BLOCK_SIZE		SZ_128K*/
+
+/* For Samsung 4K NAND (K9KAG08U0M) with 256K sectors */
+/*#define NAND_BLOCK_SIZE		SZ_256K*/
+
+/* For Micron 4K NAND with 512K sectors */
+#define NAND_BLOCK_SIZE		SZ_512K
 
 static struct mtd_partition davinci_nand_partitions[] = {
 	{
 		/* UBL (a few copies) plus U-Boot */
 		.name		= "bootloader",
 		.offset		= 0,
-		.size		= 28 * NAND_BLOCK_SIZE,
+		.size		= 30 * NAND_BLOCK_SIZE,
 		.mask_flags	= MTD_WRITEABLE, /* force read-only */
 	}, {
 		/* U-Boot environment */
