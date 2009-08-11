@@ -35,6 +35,13 @@
 #ifndef _MUSB_HOST_H
 #define _MUSB_HOST_H
 
+#ifdef CONFIG_MUSB_RESERVE_ISO_EP
+#define RESERVE_EP 2
+#endif
+#ifdef CONFIG_MUSB_SCHEDULE_INTR_EP
+#define RESERVE_EP 4
+#endif
+
 static inline struct usb_hcd *musb_to_hcd(struct musb *musb)
 {
 	return container_of((void *) musb, struct usb_hcd, hcd_priv);
@@ -92,6 +99,8 @@ extern int musb_hub_control(struct usb_hcd *hcd,
 			char *buf, u16 wLength);
 
 extern const struct hc_driver musb_hc_driver;
+extern int is_intr_sched(void);
+extern void musb_host_intr_schedule(struct musb *musb);
 
 static inline struct urb *next_urb(struct musb_qh *qh)
 {

@@ -722,15 +722,23 @@ static irqreturn_t musb_stage2_irq(struct musb *musb, u8 int_usb,
  * endpoints, relies on TX/RX interval registers, and isn't claimed
  * to support ISO transfers yet.
  */
+#endif
 	if (int_usb & MUSB_INTR_SOF) {
+#if 0
 		void __iomem *mbase = musb->mregs;
 		struct musb_hw_ep	*ep;
 		u8 epnum;
 		u16 frame;
-
+#endif
 		DBG(6, "START_OF_FRAME\n");
 		handled = IRQ_HANDLED;
 
+#ifdef CONFIG_MUSB_SCHEDULE_INTR_EP
+		if (is_intr_sched())
+			musb_host_intr_schedule(musb);
+#endif
+
+#if 0
 		/* start any periodic Tx transfers waiting for current frame */
 		frame = musb_readw(mbase, MUSB_FRAME);
 		ep = musb->endpoints;
@@ -752,8 +760,8 @@ static irqreturn_t musb_stage2_irq(struct musb *musb, u8 int_usb,
 					cppi_hostdma_start(musb, epnum);
 			}
 		}		/* end of for loop */
-	}
 #endif
+	}
 
 	if ((int_usb & MUSB_INTR_DISCONNECT) && !musb->ignore_disconnect) {
 		DBG(1, "DISCONNECT (%s) as %s, devctl %02x\n",
@@ -1041,7 +1049,7 @@ static struct fifo_cfg __initdata mode_1_cfg[] = {
 { .hw_ep_num = 3, .style = FIFO_RXTX, .maxpacket = 256, },
 { .hw_ep_num = 4, .style = FIFO_RXTX, .maxpacket = 256, },
 };
-
+#if 0
 /* mode 2 - fits in 4KB */
 static struct fifo_cfg __initdata mode_2_cfg[] = {
 { .hw_ep_num = 1, .style = FIFO_TX,   .maxpacket = 512, },
@@ -1051,6 +1059,20 @@ static struct fifo_cfg __initdata mode_2_cfg[] = {
 { .hw_ep_num = 3, .style = FIFO_RXTX, .maxpacket = 256, },
 { .hw_ep_num = 4, .style = FIFO_RXTX, .maxpacket = 256, },
 };
+#endif
+#if 1
+/* mode 2 - fits in 4KB */
+static struct fifo_cfg __initdata mode_2_cfg[] = {
+{ .hw_ep_num = 1, .style = FIFO_TX,   .maxpacket = 512, },
+{ .hw_ep_num = 1, .style = FIFO_RX,   .maxpacket = 512, },
+{ .hw_ep_num = 2, .style = FIFO_TX,   .maxpacket = 512, },
+{ .hw_ep_num = 2, .style = FIFO_RX,   .maxpacket = 512, },
+{ .hw_ep_num = 3, .style = FIFO_TX,   .maxpacket = 512, },
+{ .hw_ep_num = 3, .style = FIFO_RX,   .maxpacket = 512, },
+{ .hw_ep_num = 4, .style = FIFO_TX,   .maxpacket = 256, },
+{ .hw_ep_num = 4, .style = FIFO_RX,   .maxpacket = 256, },
+};
+#endif
 
 /* mode 3 - fits in 4KB */
 static struct fifo_cfg __initdata mode_3_cfg[] = {
@@ -1130,6 +1152,11 @@ fifo_setup(struct musb *musb, struct musb_hw_ep  *hw_ep,
 	musb_writeb(mbase, MUSB_INDEX, hw_ep->epnum);
 
 #ifdef CONFIG_USB_MUSB_HDRC_HCD
+
+#ifdef CONFIG_MUSB_SCHEDULE_INTR_EP
+	if ((hw_ep->epnum == RESERVE_EP) && (cfg->style == FIFO_RX))
+		musb->intr_ep = hw_ep;
+#endif
 	/* EP0 reserved endpoint for control, bidirectional;
 	 * EP1 reserved for bulk, two unidirection halves.
 	 */
@@ -1788,6 +1815,8 @@ allocate_instance(struct device *dev,
 	INIT_LIST_HEAD(&musb->control);
 	INIT_LIST_HEAD(&musb->in_bulk);
 	INIT_LIST_HEAD(&musb->out_bulk);
+	INIT_LIST_HEAD(&musb->in_intr);
+	INIT_LIST_HEAD(&musb->out_intr);
 
 	hcd->uses_new_polling = 1;
 
