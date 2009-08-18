@@ -598,6 +598,15 @@ config VIDEO_DM355_CCDC
 	   To compile this driver as a module, choose M here: the
 	   module will be called vpfe.
 
+config VIDEO_DM365_ISIF
+	tristate "DM365 CCDC/ISIF HW module"
+	depends on ARCH_DAVINCI_DM365 && VIDEO_VPFE_CAPTURE
+	default y
+	help
+	   Enables DM365 ISIF hw module. This is the hardware module for
+	   configuring ISIF in VPFE to capture Raw Bayer RGB data  from
+	   a image sensor or YUV data from a YUV source.
+
 config VIDEO_DM355_AF
 	tristate "DM355 Auto Focus Driver"
 	depends on ARCH_DAVINCI_DM355
