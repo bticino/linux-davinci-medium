@@ -238,8 +238,8 @@ static struct vpfe_route tvp5146_routes[] = {
 
 static struct vpfe_subdev_info vpfe_sub_devs[] = {
 	{
-		.name = "tvp5146",
-		.grp_id = 0,
+		.module_name = TVP514X_MODULE_NAME,
+		.grp_id = VPFE_SUBDEV_TVP5146,
 		.num_inputs = ARRAY_SIZE(tvp5146_inputs),
 		.inputs = tvp5146_inputs,
 		.routes = tvp5146_routes,
@@ -261,6 +261,8 @@ static struct vpfe_config vpfe_cfg = {
 	.sub_devs = vpfe_sub_devs,
 	.card_name = "DM6446 EVM",
 	.ccdc = "DM6446 CCDC",
+	.num_clocks = 2,
+	.clocks = {"vpss_master", "vpss_slave"},
 };
 
 static struct platform_device rtc_dev = {
