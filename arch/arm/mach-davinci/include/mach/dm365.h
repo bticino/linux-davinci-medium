@@ -15,6 +15,7 @@
 
 #include <linux/platform_device.h>
 #include <mach/hardware.h>
+#include <media/davinci/vpfe_capture.h>
 #include <mach/emac.h>
 #include <mach/asp.h>
 
@@ -27,6 +28,8 @@
 
 void __init dm365_init(void);
 void __init dm365_init_asp(struct snd_platform_data *pdata);
+void dm365_set_vpfe_config(struct vpfe_config *cfg);
+
 struct spi_board_info;
 void dm365_init_spi0(unsigned chipselect_mask,
 		struct spi_board_info *info, unsigned len);

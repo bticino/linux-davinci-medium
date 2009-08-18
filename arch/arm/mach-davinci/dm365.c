@@ -1024,6 +1024,62 @@ void __init dm365_init(void)
 	davinci_common_init(&davinci_soc_info_dm365);
 }
 
+static struct resource dm365_vpss_resources[] = {
+	{
+		/* VPSS ISP5 Base address */
+		.name           = "vpss",
+		.start          = 0x01c70000,
+		.end            = 0x01c70000 + 0xff,
+		.flags          = IORESOURCE_MEM,
+	},
+	{
+		/* VPSS CLK Base address */
+		.name           = "vpss",
+		.start          = 0x01c70200,
+		.end            = 0x01c70200 + 0xff,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device dm365_vpss_device = {
+       .name                   = "vpss",
+       .id                     = -1,
+       .dev.platform_data      = "dm365_vpss",
+       .num_resources          = ARRAY_SIZE(dm365_vpss_resources),
+       .resource               = dm365_vpss_resources,
+};
+
+static struct resource vpfe_resources[] = {
+	{
+		.start          = IRQ_VDINT0,
+		.end            = IRQ_VDINT0,
+		.flags          = IORESOURCE_IRQ,
+	},
+	{
+		.start          = IRQ_VDINT1,
+		.end            = IRQ_VDINT1,
+		.flags          = IORESOURCE_IRQ,
+	},
+	/* ISIF Base address */
+	{
+		.start          = 0x01c71000,
+		.end            = 0x01c71000 + 0x1ff,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static u64 vpfe_capture_dma_mask = DMA_BIT_MASK(32);
+static struct platform_device vpfe_capture_dev = {
+	.name           = CAPTURE_DRV_NAME,
+	.id             = -1,
+	.num_resources  = ARRAY_SIZE(vpfe_resources),
+	.resource       = vpfe_resources,
+	.dev = {
+		.dma_mask               = &vpfe_capture_dma_mask,
+		.coherent_dma_mask      = DMA_BIT_MASK(32),
+	},
+};
+
 static int __init dm365_init_devices(void)
 {
 	if (!cpu_is_davinci_dm365())
@@ -1033,6 +1089,18 @@ static int __init dm365_init_devices(void)
 	platform_device_register(&dm365_edma_device);
 	platform_device_register(&dm365_emac_device);
 
+	/*
+	* setup Mux configuration for vpfe input and register
+	* vpfe capture platform device
+	*/
+	platform_device_register(&dm365_vpss_device);
+	platform_device_register(&vpfe_capture_dev);
+
 	return 0;
 }
 postcore_initcall(dm365_init_devices);
+
+void dm365_set_vpfe_config(struct vpfe_config *cfg)
+{
+       vpfe_capture_dev.dev.platform_data = cfg;
+}
