@@ -69,8 +69,6 @@ enum vpfe_subdev_id {
 };
 
 struct vpfe_subdev_info {
-	/* Deprecated. Will be removed in the next patch */
-	char name[32];
 	/* Sub device module name */
 	char module_name[32];
 	/* Sub device group id */
@@ -102,9 +100,6 @@ struct vpfe_config {
 	char *card_name;
 	/* ccdc name */
 	char *ccdc;
-	/* vpfe clock */
-	struct clk *vpssclk;
-	struct clk *slaveclk;
 	/* setup function for the input path */
 	int (*setup_input)(enum vpfe_subdev_id id);
 	/* number of clocks */
