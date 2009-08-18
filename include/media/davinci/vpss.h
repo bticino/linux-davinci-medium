@@ -26,10 +26,41 @@
 #ifndef _VPSS_H
 #define _VPSS_H
 
+/* dm365 stuff or wutever like that */
+#define DM365_PCCR 			0x04
+#define DM365_ISP_REG_BASE 		0x01c70000
+#define DM365_VPSS_REG_BASE 		0x01c70200
+#define DM365_VPBE_CLK_CTRL 		0x00
+#define DM365_ISP5_CCDCMUX 		0x20
+#define DM365_ISP5_PG_FRAME_SIZE 	0x28
+#define DM365_CCDC_PG_VD_POL_SHIFT 	0
+#define DM365_CCDC_PG_HD_POL_SHIFT 	1
+#define DM365_VPSS_INTSEL1		0x10
+#define VPSS_CLK_CTRL			0x01C40044
+#define CCD_SRC_SEL_MASK		(BIT_MASK(5) | BIT_MASK(4))
+#define CCD_SRC_SEL_SHIFT		4
+#define CCD_INT_SEL_MASK		(BIT_MASK(12) | BIT_MASK(11)|\
+					BIT_MASK(10) | BIT_MASK(9)  |\
+					BIT_MASK(8)  | BIT_MASK(4)  |\
+					BIT_MASK(3)  | BIT_MASK(2)  |\
+					BIT_MASK(1)  | BIT_MASK(0))
+
 /* selector for ccdc input selection on DM355 */
 enum vpss_ccdc_source_sel {
 	VPSS_CCDCIN,
-	VPSS_HSSIIN
+	VPSS_HSSIIN,
+	VPSS_PGLPBK,
+	VPSS_CCDCPG
+};
+
+struct vpss_sync_pol {
+	unsigned int ccdpg_hdpol:1;
+	unsigned int ccdpg_vdpol:1;
+};
+
+struct vpss_pg_frame_size {
+	short hlpfr;
+	short pplen;
 };
 
 /* Used for enable/diable VPSS Clock */
@@ -47,12 +78,38 @@ enum vpss_clock_sel {
 	 */
 	VPSS_VENC_CLOCK_SEL,
 	VPSS_VPBE_CLOCK,
+	/* DM365 only clocks */
+	VPSS_IPIPEIF_CLOCK,
+	VPSS_RSZ_CLOCK,
+	VPSS_BL_CLOCK,
+	/*
+	 * When using VPSS_PCLK_INTERNAL in vpss_enable_clock() api
+	 * following applies:-
+	 * en = 0 disable internal PCLK
+	 * en = 1 enables internal PCLK
+	 */
+	VPSS_PCLK_INTERNAL,
+	/*
+	 * When using VPSS_PSYNC_CLOCK_SEL in vpss_enable_clock() api
+	 * following applies:-
+	 * en = 0 enables MMR clock
+	 * en = 1 enables VPSS clock
+	 */
+	VPSS_PSYNC_CLOCK_SEL,
+	VPSS_LDC_CLOCK_SEL,
+	VPSS_OSD_CLOCK_SEL,
+	VPSS_FDIF_CLOCK,
+	VPSS_LDC_CLOCK
 };
 
 /* select input to ccdc on dm355 */
 int vpss_select_ccdc_source(enum vpss_ccdc_source_sel src_sel);
 /* enable/disable a vpss clock, 0 - success, -1 - failure */
 int vpss_enable_clock(enum vpss_clock_sel clock_sel, int en);
+/*set sync polarity, only implemented for DM365*/
+void vpss_set_sync_pol(struct vpss_sync_pol);
+/*set the PG_FRAME_SIZE register, only implemented for DM365*/
+void vpss_set_pg_frame_size(struct vpss_pg_frame_size);
 
 /* wbl reset for dm644x */
 enum vpss_wbl_sel {
