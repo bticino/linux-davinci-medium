@@ -780,6 +780,18 @@ static u8 dm365_default_priorities[DAVINCI_N_AINTC_IRQ] = {
 	[IRQ_DM365_EMUINT]		= 7,
 };
 
+static const s8 dma_chan_dm365_no_event[] = {
+	0, 1, 4, 5, 6, 7, 8, 9, 10,
+	11, 12, 13, 14, 15, 16, 17,
+	18, 19, 20, 21, 22, 23, 24,
+	25, 28, 29, 32, 33, 34, 35,
+	36, 37, 38, 39, 40, 41, 42,
+	43, 44, 45, 46, 47, 48, 49,
+	50, 51, 52, 53, 54, 55, 56,
+	57, 58, 59, 60, 61, 62, 63,
+	-1
+};
+
 /* Four Transfer Controllers on DM365 */
 static const s8
 dm365_queue_tc_mapping[][2] = {
@@ -808,6 +820,7 @@ static struct edma_soc_info dm365_edma_info[] = {
 		.n_slot			= 256,
 		.n_tc			= 4,
 		.n_cc			= 1,
+		.noevent		= dma_chan_dm365_no_event,
 		.queue_tc_mapping	= dm365_queue_tc_mapping,
 		.queue_priority_mapping	= dm365_queue_priority_mapping,
 		.default_queue		= EVENTQ_2,
