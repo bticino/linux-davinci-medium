@@ -131,7 +131,7 @@ struct ccdc_config_params_raw {
 #define NUM_EXTRALINES		8
 
 /* settings for commonly used video formats */
-#define CCDC_WIN_PAL     {0, 0, 720, 576}
+#define CCDC_WIN_NTSC     {0, 0, 720, 480}
 /* ntsc square pixel */
 #define CCDC_WIN_VGA	{0, 0, (640 + NUM_EXTRAPIXELS), (480 + NUM_EXTRALINES)}
 

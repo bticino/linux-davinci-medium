@@ -254,7 +254,7 @@ struct ccdc_config_params_raw {
 #ifdef __KERNEL__
 #include <linux/io.h>
 
-#define CCDC_WIN_PAL	{0, 0, 720, 576}
+#define CCDC_WIN_NTSC	{0, 0, 720, 480}
 #define CCDC_WIN_VGA	{0, 0, 640, 480}
 
 struct ccdc_params_ycbcr {

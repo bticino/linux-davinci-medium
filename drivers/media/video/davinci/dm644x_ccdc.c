@@ -65,7 +65,7 @@ static struct ccdc_params_raw ccdc_hw_params_raw = {
 static struct ccdc_params_ycbcr ccdc_hw_params_ycbcr = {
 	.pix_fmt = CCDC_PIXFMT_YCBCR_8BIT,
 	.frm_fmt = CCDC_FRMFMT_INTERLACED,
-	.win = CCDC_WIN_PAL,
+	.win = CCDC_WIN_NTSC,
 	.fid_pol = VPFE_PINPOL_POSITIVE,
 	.vd_pol = VPFE_PINPOL_POSITIVE,
 	.hd_pol = VPFE_PINPOL_POSITIVE,
@@ -825,8 +825,10 @@ static int ccdc_set_hw_if_params(struct vpfe_hw_if_param *params)
 		ccdc_hw_params_ycbcr.vd_pol = params->vdpol;
 		ccdc_hw_params_ycbcr.hd_pol = params->hdpol;
 		break;
+	case VPFE_RAW_BAYER:
+		ccdc_hw_params_raw.vd_pol = params->vdpol;
+		ccdc_hw_params_raw.hd_pol = params->hdpol;
 	default:
-		/* TODO add support for raw bayer here */
 		return -EINVAL;
 	}
 	return 0;
@@ -861,9 +863,12 @@ static struct ccdc_hw_device ccdc_hw_dev = {
 
 static int dm644x_ccdc_init(void)
 {
+	int ret;
+
 	printk(KERN_NOTICE "dm644x_ccdc_init\n");
-	if (vpfe_register_ccdc_device(&ccdc_hw_dev) < 0)
-		return -1;
+	ret = vpfe_register_ccdc_device(&ccdc_hw_dev);
+	if (ret < 0)
+		return ret;
 	printk(KERN_NOTICE "%s is registered with vpfe.\n",
 		ccdc_hw_dev.name);
 	return 0;
