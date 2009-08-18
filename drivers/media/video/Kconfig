@@ -585,13 +585,15 @@ config VIDEO_DM355_CCDC
 	tristate "DM355 CCDC HW module"
 	depends on ARCH_DAVINCI_DM355 && VIDEO_VPFE_CAPTURE
 	select VIDEO_VPSS_SYSTEM
+	select MFD_DM355EVM_MSP
 	default y
 	help
 	   Enables DM355 CCD hw module. DM355 CCDC hw interfaces
 	   with decoder modules such as TVP5146 over BT656 or
 	   sensor module such as MT9T001 over a raw interface. This
 	   module configures the interface and CCDC/ISIF to do
-	   video frame capture from a slave decoders
+	   video frame capture from a slave decoders. MFD_DM355EVM_MSP
+	   is enabled to select input to CCDC at run time.
 
 	   To compile this driver as a module, choose M here: the
 	   module will be called vpfe.
