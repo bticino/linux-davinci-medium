@@ -1116,6 +1116,13 @@ config DEVPORT
 	depends on ISA || PCI
 	default y
 
+config VDCE
+        tristate "DaVinci VDCE Driver"
+        default n
+        depends on ARCH_DAVINCI_DM646x
+        help
+                DaVinci VDCE Driver.
+
 source "drivers/s390/char/Kconfig"
 
 endmenu
