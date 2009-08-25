@@ -249,7 +249,6 @@ int vpfe_register_ccdc_device(struct ccdc_hw_device *dev)
 	BUG_ON(!dev->hw_ops.set_image_window);
 	BUG_ON(!dev->hw_ops.get_image_window);
 	BUG_ON(!dev->hw_ops.get_line_length);
-	BUG_ON(!dev->hw_ops.setfbaddr);
 	BUG_ON(!dev->hw_ops.getfid);
 
 	mutex_lock(&ccdc_lock);
@@ -277,8 +276,6 @@ int vpfe_register_ccdc_device(struct ccdc_hw_device *dev)
 	}
 
 	ccdc_dev = dev;
-	dev->hw_ops.set_ccdc_base(ccdc_cfg->ccdc_addr,
-				  ccdc_cfg->ccdc_addr_size);
 unlock:
 	mutex_unlock(&ccdc_lock);
 	return ret;
@@ -2174,37 +2171,12 @@ static __init int vpfe_probe(struct platform_device *pdev)
 	}
 	vpfe_dev->ccdc_irq1 = res1->start;
 
-	/* Get address base of CCDC */
-	res1 = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res1) {
-		v4l2_err(pdev->dev.driver,
-			"Unable to get register address map\n");
-		ret = -ENOENT;
-		goto probe_disable_clock;
-	}
-
-	ccdc_cfg->ccdc_addr_size = res1->end - res1->start + 1;
-	if (!request_mem_region(res1->start, ccdc_cfg->ccdc_addr_size,
-				pdev->dev.driver->name)) {
-		v4l2_err(pdev->dev.driver,
-			"Failed request_mem_region for ccdc base\n");
-		ret = -ENXIO;
-		goto probe_disable_clock;
-	}
-	ccdc_cfg->ccdc_addr = ioremap_nocache(res1->start,
-					     ccdc_cfg->ccdc_addr_size);
-	if (!ccdc_cfg->ccdc_addr) {
-		v4l2_err(pdev->dev.driver, "Unable to ioremap ccdc addr\n");
-		ret = -ENXIO;
-		goto probe_out_release_mem1;
-	}
-
 	ret = request_irq(vpfe_dev->ccdc_irq0, vpfe_isr, IRQF_DISABLED,
 			  "vpfe_capture0", vpfe_dev);
 
 	if (0 != ret) {
 		v4l2_err(pdev->dev.driver, "Unable to request interrupt\n");
-		goto probe_out_unmap1;
+		goto probe_disable_clock;
 	}
 
 	/* Allocate memory for video device */
@@ -2360,10 +2332,6 @@ probe_out_video_release:
 		video_device_release(vpfe_dev->video_dev);
 probe_out_release_irq:
 	free_irq(vpfe_dev->ccdc_irq0, vpfe_dev);
-probe_out_unmap1:
-	iounmap(ccdc_cfg->ccdc_addr);
-probe_out_release_mem1:
-	release_mem_region(res1->start, res1->end - res1->start + 1);
 probe_disable_clock:
 	vpfe_disable_clock(vpfe_dev);
 	mutex_unlock(&ccdc_lock);
@@ -2379,7 +2347,6 @@ probe_free_dev_mem:
 static int vpfe_remove(struct platform_device *pdev)
 {
 	struct vpfe_device *vpfe_dev = platform_get_drvdata(pdev);
-	struct resource *res;
 
 	v4l2_info(pdev->dev.driver, "vpfe_remove\n");
 
@@ -2387,11 +2354,6 @@ static int vpfe_remove(struct platform_device *pdev)
 	kfree(vpfe_dev->sd);
 	v4l2_device_unregister(&vpfe_dev->v4l2_dev);
 	video_unregister_device(vpfe_dev->video_dev);
-	mutex_lock(&ccdc_lock);
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	release_mem_region(res->start, res->end - res->start + 1);
-	iounmap(ccdc_cfg->ccdc_addr);
-	mutex_unlock(&ccdc_lock);
 	vpfe_disable_clock(vpfe_dev);
 	kfree(vpfe_dev);
 	kfree(ccdc_cfg);

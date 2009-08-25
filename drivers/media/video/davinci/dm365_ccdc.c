@@ -22,11 +22,11 @@
  *	 4) Test VPFE_CMD_S_CCDC_RAW_RARAMS ioctl
  */
 #include <linux/delay.h>
-#include <mach/mux.h>
-#include <linux/device.h>
+#include <linux/platform_device.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
 #include <linux/videodev2.h>
+#include <mach/mux.h>
 #include <media/davinci/dm365_ccdc.h>
 #include <media/davinci/vpss.h>
 #include "dm365_ccdc_regs.h"
@@ -122,7 +122,6 @@ static struct ccdc_config_params_raw ccdc_config_defaults = {
 
 static enum vpfe_hw_if_type ccdc_if_type;
 static void *__iomem isif_base_addr;
-static int isif_addr_size;
 
 /* Raw Bayer formats */
 static u32 ccdc_raw_bayer_pix_formats[] =
@@ -177,11 +176,13 @@ static void ccdc_enable(int en)
 	ccdc_merge(CCDC_SYNCEN_VDHDEN_MASK, en, SYNCEN);
 }
 
+#if 0
 static void ccdc_set_ccdc_base(void *addr, int size)
 {
 	isif_base_addr = addr;
 	isif_addr_size = size;
 }
+#endif
 
 static void ccdc_enable_output_to_sdram(int en)
 {
@@ -1367,7 +1368,6 @@ static struct ccdc_hw_device ccdc_hw_dev = {
 	.hw_ops = {
 		.open = ccdc_open,
 		.close = ccdc_close,
-		.set_ccdc_base = ccdc_set_ccdc_base,
 		.enable = ccdc_enable,
 		.enable_out_to_sdram = ccdc_enable_output_to_sdram,
 		.set_hw_if_params = ccdc_set_hw_if_params,
@@ -1388,31 +1388,89 @@ static struct ccdc_hw_device ccdc_hw_dev = {
 	},
 };
 
-static int dm365_ccdc_init(void)
+static int __init dm365_ccdc_probe(struct platform_device *pdev)
 {
-	int ret;
-	printk(KERN_NOTICE "dm365_ccdc_init\n");
+	static resource_size_t  res_len;
+	struct resource	*res;
+	int status = 0;
+
+	/**
+	 * first try to register with vpfe. If not correct platform, then we
+	 * don't have to iomap
+	 */
+	status = vpfe_register_ccdc_device(&ccdc_hw_dev);
+	if (status < 0)
+		return status;
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		status = -ENOENT;
+		goto fail_nores;
+	}
+
+	res_len = res->end - res->start + 1;
+
+	res = request_mem_region(res->start, res_len, res->name);
+	if (!res) {
+		status = -EBUSY;
+		goto fail_nores;
+	}
+
+	isif_base_addr = ioremap_nocache(res->start, res_len);
+	if (!isif_base_addr) {
+		status = -EBUSY;
+		goto fail;
+	}
+
 	davinci_cfg_reg(DM365_VIN_CAM_WEN);
 	davinci_cfg_reg(DM365_VIN_CAM_VD);
 	davinci_cfg_reg(DM365_VIN_CAM_HD);
 	davinci_cfg_reg(DM365_VIN_YIN4_7_EN);
 	davinci_cfg_reg(DM365_VIN_YIN0_3_EN);
-	ret = vpfe_register_ccdc_device(&ccdc_hw_dev);
-	if (ret < 0)
-		return ret;
+
 	printk(KERN_NOTICE "%s is registered with vpfe.\n",
 		ccdc_hw_dev.name);
+	return 0;
+fail:
+	release_mem_region(res->start, res_len);
+fail_nores:
+	vpfe_unregister_ccdc_device(&ccdc_hw_dev);
+	return status;
+}
 
+static int dm365_ccdc_remove(struct platform_device *pdev)
+{
+	struct resource	*res;
+
+	iounmap(isif_base_addr);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (res)
+		release_mem_region(res->start, res->end - res->start + 1);
+	vpfe_unregister_ccdc_device(&ccdc_hw_dev);
 	return 0;
 }
 
+static struct platform_driver dm365_ccdc_driver = {
+	.driver = {
+		.name	= "dm365_isif",
+		.owner = THIS_MODULE,
+	},
+	.remove = __devexit_p(dm365_ccdc_remove),
+	.probe = dm365_ccdc_probe,
+};
+
+static int dm365_ccdc_init(void)
+{
+	return platform_driver_register(&dm365_ccdc_driver);
+}
+
+
 static void dm365_ccdc_exit(void)
 {
-	vpfe_unregister_ccdc_device(&ccdc_hw_dev);
+	platform_driver_unregister(&dm365_ccdc_driver);
 }
 
 module_init(dm365_ccdc_init);
 module_exit(dm365_ccdc_exit);
-
 
 MODULE_LICENSE("GPL");

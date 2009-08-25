@@ -85,7 +85,6 @@ static u32 ccdc_raw_yuv_pix_formats[] =
 	{V4L2_PIX_FMT_UYVY, V4L2_PIX_FMT_YUYV};
 
 static void *__iomem ccdc_base_addr;
-static int ccdc_addr_size;
 static enum vpfe_hw_if_type ccdc_if_type;
 
 /* register access routines */
@@ -97,12 +96,6 @@ static inline u32 regr(u32 offset)
 static inline void regw(u32 val, u32 offset)
 {
 	__raw_writel(val, ccdc_base_addr + offset);
-}
-
-static void ccdc_set_ccdc_base(void *addr, int size)
-{
-	ccdc_base_addr = addr;
-	ccdc_addr_size = size;
 }
 
 static void ccdc_enable(int flag)
@@ -840,7 +833,6 @@ static struct ccdc_hw_device ccdc_hw_dev = {
 	.hw_ops = {
 		.open = ccdc_open,
 		.close = ccdc_close,
-		.set_ccdc_base = ccdc_set_ccdc_base,
 		.reset = ccdc_sbl_reset,
 		.enable = ccdc_enable,
 		.set_hw_if_params = ccdc_set_hw_if_params,
@@ -861,22 +853,79 @@ static struct ccdc_hw_device ccdc_hw_dev = {
 	},
 };
 
-static int dm644x_ccdc_init(void)
+static int __init dm644x_ccdc_probe(struct platform_device *pdev)
 {
-	int ret;
+	static resource_size_t  res_len;
+	struct resource	*res;
+	int status = 0;
 
-	printk(KERN_NOTICE "dm644x_ccdc_init\n");
-	ret = vpfe_register_ccdc_device(&ccdc_hw_dev);
-	if (ret < 0)
-		return ret;
+	/**
+	 * first try to register with vpfe. If not correct platform, then we
+	 * don't have to iomap
+	 */
+	status = vpfe_register_ccdc_device(&ccdc_hw_dev);
+	if (status < 0)
+		return status;
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		status = -ENOENT;
+		goto fail_nores;
+	}
+
+	res_len = res->end - res->start + 1;
+
+	res = request_mem_region(res->start, res_len, res->name);
+	if (!res) {
+		status = -EBUSY;
+		goto fail_nores;
+	}
+
+	ccdc_base_addr = ioremap_nocache(res->start, res_len);
+	if (!ccdc_base_addr) {
+		status = -EBUSY;
+		goto fail;
+	}
+
 	printk(KERN_NOTICE "%s is registered with vpfe.\n",
 		ccdc_hw_dev.name);
 	return 0;
+fail:
+	release_mem_region(res->start, res_len);
+fail_nores:
+	vpfe_unregister_ccdc_device(&ccdc_hw_dev);
+	return status;
+}
+
+static int dm644x_ccdc_remove(struct platform_device *pdev)
+{
+	struct resource	*res;
+
+	iounmap(ccdc_base_addr);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (res)
+		release_mem_region(res->start, res->end - res->start + 1);
+	vpfe_unregister_ccdc_device(&ccdc_hw_dev);
+	return 0;
+}
+
+static struct platform_driver dm644x_ccdc_driver = {
+	.driver = {
+		.name	= "dm644x_ccdc",
+		.owner = THIS_MODULE,
+	},
+	.remove = __devexit_p(dm644x_ccdc_remove),
+	.probe = dm644x_ccdc_probe,
+};
+
+static int dm644x_ccdc_init(void)
+{
+	return platform_driver_register(&dm644x_ccdc_driver);
 }
 
 static void dm644x_ccdc_exit(void)
 {
-	vpfe_unregister_ccdc_device(&ccdc_hw_dev);
+	platform_driver_unregister(&dm644x_ccdc_driver);
 }
 
 module_init(dm644x_ccdc_init);
