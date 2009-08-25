@@ -1060,12 +1060,6 @@ static struct resource vpfe_resources[] = {
 		.end            = IRQ_VDINT1,
 		.flags          = IORESOURCE_IRQ,
 	},
-	/* ISIF Base address */
-	{
-		.start          = 0x01c71000,
-		.end            = 0x01c71000 + 0x1ff,
-		.flags          = IORESOURCE_MEM,
-	},
 };
 
 static u64 vpfe_capture_dma_mask = DMA_BIT_MASK(32);
@@ -1074,6 +1068,25 @@ static struct platform_device vpfe_capture_dev = {
 	.id             = -1,
 	.num_resources  = ARRAY_SIZE(vpfe_resources),
 	.resource       = vpfe_resources,
+	.dev = {
+		.dma_mask               = &vpfe_capture_dma_mask,
+		.coherent_dma_mask      = DMA_BIT_MASK(32),
+	},
+};
+
+static struct resource isif_resource[] = {
+	/* ISIF Base address */
+	{
+		.start          = 0x01c71000,
+		.end            = 0x01c71000 + 0x1ff,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+static struct platform_device dm365_isif_dev = {
+	.name           = "dm365_isif",
+	.id             = -1,
+	.num_resources  = ARRAY_SIZE(isif_resource),
+	.resource       = isif_resource,
 	.dev = {
 		.dma_mask               = &vpfe_capture_dma_mask,
 		.coherent_dma_mask      = DMA_BIT_MASK(32),
@@ -1094,6 +1107,7 @@ static int __init dm365_init_devices(void)
 	* vpfe capture platform device
 	*/
 	platform_device_register(&dm365_vpss_device);
+	platform_device_register(&dm365_isif_dev);
 	platform_device_register(&vpfe_capture_dev);
 
 	return 0;
