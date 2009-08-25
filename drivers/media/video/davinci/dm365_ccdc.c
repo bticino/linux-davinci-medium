@@ -143,14 +143,12 @@ static inline void regw(u32 val, u32 offset)
 	__raw_writel(val, isif_base_addr + offset);
 }
 
-static void ccdc_enable(int en)
+static inline u32 ccdc_merge(u32 mask, u32 val, u32 offset)
 {
-	unsigned int temp;
+	u32 new_val = (regr(offset) & ~mask) | (val & mask);
 
-	temp = regr(SYNCEN);
-	temp &= (~CCDC_SYNCEN_VDHDEN_MASK);
-	temp |= (en & CCDC_SYNCEN_VDHDEN_MASK);
-	regw(temp, SYNCEN);
+	regw(new_val, offset);
+	return new_val;
 }
 
 static void ccdc_disable_all_modules(void)
@@ -166,6 +164,19 @@ static void ccdc_disable_all_modules(void)
 	/* disable other modules here as they are supported */
 }
 
+static void ccdc_enable(int en)
+{
+	if (!en) {
+		/* Before disable isif, disable all ISIF modules */
+		ccdc_disable_all_modules();
+		/* wait for next VD. Assume lowest scan rate is 12 Hz. So
+		 * 100 msec delay is good enough
+		 */
+	}
+	msleep(100);
+	ccdc_merge(CCDC_SYNCEN_VDHDEN_MASK, en, SYNCEN);
+}
+
 static void ccdc_set_ccdc_base(void *addr, int size)
 {
 	isif_base_addr = addr;
@@ -174,12 +185,7 @@ static void ccdc_set_ccdc_base(void *addr, int size)
 
 static void ccdc_enable_output_to_sdram(int en)
 {
-	unsigned int temp;
-
-	temp = regr(SYNCEN);
-	temp &= (~(CCDC_SYNCEN_WEN_MASK));
-	temp |= ((en << CCDC_SYNCEN_WEN_SHIFT) & CCDC_SYNCEN_WEN_MASK);
-	regw(temp, SYNCEN);
+	ccdc_merge(CCDC_SYNCEN_WEN_MASK, en << CCDC_SYNCEN_WEN_SHIFT, SYNCEN);
 }
 
 static void ccdc_config_culling(struct ccdc_cul *cul)
@@ -195,7 +201,8 @@ static void ccdc_config_culling(struct ccdc_cul *cul)
 	regw(cul->vcpat, CULV);
 
 	/* LPF */
-	ccdc_enable(cul->en_lpf << CCDC_LPF_SHIFT);
+	ccdc_merge((CCDC_LPF_MASK << CCDC_LPF_SHIFT),
+		   (cul->en_lpf << CCDC_LPF_SHIFT), MODESET);
 }
 
 static void ccdc_config_gain_offset(void)
@@ -211,10 +218,9 @@ static void ccdc_config_gain_offset(void)
 	((gain_off_ptr->offset_ipipe_en & 1) << OFST_IPIPE_EN_SHIFT) |
 	((gain_off_ptr->offset_h3a_en & 1) << OFST_H3A_EN_SHIFT);
 
-	ccdc_enable(val);
+	ccdc_merge(GAIN_OFFSET_EN_MASK, val, CGAMMAWD);
 
-	val = ((
-		gain_off_ptr->gain.r_ye.integer	& GAIN_INTEGER_MASK)
+	val = ((gain_off_ptr->gain.r_ye.integer	& GAIN_INTEGER_MASK)
 		<< GAIN_INTEGER_SHIFT);
 	val |= (ccdc_hw_params_bayer.
 		config_params.gain_offset.gain.r_ye.decimal &
@@ -508,9 +514,11 @@ static void ccdc_config_dfc(struct ccdc_dfc *vdfc)
 	}
 
 	/* enable VDFC */
-	ccdc_enable((1 << CCDC_VDFC_EN_SHIFT));
+	ccdc_merge((1 << CCDC_VDFC_EN_SHIFT), (1 << CCDC_VDFC_EN_SHIFT),
+		   DFCCTL);
 
-	ccdc_enable((0 << CCDC_VDFC_EN_SHIFT));
+	ccdc_merge((1 << CCDC_VDFC_EN_SHIFT), (0 << CCDC_VDFC_EN_SHIFT),
+		   DFCCTL);
 
 	regw(0x6, DFCMEMCTL);
 	for (i = 0 ; i < vdfc->num_vdefects; i++) {
