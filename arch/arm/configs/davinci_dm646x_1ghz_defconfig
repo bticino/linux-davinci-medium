@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.31-rc5-davinci1
-# Thu Aug 27 12:06:52 2009
+# Thu Aug 27 13:55:26 2009
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -888,9 +888,9 @@ CONFIG_SPI_MASTER=y
 #
 # SPI Master Controller Drivers
 #
-# CONFIG_SPI_DAVINCI is not set
-# CONFIG_SPI_BITBANG is not set
-# CONFIG_SPI_GPIO is not set
+CONFIG_SPI_DAVINCI=y
+CONFIG_SPI_BITBANG=y
+CONFIG_SPI_GPIO=y
 
 #
 # SPI Protocol Masters
