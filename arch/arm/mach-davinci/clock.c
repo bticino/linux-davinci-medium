@@ -126,8 +126,14 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 
 	if (clk == NULL || IS_ERR(clk))
 		return ret;
+/* NOTE: We need to relook into this as CDCE clock set rate
+ * calls i2c_smbus_write which inturn sleeps
+ * As sleep is not allowed in atomic context, this
+ * creates a kernel crash. Needs to be reworked after
+ * Sekhar's patch is accepted
+ */
 
-	spin_lock_irqsave(&clockfw_lock, flags);
+/* spin_lock_irqsave(&clockfw_lock, flags); */
 	if (clk->set_rate)
 		ret = clk->set_rate(clk, rate);
 	if (ret == 0) {
@@ -135,7 +141,7 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 			clk->rate = clk->recalc(clk);
 		propagate_rate(clk);
 	}
-	spin_unlock_irqrestore(&clockfw_lock, flags);
+/* spin_unlock_irqrestore(&clockfw_lock, flags); */
 
 	return ret;
 }
