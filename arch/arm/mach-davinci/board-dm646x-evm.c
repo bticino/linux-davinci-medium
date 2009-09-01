@@ -56,6 +56,10 @@
 #include <mach/mmc.h>
 #include <mach/emac.h>
 
+#include <mach/clock.h>
+#include "clock.h"
+
+
 #if defined(CONFIG_BLK_DEV_PALMCHIP_BK3710) || \
     defined(CONFIG_BLK_DEV_PALMCHIP_BK3710_MODULE)
 #define HAS_ATA 1
@@ -448,6 +452,9 @@ static struct i2c_board_info __initdata i2c_info[] =  {
 	{
 		I2C_BOARD_INFO("cpld_video", 0x3b),
 	},
+	{
+		I2C_BOARD_INFO("cdce949", 0x6C),
+	},
 };
 
 static struct davinci_i2c_platform_data i2c_pdata = {
@@ -774,4 +781,6 @@ MACHINE_START(DAVINCI_DM6467_EVM, "DaVinci DM646x EVM")
 	.timer        = &davinci_timer,
 	.init_machine = evm_init,
 MACHINE_END
+
+
 
