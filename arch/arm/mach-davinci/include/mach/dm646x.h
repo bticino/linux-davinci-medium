@@ -90,4 +90,11 @@ struct vpif_capture_config {
 void dm646x_setup_vpif(struct vpif_display_config *,
 		       struct vpif_capture_config *);
 
+void dm646x_video_init(void);
+
+struct vpif_output {
+	u16 id;
+	const char *name;
+};
+
 #endif /* __ASM_ARCH_DM646X_H */

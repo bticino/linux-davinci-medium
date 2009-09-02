@@ -91,9 +91,12 @@
 #define VCH2CLK_MASK		(BIT_MASK(10) | BIT_MASK(9) | BIT_MASK(8))
 #define VCH2CLK_SYSCLK8		(BIT(9))
 #define VCH2CLK_AUXCLK		(BIT(9) | BIT(8))
+#define VCH2CLK_VP_CLKIN2	(BIT(9) | BIT(10))
+
 #define VCH3CLK_MASK		(BIT_MASK(14) | BIT_MASK(13) | BIT_MASK(12))
 #define VCH3CLK_SYSCLK8		(BIT(13))
-#define VCH3CLK_AUXCLK		(BIT(14) | BIT(13))
+#define VCH3CLK_AUXCLK		(BIT(12) | BIT(13))
+#define VCH3CLK_VP_CLKIN2	(BIT(13) | BIT(14))
 
 #define VIDCH2CLK		(BIT(10))
 #define VIDCH3CLK		(BIT(11))
@@ -109,6 +112,7 @@ static void __iomem *vpif_vidclkctl_reg;
 static void __iomem *vpif_vsclkdis_reg;
 /* spin lock for updating above registers */
 static spinlock_t vpif_reg_lock;
+
 
 static struct davinci_uart_config uart_config __initdata = {
 	.enabled_uarts = (1 << 0),
@@ -497,7 +501,7 @@ static int set_vpif_clock(int mux_mode, int hd)
 	value &= ~(VCH3CLK_MASK);
 
 	if (hd >= 1)
-		value |= (VCH2CLK_SYSCLK8 | VCH3CLK_SYSCLK8);
+		value |= (VCH2CLK_VP_CLKIN2 | VCH3CLK_VP_CLKIN2);
 	else
 		value |= (VCH2CLK_AUXCLK | VCH3CLK_AUXCLK);
 
@@ -514,18 +518,28 @@ static int set_vpif_clock(int mux_mode, int hd)
 }
 
 static struct vpif_subdev_info dm646x_vpif_subdev[] = {
+#ifdef CONFIG_VIDEO_ADV7343
 	{
 		.name	= "adv7343",
 		.board_info = {
 			I2C_BOARD_INFO("adv7343", 0x2a),
 		},
 	},
+#endif
 	{
 		.name	= "ths7303",
 		.board_info = {
 			I2C_BOARD_INFO("ths7303", 0x2c),
 		},
 	},
+#ifdef CONFIG_VIDEO_THS8200
+	{
+		.name	= "ths8200",
+		.board_info = {
+			I2C_BOARD_INFO("ths8200", 0x20),
+		},
+	},
+#endif
 };
 
 static const char *output[] = {
