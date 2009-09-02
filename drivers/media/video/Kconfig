@@ -485,6 +485,15 @@ config VIDEO_ADV7343
 	  To compile this driver as a module, choose M here: the
 	  module will be called adv7343.
 
+config VIDEO_THS8200
+	tristate "THS8200 video encoder"
+	depends on I2C
+	help
+	  Support for Analog Devices I2C bus based THS8200 encoder.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ths8200.
+
 comment "Video improvement chips"
 
 config VIDEO_UPD64031A
@@ -517,7 +526,6 @@ config DISPLAY_DAVINCI_DM646X_EVM
 	depends on VIDEO_DEV && MACH_DAVINCI_DM6467_EVM
 	select VIDEOBUF_DMA_CONTIG
 	select VIDEO_DAVINCI_VPIF
-	select VIDEO_ADV7343
 	select VIDEO_THS7303
 	help
 	  Support for DM6467 based display device.
