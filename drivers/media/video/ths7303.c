@@ -52,6 +52,7 @@ static int ths7303_setvalue(struct v4l2_subdev *sd, v4l2_std_id std)
 		v4l2_dbg(1, debug, sd, "disabling all channels\n");
 	}
 
+	val = 0xDA;
 	err |= i2c_smbus_write_byte_data(client, 0x01, val);
 	err |= i2c_smbus_write_byte_data(client, 0x02, val);
 	err |= i2c_smbus_write_byte_data(client, 0x03, val);
