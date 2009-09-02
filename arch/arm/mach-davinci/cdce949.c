@@ -11,8 +11,8 @@
 #include <linux/init.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
-#include <asm/mach/map.h>
 #include <linux/i2c.h>
+#include <asm/mach/map.h>
 #include <mach/dm646x.h>
 #include <mach/cputype.h>
 #include <mach/clock.h>
@@ -124,7 +124,7 @@ static int cdce_set_rate(struct clk *clk, unsigned long rate)
 		if (rate == 148000) {
 			err |= i2c_smbus_write_byte_data(client,
 						0x13 | 0x80, 0x00);
-/* Set PLL1_0 Multiplier
+/* Set PLL1_0 Multiplier */
 			err |= i2c_smbus_write_byte_data(client,
 						0x18 | 0x80, 0xaf);
 			err |= i2c_smbus_write_byte_data(client,
@@ -133,7 +133,7 @@ static int cdce_set_rate(struct clk *clk, unsigned long rate)
 						0x1a | 0x80, 0x02);
 			err |= i2c_smbus_write_byte_data(client,
 						0x1b | 0x80, 0xc9);
-/* Set PLL1_11 Multiplier
+/* Set PLL1_11 Multiplier */
 			err |= i2c_smbus_write_byte_data(client,
 					0x1c | 0x80, 0x00);
 			err |= i2c_smbus_write_byte_data(client,
@@ -151,7 +151,7 @@ static int cdce_set_rate(struct clk *clk, unsigned long rate)
 			err |= i2c_smbus_write_byte_data(client,
 					0x14 | 0x80, 0x6f);
 			err |= i2c_smbus_write_byte_data(client,
-					 | 0x80, 0x06);
+					0x16 | 0x80, 0x06);
 /* Set P2DIV Divider, P3DIV and Input crystal */
 			err |= i2c_smbus_write_byte_data(client,
 					0x17 | 0x80, 0x06);
@@ -187,7 +187,8 @@ static int cdce_set_rate(struct clk *clk, unsigned long rate)
 					0x1e | 0x80, 0x02);
 		err |= i2c_smbus_write_byte_data(client,
 					0x1f | 0x80, 0xc9);
-/* Output state selection
+
+/* Output state selection */
 
 		err |= i2c_smbus_write_byte_data(client,
 					0x15 | 0x80, 0x00);
@@ -252,18 +253,11 @@ static int cdce_set_rate(struct clk *clk, unsigned long rate)
 	}
 
 
-
-	printk("We are inside the CDCE VPIF call \n");
-
-	if (err) {
-		printk("I2C write failed on CDCE_949\n");
+	if (err)
 		return -EINVAL;
-		}
-	else {
-		printk("Setting the clock rate to %u \n",
-				freq_table[i].frequency * 1000);
+	else
 		clk->rate = (freq_table[i].frequency * 1000);
-		}
+
 	}
 
 
