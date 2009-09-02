@@ -12,6 +12,7 @@
 #include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <asm/mach/map.h>
+#include <linux/i2c.h>
 #include <mach/dm646x.h>
 #include <mach/cputype.h>
 #include <mach/clock.h>
