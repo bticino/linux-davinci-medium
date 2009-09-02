@@ -592,6 +592,8 @@ struct vpif_channel_config_params {
 					 * supports capturing vbi or not */
 	u8 hd_sd;
 	v4l2_std_id stdid;
+	u32 clk_rate;			/* Pixel clock required for
+					   this mode */
 };
 
 struct vpif_video_params;
@@ -602,11 +604,25 @@ int vpif_set_video_params(struct vpif_params *vpifparams, u8 channel_id);
 void vpif_set_vbi_display_params(struct vpif_vbi_params *vbiparams,
 							u8 channel_id);
 int vpif_channel_getfid(u8 channel_id);
+void vpif_base_addr_init(void __iomem *base);
+
+/* Enumerated data types */
+enum vpif_capture_pinpol {
+	VPIF_CAPTURE_PINPOL_SAME	= 0,
+	VPIF_CAPTURE_PINPOL_INVERT	= 1
+};
 
 enum data_size {
 	_8BITS = 0,
 	_10BITS,
 	_12BITS,
+};
+
+struct vpif_capture_params_raw {
+	enum data_size data_sz;
+	enum vpif_capture_pinpol fid_pol;
+	enum vpif_capture_pinpol vd_pol;
+	enum vpif_capture_pinpol hd_pol;
 };
 
 /* Structure for vpif parameters for raw vbi data */

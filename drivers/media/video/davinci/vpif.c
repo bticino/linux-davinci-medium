@@ -166,7 +166,6 @@ static void config_vpif_params(struct vpif_params *vpifparams,
 					vpifparams->iface.vd_pol);
 			vpif_wr_bit(reg, VPIF_CH_H_VALID_POLARITY_BIT,
 					vpifparams->iface.hd_pol);
-
 			value = regr(reg);
 			/* Set data width */
 			value &= ((~(unsigned int)(0x3)) <<
@@ -293,4 +292,3 @@ static int __init vpif_init(void)
 }
 subsys_initcall(vpif_init);
 module_exit(vpif_exit);
-
