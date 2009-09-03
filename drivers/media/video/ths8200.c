@@ -373,3 +373,4 @@ static __exit void exit_ths8200(void)
 }
 
 module_init(init_ths8200);
+module_exit(exit_ths8200);

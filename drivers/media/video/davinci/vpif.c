@@ -41,6 +41,11 @@ spinlock_t vpif_lock;
 
 void __iomem *vpif_base;
 
+/* For module, capture and display driver will not get
+   reference to this variable unless it is exported */
+EXPORT_SYMBOL(vpif_base);
+
+
 static inline void vpif_wr_bit(u32 reg, u32 bit, u32 val)
 {
 	if (val)
