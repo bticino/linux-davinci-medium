@@ -162,7 +162,7 @@ static int cdce_set_rate(struct clk *clk, unsigned long rate)
 					0x05 | 0x80, (9 << 3));
 			err |= i2c_smbus_write_byte_data(client,
 					0x02 | 0x80, 0x80);
-/* Enable and Disable PLL
+/* Enable and Disable PLL */
 			err |= i2c_smbus_write_byte_data(client,
 					0x02 | 0x80, 0xbc);
 			err |= i2c_smbus_write_byte_data(client,
