@@ -35,6 +35,8 @@
 #include <mach/common.h>
 #include <mach/asp.h>
 #include <mach/spi.h>
+#include <video/davinci_osd.h>
+#include <video/davinci_vpbe.h>
 
 #include "clock.h"
 #include "mux.h"
@@ -233,6 +235,7 @@ static struct clk vpss_dac_clk = {
 	.name		= "vpss_dac",
 	.parent		= &pll1_sysclk3,
 	.lpsc		= DM365_LPSC_DAC_CLK,
+	.flags		= ALWAYS_ENABLED,
 };
 
 static struct clk vpss_master_clk = {
@@ -666,6 +669,66 @@ void __init dm365_init_spi0(unsigned chipselect_mask,
 
 	platform_device_register(&dm365_spi0_device);
 }
+
+static u64 dm365_osd_dma_mask = DMA_BIT_MASK(32);
+
+static struct davinci_osd_platform_data dm365_osd_pdata = {
+	.type = DM365,
+};
+
+static struct resource dm365_osd_resources[] = {
+	{
+		.start          = IRQ_VENCINT,
+		.end            = IRQ_VENCINT,
+		.flags          = IORESOURCE_IRQ,
+	},
+	{
+		.start          = DM365_OSD_REG_BASE,
+		.end            = DM365_OSD_REG_BASE + OSD_REG_SIZE,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device dm365_osd_dev = {
+	.name		= "davinci_osd",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(dm365_osd_resources),
+	.resource	= dm365_osd_resources,
+	.dev = {
+		.dma_mask		= &dm365_osd_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+		.platform_data		= &dm365_osd_pdata,
+	},
+};
+
+static u64 dm365_venc_dma_mask = DMA_BIT_MASK(32);
+
+
+static struct davinci_venc_platform_data dm365_venc_pdata = {
+	.soc = DM36x,
+};
+
+
+static struct resource dm365_venc_resources[] = {
+	{
+		.start          = DM365_VENC_REG_BASE,
+		.end            = DM365_VENC_REG_BASE + 0x180,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device dm365_venc_dev = {
+	.name		= "davinci_venc",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(dm365_venc_resources),
+	.resource	= dm365_venc_resources,
+	.dev = {
+		.dma_mask		= &dm365_venc_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+		.platform_data		= &dm365_venc_pdata,
+	},
+};
+
 static struct emac_platform_data dm365_emac_pdata = {
 	.ctrl_reg_offset	= DM365_EMAC_CNTRL_OFFSET,
 	.ctrl_mod_reg_offset	= DM365_EMAC_CNTRL_MOD_OFFSET,
@@ -1109,6 +1172,12 @@ static int __init dm365_init_devices(void)
 	platform_device_register(&dm365_vpss_device);
 	platform_device_register(&dm365_isif_dev);
 	platform_device_register(&vpfe_capture_dev);
+
+	/* Register OSD device */
+	platform_device_register(&dm365_osd_dev);
+
+	/* Register VENC device */
+	platform_device_register(&dm365_venc_dev);
 
 	return 0;
 }
