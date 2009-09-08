@@ -19,6 +19,7 @@
 #define USBPHY_NDATAPOL		BIT(18)
 #define USBPHY_SESSION_VBUS	BIT(17)
 #define USBPHY_PERI_USBID	BIT(16)
+#define USBPHY_CLKFREQ_24MHZ	BIT(13)
 #define USBPHY_DATAPOL		BIT(11)	/* (dm355) switch D+/D- */
 #define USBPHY_PHYCLKGD		BIT(8)
 #define USBPHY_SESNDEN		BIT(7)	/* v(sess_end) comparator */

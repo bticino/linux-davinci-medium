@@ -77,6 +77,14 @@ static inline void phy_on(void)
 						phy_ctrl;
 		phy_ctrl &= ~USBPHY_VBDTCTEN;
 	}
+	if (cpu_is_davinci_dm365()) {
+		/*
+		 * DM365 PHYCLKFREQ field [15:12] is set to 2
+		 * to get clock from 24MHz crystal
+		 */
+		phy_ctrl |= USBPHY_CLKFREQ_24MHZ;
+		/*phy_ctrl &= ~USBPHY_PHYPDWN;*/
+	}
 
 	__raw_writel(phy_ctrl, USB_PHY_CTRL);
 
@@ -216,6 +224,8 @@ static void davinci_source_power(struct musb *musb, int is_on, int immediate)
 	if (immediate)
 		vbus_state = is_on;
 #endif
+	if (cpu_is_davinci_dm365())
+		gpio_set_value(33, is_on);
 }
 
 static void davinci_set_vbus(struct musb *musb, int is_on)
@@ -461,6 +471,7 @@ int __init musb_platform_init(struct musb *musb)
 		}
 		__raw_writel(deepsleep, DM355_DEEPSLEEP);
 	}
+
 
 	/* reset the controller */
 	musb_writel(tibase, DAVINCI_USB_CTRL_REG, 0x1);
