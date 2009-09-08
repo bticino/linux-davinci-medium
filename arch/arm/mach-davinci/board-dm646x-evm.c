@@ -500,10 +500,10 @@ static int set_vpif_clock(int mux_mode, int hd)
 	value &= ~(VCH2CLK_MASK);
 	value &= ~(VCH3CLK_MASK);
 
-	if (hd >= 1)
-		value |= (VCH2CLK_VP_CLKIN2 | VCH3CLK_VP_CLKIN2);
-	else
-		value |= (VCH2CLK_AUXCLK | VCH3CLK_AUXCLK);
+	/* Here it is assumed that channel3 will use same
+	   clock as channel-2. If channel3 operates in SD
+	   mode, this needs to be changed */
+	value |= (VCH2CLK_VP_CLKIN2 | VCH3CLK_VP_CLKIN2);
 
 	__raw_writel(value, vpif_vidclkctl_reg);
 
