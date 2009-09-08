@@ -28,6 +28,8 @@
 #include <mach/serial.h>
 #include <mach/common.h>
 #include <mach/asp.h>
+#include <video/davinci_osd.h>
+#include <video/davinci_vpbe.h>
 
 #include "clock.h"
 #include "mux.h"
@@ -649,6 +651,64 @@ void dm644x_set_vpfe_config(struct vpfe_config *cfg)
 }
 
 /*----------------------------------------------------------------------*/
+static u64 dm644x_osd_dma_mask = DMA_BIT_MASK(32);
+
+static struct davinci_osd_platform_data dm644x_osd_pdata = {
+	.type = DM6446,
+};
+
+static struct resource dm644x_osd_resources[] = {
+	{
+		.start          = IRQ_VENCINT,
+		.end            = IRQ_VENCINT,
+		.flags          = IORESOURCE_IRQ,
+	},
+	{
+		.start          = DM644X_OSD_REG_BASE,
+		.end            = DM644X_OSD_REG_BASE + 0x200,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device dm644x_osd_dev = {
+	.name		= "davinci_osd",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(dm644x_osd_resources),
+	.resource	= dm644x_osd_resources,
+	.dev = {
+		.dma_mask		= &dm644x_osd_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+		.platform_data		= &dm644x_osd_pdata,
+	},
+};
+
+static u64 dm644x_venc_dma_mask = DMA_BIT_MASK(32);
+
+
+static struct davinci_venc_platform_data dm644x_venc_pdata = {
+	.soc = DM644x,
+};
+
+
+static struct resource dm644x_venc_resources[] = {
+	{
+		.start          = DM644X_VENC_REG_BASE,
+		.end            = DM644X_VENC_REG_BASE + 0x180,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device dm644x_venc_dev = {
+	.name		= "davinci_venc",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(dm644x_venc_resources),
+	.resource	= dm644x_venc_resources,
+	.dev = {
+		.dma_mask		= &dm644x_venc_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+		.platform_data		= &dm644x_venc_pdata,
+	},
+};
 
 static struct map_desc dm644x_io_desc[] = {
 	{
@@ -786,6 +846,12 @@ static int __init dm644x_init_devices(void)
 	platform_device_register(&dm644x_vpss_device);
 	platform_device_register(&dm644x_ccdc_dev);
 	platform_device_register(&vpfe_capture_dev);
+
+	/* Register OSD device */
+	platform_device_register(&dm644x_osd_dev);
+
+	/* Register VENC device */
+	platform_device_register(&dm644x_venc_dev);
 
 	return 0;
 }
