@@ -438,6 +438,19 @@ static int __init vpss_probe(struct platform_device *pdev)
 		bl_regw(0xff83ff10, 0x10);
 		bl_regw(0x7b3c0004, 0x14);
 	}
+	if (dm365) {
+		/*
+		 * These values being written to INTSEL and EVTSEL
+		 * registers match those in LSP 2.10
+		 */
+		isp5_write((isp5_read(0x4) | 0x0000007f), 0x4);
+		isp5_write((isp5_read(0x8) | 0x00000002), 0x8);
+
+		isp5_write((isp5_read(0x10) | 0x0b000000), 0x10);
+		isp5_write((isp5_read(0x14) | 0x000a0000), 0x14);
+		isp5_write((isp5_read(0x18) | 0x00000015), 0x18);
+		isp5_write((isp5_read(0x1c) | 0x00000000), 0x1c);
+	}
 
 	if (dm365)
 		dm365_enable_irq();
