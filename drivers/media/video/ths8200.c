@@ -70,10 +70,21 @@ enum ths8200_input_intf {
 
 struct ths8200_mode_info {
 	v4l2_std_id std;
+	u32 input_intf;
 	enum ths8200_modes mode;
 	u32 frame_size;
 	u32 field_size;
 	u32 pixels_per_line;
+	u32 hs_in_delay;
+	u32 negative_hsync_width;
+	u32 positive_hsync_width;
+	u32 hfront_porch;
+	u32 hback_porch;
+	u32 vfront_porch;
+	u32 pulse_duration;
+	u32 full_line_pulse_duration;
+	u32 vback_porch;
+	u32 dtg_spec_k1;
 };
 
 static inline struct ths8200_state *to_state(struct v4l2_subdev *sd)
@@ -96,7 +107,17 @@ static inline int ths8200_write(struct v4l2_subdev *sd, u8 reg, u8 value)
 }
 
 static const struct ths8200_mode_info mode_info[] = {
-	{V4L2_STD_1080P_60, THS8200_1080P_60, 1125, 2047, 2200},
+	/* 1080P Mode */
+	{V4L2_STD_1080P_60, THS8200_INTF_20BIT_YUV422, THS8200_1080P_60,
+		1125, 2047, 2200, 0x80,
+		44, 44, 132, 88, 192, 0x00, 0x00, 88, 0x00},
+	/* SD Modes */
+	{V4L2_STD_525_60, THS8200_INTF_10BIT_YUV422, THS8200_480I_60,
+		525, 263, 858, 0x44,
+		0x3E, 0x1E, 0x79, 0x14, 0x00, 0x16B, 0x31B, 0x11, 0x0A},
+	{V4L2_STD_625_50, THS8200_INTF_10BIT_YUV422, THS8200_576I_60,
+		525, 312, 864, 0x40,
+		0x3E, 0x20, 0x83, 0x58, 0xC0, 0x170, 0x31B, 0x0D, 0x0A},
 };
 
 
@@ -114,6 +135,11 @@ static int ths8200_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
 
 			ths8200_write(sd, THS8200_CHIP_CTL, 0x01);
 
+			value = ths8200_read(sd, THS8200_DATA_CNTL);
+			value &= (~THS8200_DATA_CNTL_INTF_MASK);
+			value |=  mode_info[i].input_intf;
+			err |= ths8200_write(sd, THS8200_DATA_CNTL, value);
+
 			value = ths8200_read(sd, THS8200_DTG1_MODE);
 			value &= ~(THS8200_DTG1_MODE_MASK);
 			value |= mode_info[i].mode;
@@ -128,6 +154,13 @@ static int ths8200_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
 				THS8200_DTG1_TOT_PIXELS_MSB_MASK;
 			err |= ths8200_write(sd,
 					THS8200_DTG1_TOT_PIXELS_MSB, value);
+
+			value = mode_info[i].pixels_per_line / 2;
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_G_LSB,
+					value & THS8200_DTG1_SPEC_G_LSB_MASK);
+			value = (value >> 8) & THS8200_DTG1_SPEC_G_MSB_MASK;
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_G_MSB,
+					value);
 
 			/* Set the frame size */
 			value = mode_info[i].frame_size &
@@ -160,6 +193,76 @@ static int ths8200_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
 			err |= ths8200_write(sd,
 					THS8200_DTG1_FRAME_FIELD_SZ_MSB, value);
 
+			value = mode_info[i].hs_in_delay &
+				THS8200_DTG2_HS_IN_DLY_LSB_MASK;
+			err |= ths8200_write(sd, THS8200_DTG2_HS_IN_DLY_LSB,
+					value);
+			value = (mode_info[i].hs_in_delay >> 8) &
+				THS8200_DTG2_HS_IN_DLY_MSB_MASK;
+			err |= ths8200_write(sd, THS8200_DTG2_HS_IN_DLY_MSB,
+					value);
+
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_A,
+					mode_info[i].negative_hsync_width);
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_C,
+					mode_info[i].positive_hsync_width);
+
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_D_LSB,
+					(mode_info[i].hfront_porch &
+					 THS8200_DTG1_SPEC_D_LSB_MASK));
+			value = ths8200_read(sd, THS8200_DTG1_SPEC_DEH_MSB);
+			value &= 0x7F;
+			value |= ((mode_info[i].hfront_porch & 0x100) >> 1);
+
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_DEH_MSB,
+					value);
+
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_B,
+					mode_info[i].hback_porch);
+
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_E_LSB,
+					(mode_info[i].vfront_porch &
+					 THS8200_DTG1_SPEC_E_LSB_MASK));
+			value = ths8200_read(sd, THS8200_DTG1_SPEC_DEH_MSB);
+			value &= 0xBF;
+			value |= ((mode_info[i].vfront_porch & 0x100) >> 2);
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_DEH_MSB,
+					value);
+
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_H_LSB,
+					(mode_info[i].pulse_duration &
+					 THS8200_DTG1_SPEC_H_LSB_MASK));
+			value = ths8200_read(sd, THS8200_DTG1_SPEC_DEH_MSB);
+			value &= 0xFC;
+			value |= ((mode_info[i].pulse_duration >> 8) &
+					THS8200_DTG1_SPEC_DEH_MSB_MASK);
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_DEH_MSB,
+					value);
+
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_I_LSB,
+				(mode_info[i].full_line_pulse_duration &
+					 THS8200_DTG1_SPEC_I_LSB_MASK));
+			value = ths8200_read(sd, THS8200_DTG1_SPEC_I_MSB);
+			value &= 0xF0;
+			value |= ((mode_info[i].full_line_pulse_duration >>
+					8) &
+					THS8200_DTG1_SPEC_I_MSB_MASK);
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_I_MSB,
+					value);
+
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_K_LSB,
+					(mode_info[i].vback_porch &
+					 THS8200_DTG1_SPEC_K_LSB_MASK));
+			value = ths8200_read(sd, THS8200_DTG1_SPEC_K_MSB);
+			value &= 0xF8;
+			value |= ((mode_info[i].vback_porch >> 8) &
+					THS8200_DTG1_SPEC_K_MSB_MASK);
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_K_MSB,
+					value);
+
+			err |= ths8200_write(sd, THS8200_DTG1_SPEC_K1,
+					mode_info[i].dtg_spec_k1);
+
 			ths8200_write(sd, THS8200_CHIP_CTL, 0x00);
 			mdelay(10);
 			ths8200_write(sd, THS8200_CHIP_CTL, 0x01);
@@ -176,7 +279,6 @@ static int ths8200_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
 	return err;
 }
 
-
 static int ths8200_setoutput(struct v4l2_subdev *sd, u32 output_type)
 {
 	return 0;
@@ -191,7 +293,6 @@ static int ths8200_log_status(struct v4l2_subdev *sd)
 			((state->output == 1) ? "Component" : "S-Video"));
 	return 0;
 }
-
 
 static int ths8200_queryctrl(struct v4l2_subdev *sd, struct v4l2_queryctrl *qc)
 {
@@ -285,14 +386,6 @@ static int ths8200_initialize(struct v4l2_subdev *sd)
 	value &= (~THS8200_DTG2_CNTL_RGB_MODE_MASK);
 	err |= ths8200_write(sd, THS8200_DTG2_CNTL, value);
 
-	value = ths8200_read(sd, THS8200_DATA_CNTL);
-	value &= (~THS8200_DATA_CNTL_INTF_MASK);
-	value |= THS8200_INTF_20BIT_YUV422;
-	err |= ths8200_write(sd, THS8200_DATA_CNTL, value);
-
-	err |= ths8200_write(sd, THS8200_DTG2_HS_IN_DLY_LSB,
-			THS8200_HD_DELAY_DEFAULT);
-
 	value = ths8200_read(sd, THS8200_CSC_OFFS3);
 	value |= (THS8200_CSC_OFFS3_CSC_BYPASS_MASK |
 			THS8200_CSC_OFFS3_UNDER_OVERFLOW_MASK);
@@ -333,7 +426,6 @@ static int ths8200_probe(struct i2c_client *client,
 	v4l2_i2c_subdev_init(&state->sd, client, &ths8200_ops);
 	return ths8200_initialize(&state->sd);
 }
-
 
 static int ths8200_remove(struct i2c_client *client)
 {
