@@ -41,6 +41,7 @@
 #include <mach/common.h>
 #include <mach/mmc.h>
 #include <mach/nand.h>
+#include <mach/gpio.h>
 #include <linux/videodev2.h>
 #include <media/tvp514x.h>
 #include <media/tvp7002.h>
@@ -443,6 +444,14 @@ static void dm365evm_mmc_configure(void)
 	davinci_cfg_reg(DM365_SD1_DATA0);
 }
 
+static void dm365evm_usb_configure(void)
+{
+	davinci_cfg_reg(DM365_GPIO33);
+	gpio_request(33, "usb");
+	gpio_direction_output(33, 1);
+	setup_usb(500, 8);
+}
+
 static void __init evm_init_i2c(void)
 {
 	davinci_init_i2c(&i2c_pdata);
@@ -664,6 +673,7 @@ static __init void dm365_evm_init(void)
 
 	dm365evm_emac_configure();
 	dm365evm_mmc_configure();
+	dm365evm_usb_configure();
 
 	davinci_setup_mmc(0, &dm365evm_mmc_config);
 
