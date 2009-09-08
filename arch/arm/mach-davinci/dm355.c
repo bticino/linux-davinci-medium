@@ -32,6 +32,9 @@
 #include <mach/common.h>
 #include <mach/asp.h>
 #include <mach/spi.h>
+#include <video/davinci_osd.h>
+#include <video/davinci_vpbe.h>
+
 #include "clock.h"
 #include "mux.h"
 
@@ -112,6 +115,7 @@ static struct clk vpss_dac_clk = {
 	.name = "vpss_dac",
 	.parent = &pll1_sysclk3,
 	.lpsc = DM355_LPSC_VPSS_DAC,
+	.flags = ALWAYS_ENABLED,
 };
 
 static struct clk vpss_master_clk = {
@@ -756,6 +760,64 @@ void dm355_set_vpfe_config(struct vpfe_config *cfg)
 }
 
 /*----------------------------------------------------------------------*/
+static u64 dm355_osd_dma_mask = DMA_BIT_MASK(32);
+
+static struct davinci_osd_platform_data dm355_osd_pdata = {
+	.type = DM355,
+};
+
+static struct resource dm355_osd_resources[] = {
+	{
+		.start          = IRQ_VENCINT,
+		.end            = IRQ_VENCINT,
+		.flags          = IORESOURCE_IRQ,
+	},
+	{
+		.start          = DM355_OSD_REG_BASE,
+		.end            = DM355_OSD_REG_BASE + 0x180,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device dm355_osd_dev = {
+	.name		= "davinci_osd",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(dm355_osd_resources),
+	.resource	= dm355_osd_resources,
+	.dev = {
+		.dma_mask		= &dm355_osd_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+		.platform_data		= &dm355_osd_pdata,
+	},
+};
+
+static u64 dm355_venc_dma_mask = DMA_BIT_MASK(32);
+
+
+static struct davinci_venc_platform_data dm355_venc_pdata = {
+	.soc = DM35x,
+};
+
+
+static struct resource dm355_venc_resources[] = {
+	{
+		.start          = DM355_VENC_REG_BASE,
+		.end            = DM355_VENC_REG_BASE + 0x180,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device dm355_venc_dev = {
+	.name		= "davinci_venc",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(dm355_venc_resources),
+	.resource	= dm355_venc_resources,
+	.dev = {
+		.dma_mask		= &dm355_venc_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+		.platform_data		= &dm355_venc_pdata,
+	},
+};
 
 static struct map_desc dm355_io_desc[] = {
 	{
@@ -891,6 +953,12 @@ static int __init dm355_init_devices(void)
 	platform_device_register(&dm355_vpss_device);
 	platform_device_register(&dm355_ccdc_dev);
 	platform_device_register(&vpfe_capture_dev);
+
+	/* Register OSD device */
+	platform_device_register(&dm355_osd_dev);
+
+	/* Register VENC device */
+	platform_device_register(&dm355_venc_dev);
 
 	return 0;
 }
