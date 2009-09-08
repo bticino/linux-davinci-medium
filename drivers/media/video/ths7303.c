@@ -23,6 +23,7 @@
 #include <linux/uaccess.h>
 #include <linux/videodev2.h>
 
+#include <media/davinci/videohd.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-chip-ident.h>
@@ -35,37 +36,87 @@ static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "Debug level 0-1");
 
+#define THS7353_CHANNEL_1       (1)
+#define THS7353_CHANNEL_2       (2)
+#define THS7353_CHANNEL_3       (3)
+
+/* all supported modes */
+enum ths7303_filter_mode {
+	THS7303_FILTER_MODE_480I_576I,
+	THS7303_FILTER_MODE_480P_576P,
+	THS7303_FILTER_MODE_720P_1080I,
+	THS7303_FILTER_MODE_1080P
+};
+
 /* following function is used to set ths7303 */
-static int ths7303_setvalue(struct v4l2_subdev *sd, v4l2_std_id std)
+static int ths7303_setvalue(struct v4l2_subdev *sd,
+			    enum ths7303_filter_mode mode)
 {
-	int err = 0;
-	u8 val;
+	u8 val = 0, input_bias_luma = 2, input_bias_chroma = 2, temp;
 	struct i2c_client *client;
+	int err = 0, disable = 0;
 
 	client = v4l2_get_subdevdata(sd);
 
-	if (std & (V4L2_STD_ALL & ~V4L2_STD_SECAM)) {
-		val = 0x02;
-		v4l2_dbg(1, debug, sd, "setting value for SDTV format\n");
-	} else {
-		val = 0x00;
-		v4l2_dbg(1, debug, sd, "disabling all channels\n");
+	switch (mode) {
+	case THS7303_FILTER_MODE_1080P:
+		val = (3 << 6);
+		val |= (3 << 3);
+		break;
+	case THS7303_FILTER_MODE_720P_1080I:
+		val = (2 << 6);
+		val |= (2 << 3);
+		break;
+	case THS7303_FILTER_MODE_480P_576P:
+		val = (1 << 6);
+		val |= (1 << 3);
+		break;
+	case THS7303_FILTER_MODE_480I_576I:
+		break;
+	default:
+		/* disable all channels */
+		disable = 1;
 	}
+	/* Setup channel 2 - Luma - Green */
+	temp = val;
+	if (!disable)
+		val |= input_bias_luma;
+	err = i2c_smbus_write_byte_data(client, THS7353_CHANNEL_2, val);
+	if (err)
+		goto out;
 
-	val = 0xDA;
-	err |= i2c_smbus_write_byte_data(client, 0x01, val);
-	err |= i2c_smbus_write_byte_data(client, 0x02, val);
-	err |= i2c_smbus_write_byte_data(client, 0x03, val);
+	/* setup two chroma channels */
+	if (!disable)
+		temp |= input_bias_chroma;
+
+	err = i2c_smbus_write_byte_data(client, THS7353_CHANNEL_1, temp);
+	if (err)
+		goto out;
+
+	err = i2c_smbus_write_byte_data(client, THS7353_CHANNEL_3, temp);
 
 	if (err)
-		v4l2_err(sd, "write failed\n");
+		goto out;
+	return 0;
 
+out:
+	v4l2_err(sd, "ths7303 write failed\n");
 	return err;
 }
 
 static int ths7303_s_std_output(struct v4l2_subdev *sd, v4l2_std_id norm)
 {
-	return ths7303_setvalue(sd, norm);
+	if (norm & (V4L2_STD_ALL & ~V4L2_STD_SECAM))
+		return ths7303_setvalue(sd, THS7303_FILTER_MODE_480I_576I);
+	else if (norm & (V4L2_STD_525P_60 | V4L2_STD_625P_50))
+		return ths7303_setvalue(sd, THS7303_FILTER_MODE_480P_576P);
+	else if (norm & (V4L2_STD_720P_60 | V4L2_STD_720P_50 |
+				V4L2_STD_1080I_60 | V4L2_STD_1080I_50))
+		return ths7303_setvalue(sd, THS7303_FILTER_MODE_720P_1080I);
+	else if (norm & (V4L2_STD_1080P_60 | V4L2_STD_1080P_50))
+		return ths7303_setvalue(sd, THS7303_FILTER_MODE_1080P);
+	else
+		return -EINVAL;
 }
 
 static int ths7303_g_chip_ident(struct v4l2_subdev *sd,
@@ -107,7 +158,7 @@ static int ths7303_probe(struct i2c_client *client,
 
 	v4l2_i2c_subdev_init(sd, client, &ths7303_ops);
 
-	return ths7303_setvalue(sd, std_id);
+	return ths7303_s_std_output(sd, std_id);
 }
 
 static int ths7303_remove(struct i2c_client *client)
