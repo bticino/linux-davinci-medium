@@ -20,3 +20,13 @@ dm355_af_driver-objs		+= dm355_af.o dm355_af_hw.o
 obj-$(CONFIG_VIDEO_DM355_AF)	+= dm355_af_driver.o
 dm355_aew_driver-objs		+= dm355_aew.o dm355_aew_hw.o
 obj-$(CONFIG_VIDEO_DM355_AEW)	+= dm355_aew_driver.o
+
+# DaVinci Encoder/Display Manager and Encoders
+obj-$(CONFIG_DAVINCI_OSD)		+= davinci_osd.o davinci_platform.o
+obj-$(CONFIG_DAVINCI_ENC_MNGR)		+= davinci_enc_mngr.o
+
+obj-$(CONFIG_DAVINCI_LOGICPD_ENCODER)	+= logicpd_encoder.o
+obj-$(CONFIG_DAVINCI_AVNET_ENCODER)	+= avnetlcd_encoder.o
+obj-$(CONFIG_DAVINCI_VPBE_ENCODER)	+= vpbe_encoder.o
+
+obj-$(CONFIG_VIDEO_DAVINCI_DISPLAY)	+= davinci_display.o

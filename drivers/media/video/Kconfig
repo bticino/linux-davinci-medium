@@ -553,6 +553,77 @@ config VIDEO_DAVINCI_VPIF
 	  To compile this driver as a module, choose M here: the
 	  module will be called vpif.
 
+config VIDEO_DAVINCI_DISPLAY
+	tristate "Davinci V4L2 Video Display"
+	depends on VIDEO_DEV && ARCH_DAVINCI
+	select VIDEOBUF_VMALLOC
+	select DAVINCI_OSD
+	help
+	  V4L2 Display driver support for davinci.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called davinci_display.
+
+config DAVINCI_ENC_MNGR
+	tristate "Davinci Encoder Manager support"
+	depends on ARCH_DAVINCI
+	default y
+	help
+	  Enable support for the DaVinci Encoder Manager. This is responsible
+	  for managing output and video/graphics modes for davinci video drivers.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called davinci_enc_mngr
+
+config ENC_MNGR_MAX_CHANNELS
+	int "Max number of channels for Encoder Manager"
+	depends on DAVINCI_ENC_MNGR
+	default "2"
+	help
+	  Used to give max number of channels supported by encoder manager
+	  driver.
+
+config DAVINCI_OSD
+	tristate "Davinci Display Manager"
+	help
+	  Support for Davinci On-Screen Display Manager.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called davinci_osd.
+
+config DAVINCI_VPBE_ENCODER
+	tristate "Davinci VPBE Encoder support"
+	depends on DAVINCI_ENC_MNGR
+	default y
+	help
+	  Enable support for the DaVinci VPBE internal encoder. DaVinci VPBE
+	  has internal VENC and DAC to output analog SD outputs (composite,
+	  S-Video and Component video outputs).
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called vpbe_encoder.
+
+config DAVINCI_LOGICPD_ENCODER
+	tristate "Logic PD Encoder support"
+	depends on (DAVINCI_ENC_MNGR)
+	default y
+	help
+	  Enable support for the Logic PD encoder.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called logicpd_encoder.
+
+config DAVINCI_AVNET_ENCODER
+	tristate "AVNET LCD Encoder support"
+	depends on (DAVINCI_ENC_MNGR)
+	default y
+	help
+	  Enable support for the DaVinci AVNET LCD encoder. It uses a Toshiba LTA070A321F
+	  800x480 WVGA LCD module.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called avnetlcd_encoder.
+
 config VIDEO_VIVI
 	tristate "Virtual Video Driver"
 	depends on VIDEO_DEV && VIDEO_V4L2 && !SPARC32 && !SPARC64
