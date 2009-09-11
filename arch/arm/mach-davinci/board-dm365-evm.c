@@ -43,6 +43,8 @@
 #include <mach/nand.h>
 #include <linux/videodev2.h>
 #include <media/tvp514x.h>
+#include <media/tvp7002.h>
+#include <media/davinci/videohd.h>
 
 
 static inline int have_imager(void)
@@ -53,8 +55,11 @@ static inline int have_imager(void)
 
 static inline int have_tvp7002(void)
 {
-	/* REVISIT when it's supported, trigger via Kconfig */
+#ifdef CONFIG_VIDEO_TVP7002
+	return 1;
+#else
 	return 0;
+#endif
 }
 
 
@@ -101,12 +106,25 @@ static inline int have_tvp7002(void)
 #define CPLD_CCD_DIR3	CPLD_OFFSET(0x3f,0)
 #define CPLD_CCD_IO3	CPLD_OFFSET(0x3f,1)
 
+#define CPLD_VIDEO_INPUT_MUX_MASK	0x7
+#define CPLD_VIDEO_INPUT_MUX_TVP7002	0x1
+#define CPLD_VIDEO_INPUT_MUX_IMAGER	0x2
+#define CPLD_VIDEO_INPUT_MUX_TVP5146	0x5
+
 static void __iomem *cpld;
 
 static struct tvp514x_platform_data tvp5146_pdata = {
        .clk_polarity = 0,
        .hs_polarity = 1,
        .vs_polarity = 1
+};
+
+/* tvp7002 platform data, used during reset and probe operations */
+static struct tvp7002_platform_data tvp7002_pdata = {
+       .clk_polarity = 0,
+       .hs_polarity = 0,
+       .vs_polarity = 0,
+       .fid_polarity = 0,
 };
 
 /* NOTE:  this is geared for the standard config, with a socketed
@@ -248,6 +266,22 @@ static struct v4l2_input tvp5146_inputs[] = {
 	},
 };
 
+#define TVP7002_STD_ALL        (V4L2_STD_525P_60   | V4L2_STD_625P_50 	|\
+				V4L2_STD_NTSC      | V4L2_STD_PAL   	|\
+				V4L2_STD_720P_50   | V4L2_STD_720P_60 	|\
+				V4L2_STD_1080I_50  | V4L2_STD_1080I_60 	|\
+				V4L2_STD_1080P_50  | V4L2_STD_1080P_60)
+
+/* Inputs available at the TVP7002 */
+static struct v4l2_input tvp7002_inputs[] = {
+	{
+		.index = 0,
+		.name = "Component",
+		.type = V4L2_INPUT_TYPE_CAMERA,
+		.std = TVP7002_STD_ALL,
+	},
+};
+
 /*
  * this is the route info for connecting each input to decoder
  * ouput that goes to vpfe. There is a one to one correspondence
@@ -267,7 +301,7 @@ static struct vpfe_route tvp5146_routes[] = {
 static struct vpfe_subdev_info vpfe_sub_devs[] = {
 {
 		.module_name = "tvp5146",
-		.grp_id = 0,
+		.grp_id = VPFE_SUBDEV_TVP5146,
 		.num_inputs = ARRAY_SIZE(tvp5146_inputs),
 		.inputs = tvp5146_inputs,
 		.routes = tvp5146_routes,
@@ -281,10 +315,66 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 			I2C_BOARD_INFO("tvp5146", 0x5d),
 			.platform_data = &tvp5146_pdata,
 		},
-	}
+	},
+	{
+		.module_name = "tvp7002",
+		.grp_id = VPFE_SUBDEV_TVP7002,
+		.num_inputs = ARRAY_SIZE(tvp7002_inputs),
+		.inputs = tvp7002_inputs,
+		.ccdc_if_params = {
+			.if_type = VPFE_BT1120,
+			.hdpol = VPFE_PINPOL_POSITIVE,
+			.vdpol = VPFE_PINPOL_POSITIVE,
+		},
+		.board_info = {
+			I2C_BOARD_INFO("tvp7002", 0x5c),
+			.platform_data = &tvp7002_pdata,
+		},
+	},
+	{
+		.module_name = "ths7353",
+		.board_info = {
+			I2C_BOARD_INFO("ths7353", 0x2e),
+		},
+	},
 };
 
+/* Set the input mux for TVP7002/TVP5146/MTxxxx sensors */
+static int dm365evm_setup_video_input(enum vpfe_subdev_id id)
+{
+	const char *label;
+	u8 mux, resets;
+
+	mux = __raw_readb(cpld + CPLD_MUX);
+	mux &= ~CPLD_VIDEO_INPUT_MUX_MASK;
+	resets = __raw_readb(cpld + CPLD_RESETS);
+	switch (id) {
+		case VPFE_SUBDEV_TVP5146:
+			mux |= CPLD_VIDEO_INPUT_MUX_TVP5146;
+			resets &= ~BIT(0);
+			label = "tvp5146 SD";
+			break;
+		case VPFE_SUBDEV_MT9T031:
+			mux |= CPLD_VIDEO_INPUT_MUX_IMAGER;
+			resets |= BIT(0); /* Put TVP5146 in reset */
+			label = "HD imager";
+			break;
+		case VPFE_SUBDEV_TVP7002:
+			resets &= ~BIT(2);
+			mux |= CPLD_VIDEO_INPUT_MUX_TVP7002;
+			label = "tvp7002 HD";
+			break;
+		default:
+			return 0;
+	}
+	__raw_writeb(mux, cpld + CPLD_MUX);
+	__raw_writeb(resets, cpld + CPLD_RESETS);
+	pr_info("EVM: switch to %s video input\n", label);
+	return 0;
+}
+
 static struct vpfe_config vpfe_cfg = {
+       .setup_input = dm365evm_setup_video_input,
        .num_subdevs = ARRAY_SIZE(vpfe_sub_devs),
        .sub_devs = vpfe_sub_devs,
        .card_name = "DM365 EVM",
@@ -500,7 +590,7 @@ fail:
 	 */
 	if (have_imager()) {
 		label = "HD imager";
-		mux |= 1;
+		mux |= CPLD_VIDEO_INPUT_MUX_IMAGER;
 
 		/* externally mux MMC1/ENET/AIC33 to imager */
 		mux |= BIT(6) | BIT(5) | BIT(3);
@@ -521,12 +611,12 @@ fail:
 		resets &= ~BIT(1);
 
 		if (have_tvp7002()) {
-			mux |= 2;
+			mux |= CPLD_VIDEO_INPUT_MUX_TVP7002;
 			resets &= ~BIT(2);
 			label = "tvp7002 HD";
 		} else {
 			/* default to tvp5146 */
-			mux |= 5;
+			mux |= CPLD_VIDEO_INPUT_MUX_TVP5146;
 			resets &= ~BIT(0);
 			label = "tvp5146 SD";
 		}
