@@ -71,6 +71,7 @@
 #include <linux/version.h>
 #include <media/v4l2-common.h>
 #include <linux/io.h>
+#include <media/davinci/videohd.h>
 #include <media/davinci/vpfe_capture.h>
 #include "ccdc_hw_device.h"
 
@@ -142,6 +143,14 @@ static struct ccdc_config *ccdc_cfg;
 const struct vpfe_standard vpfe_standards[] = {
 	{V4L2_STD_525_60, 720, 480, {11, 10}, 1},
 	{V4L2_STD_625_50, 720, 576, {54, 59}, 1},
+	{V4L2_STD_525P_60, 720, 480, {11, 10}, 0},
+	{V4L2_STD_625P_50, 720, 576, {54, 59}, 0},
+	{V4L2_STD_720P_50, 1280, 720, {1, 1}, 0},
+	{V4L2_STD_720P_60, 1280, 720, {1, 1}, 0},
+	{V4L2_STD_1080I_50, 1920, 1080, {1, 1}, 1},
+	{V4L2_STD_1080I_60, 1920, 1080, {1, 1}, 1},
+	{V4L2_STD_1080P_50, 1920, 1080, {1, 1}, 0},
+	{V4L2_STD_1080P_60, 1920, 1080, {1, 1}, 0},
 };
 
 /* Used when raw Bayer image from ccdc is directly captured to SDRAM */
@@ -1336,6 +1345,16 @@ static int vpfe_s_std(struct file *file, void *priv, v4l2_std_id *std_id)
 		v4l2_err(&vpfe_dev->v4l2_dev, "streaming is started\n");
 		ret = -EBUSY;
 		goto unlock_out;
+	}
+
+	/* Set filter value in ths7353 for TVP7002 input path */
+	if (sdinfo->grp_id == VPFE_SUBDEV_TVP7002) {
+		ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev, 1, video,
+						 s_std_output, *std_id);
+		if (ret < 0) {
+			v4l2_err(&vpfe_dev->v4l2_dev, "Failed to set filter for THS7353\n");
+			goto unlock_out;
+		}
 	}
 
 	ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev, sdinfo->grp_id,
