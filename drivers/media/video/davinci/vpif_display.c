@@ -943,14 +943,6 @@ static int vpif_s_std(struct file *file, void *priv, v4l2_std_id *std_id)
 		return -EINVAL;
 	}
 
-	if ((ch->vpifparams.std_info.width *
-				ch->vpifparams.std_info.height * 2) >
-			config_params.channel_bufsize[ch->channel_id]) {
-		vpif_err("invalid std for this size\n");
-		ret = -EINVAL;
-		goto s_std_exit;
-	}
-
 	vpif_dbg(1, debug, "Setting Video Ops\n");
 	list_for_each_entry(sd, &(&(vpif_obj.v4l2_dev))->subdevs, list) {
 		vpif_dbg(1, debug, "SubDev Name %s\n", sd->name);
@@ -1015,6 +1007,7 @@ static int vpif_streamon(struct file *file, void *priv,
 	struct vpif_params *vpif = &ch->vpifparams;
 	struct vpif_display_config *vpif_config_data =
 					vpif_dev->platform_data;
+	int sizeimage;
 	unsigned long addr = 0;
 	int ret = 0;
 
@@ -1063,6 +1056,20 @@ static int vpif_streamon(struct file *file, void *priv,
 		ret = -EIO;
 		goto streamon_exit;
 	}
+
+	if (common->memory == V4L2_MEMORY_MMAP)
+		sizeimage = config_params.channel_bufsize[ch->channel_id];
+	else
+		sizeimage = common->fmt.fmt.pix.sizeimage;
+
+	if ((ch->vpifparams.std_info.width *
+		ch->vpifparams.std_info.height * 2) >
+			sizeimage) {
+		vpif_err("invalid std for this size\n");
+		ret = -EINVAL;
+		goto streamon_exit;
+	}
+
 
 	/* Get the next frame from the buffer queue */
 	common->next_frm = common->cur_frm =
