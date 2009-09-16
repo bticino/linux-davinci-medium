@@ -830,7 +830,8 @@ static int vpif_reqbufs(struct file *file, void *priv,
 	if (mutex_lock_interruptible(&common->lock))
 		return -ERESTARTSYS;
 
-	if (common->fmt.type != reqbuf->type) {
+	if ((common->fmt.type != reqbuf->type) ||
+	    (NULL == vpif_dev)) {
 		ret = -EINVAL;
 		goto reqbuf_exit;
 	}
@@ -851,7 +852,7 @@ static int vpif_reqbufs(struct file *file, void *priv,
 
 	/* Initialize videobuf queue as per the buffer type */
 	videobuf_queue_dma_contig_init(&common->buffer_queue,
-					    &video_qops, &(ch->video_dev->dev),
+					    &video_qops, vpif_dev,
 					    &common->irqlock,
 					    reqbuf->type, field,
 					    sizeof(struct videobuf_buffer), fh);
@@ -1550,7 +1551,8 @@ probe_out:
 	for (k = 0; k < j; k++) {
 		ch = vpif_obj.dev[k];
 		video_unregister_device(ch->video_dev);
-		video_device_release(ch->video_dev);
+		if (ch->video_dev->minor == -1)
+			video_device_release(ch->video_dev);
 		ch->video_dev = NULL;
 	}
 vpif_int_err:
