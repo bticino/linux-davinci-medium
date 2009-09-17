@@ -17,9 +17,19 @@
 #define ADV7343_REGS_H
 
 struct adv7343_std_info {
+	u8 set_std_reg;
+	u32 outputmode_val;
+	u32 standard_val2;
 	u32 standard_val3;
 	u32 fsc_val;
 	v4l2_std_id stdid;
+};
+
+struct adv7343_output_info {
+	u32 output_type;
+	u32 num_std;
+	u32 dac_enable;
+	struct adv7343_std_info *std_info;
 };
 
 /* Register offset macros */
@@ -181,5 +191,9 @@ struct adv7343_std_info {
 #define ADV7343_GAIN_MAX	(255)
 #define ADV7343_GAIN_MIN	(0)
 #define ADV7343_GAIN_DEF	(0)
+
+#define ADV7343_SVIDEO_NUM_STD 		(7)
+#define ADV7343_COMPOSITE_NUM_STD	(7)
+#define ADV7343_COMPONENT_NUM_STD	(13)
 
 #endif

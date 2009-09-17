@@ -28,7 +28,7 @@
 #include <media/adv7343.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-chip-ident.h>
-
+#include <media/davinci/videohd.h>
 #include "adv7343_regs.h"
 
 MODULE_DESCRIPTION("ADV7343 video encoder driver");
@@ -40,12 +40,6 @@ MODULE_PARM_DESC(debug, "Debug level 0-1");
 
 struct adv7343_state {
 	struct v4l2_subdev sd;
-	u8 reg00;
-	u8 reg01;
-	u8 reg02;
-	u8 reg35;
-	u8 reg80;
-	u8 reg82;
 	int bright;
 	int hue;
 	int gain;
@@ -63,6 +57,13 @@ static inline int adv7343_write(struct v4l2_subdev *sd, u8 reg, u8 value)
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 
 	return i2c_smbus_write_byte_data(client, reg, value);
+}
+
+static inline int adv7343_read(struct v4l2_subdev *sd, u8 reg)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+
+	return i2c_smbus_read_byte_data(client, reg);
 }
 
 static const u8 adv7343_init_reg_val[] = {
@@ -96,29 +97,98 @@ static const u8 adv7343_init_reg_val[] = {
  * FSC(reg) =  FSC (HZ) * --------
  *			  27000000
  */
-static const struct adv7343_std_info stdinfo[] = {
-	{
+struct adv7343_std_info adv7343_composite_std_info[ADV7343_COMPOSITE_NUM_STD] =
+{
+	{ ADV7343_SD_MODE_REG1, SD_INPUT_MODE, (~(SD_STD_MASK)),
 		/* FSC(Hz) = 3,579,545.45 Hz */
-		SD_STD_NTSC, 569408542, V4L2_STD_NTSC,
-	}, {
+		SD_STD_NTSC, 569408542, V4L2_STD_NTSC},
+	{ ADV7343_SD_MODE_REG1, SD_INPUT_MODE, (~(SD_STD_MASK)),
+		/* FSC(Hz) = 4,433,618.75 Hz */
+		SD_STD_PAL_BDGHI, 705268427, V4L2_STD_PAL},
+	{ ADV7343_SD_MODE_REG1, SD_INPUT_MODE, (~(SD_STD_MASK)),
 		/* FSC(Hz) = 3,575,611.00 Hz */
-		SD_STD_PAL_M, 568782678, V4L2_STD_PAL_M,
-	}, {
+		SD_STD_PAL_M, 568782678, V4L2_STD_PAL_M},
+	{ ADV7343_SD_MODE_REG1, SD_INPUT_MODE, (~(SD_STD_MASK)),
 		/* FSC(Hz) = 3,582,056.00 */
-		SD_STD_PAL_N, 569807903, V4L2_STD_PAL_Nc,
-	}, {
+		SD_STD_PAL_N, 569807903, V4L2_STD_PAL_Nc},
+	{ ADV7343_SD_MODE_REG1, SD_INPUT_MODE, (~(SD_STD_MASK)),
 		/* FSC(Hz) = 4,433,618.75 Hz */
-		SD_STD_PAL_N, 705268427, V4L2_STD_PAL_N,
-	}, {
+		SD_STD_PAL_N, 705268427, V4L2_STD_PAL_N},
+	{ ADV7343_SD_MODE_REG1, SD_INPUT_MODE, (~(SD_STD_MASK)),
 		/* FSC(Hz) = 4,433,618.75 Hz */
-		SD_STD_PAL_BDGHI, 705268427, V4L2_STD_PAL,
-	}, {
+		SD_STD_NTSC, 705268427, V4L2_STD_NTSC_443},
+	{ ADV7343_SD_MODE_REG1, SD_INPUT_MODE, (~(SD_STD_MASK)),
 		/* FSC(Hz) = 4,433,618.75 Hz */
-		SD_STD_NTSC, 705268427, V4L2_STD_NTSC_443,
-	}, {
-		/* FSC(Hz) = 4,433,618.75 Hz */
-		SD_STD_PAL_M, 705268427, V4L2_STD_PAL_60,
-	},
+		SD_STD_PAL_M, 705268427, V4L2_STD_PAL_60}
+};
+
+
+struct adv7343_std_info adv7343_component_std_info[ADV7343_COMPONENT_NUM_STD] =
+{
+	{ ADV7343_HD_MODE_REG1, HD_720P_INPUT_MODE,
+		(~(STD_MODE_MASK << STD_MODE_SHIFT)),
+		(STD_MODE_720P << STD_MODE_SHIFT),
+		569408542, V4L2_STD_720P_60},
+#if 0
+	{ ADV7343_HD_MODE_REG1, HD_720P_INPUT_MODE,
+		(~(STD_MODE_MASK << STD_MODE_SHIFT)),
+		(STD_MODE_720P_25 << STD_MODE_SHIFT),
+		569408542, V4L2_STD_720P_25},
+	{ ADV7343_HD_MODE_REG1, HD_720P_INPUT_MODE,
+		(~(STD_MODE_MASK << STD_MODE_SHIFT)),
+		(STD_MODE_720P_30 << STD_MODE_SHIFT),
+		569408542, V4L2_STD_720P_30},
+#endif
+	{ ADV7343_HD_MODE_REG1, HD_720P_INPUT_MODE,
+		(~(STD_MODE_MASK << STD_MODE_SHIFT)),
+		(STD_MODE_720P_50 << STD_MODE_SHIFT),
+		569408542, V4L2_STD_720P_50},
+	{ ADV7343_HD_MODE_REG1, HD_1080I_INPUT_MODE,
+		(~(STD_MODE_MASK << STD_MODE_SHIFT)),
+		(STD_MODE_1080I << STD_MODE_SHIFT),
+		569408542, V4L2_STD_1080I_60},
+	{ ADV7343_HD_MODE_REG1, HD_1080I_INPUT_MODE,
+		(~(STD_MODE_MASK << STD_MODE_SHIFT)),
+		(STD_MODE_1080I_25fps << STD_MODE_SHIFT),
+		569408542, V4L2_STD_1080I_50},
+	{ ADV7343_HD_MODE_REG1, HD_720P_INPUT_MODE,
+		(~(STD_MODE_MASK << STD_MODE_SHIFT)),
+		(STD_MODE_525P << STD_MODE_SHIFT),
+		569408542, V4L2_STD_525P_60},
+	{ ADV7343_HD_MODE_REG1, HD_720P_INPUT_MODE,
+		(~(STD_MODE_MASK << STD_MODE_SHIFT)),
+		(STD_MODE_625P << STD_MODE_SHIFT),
+		569408542, V4L2_STD_625P_50},
+	{ ADV7343_SD_MODE_REG1, SD_INPUT_MODE, (~(SD_STD_MASK)),
+		SD_STD_NTSC, 569408542, V4L2_STD_525_60},
+	{ ADV7343_SD_MODE_REG1, SD_INPUT_MODE, (~(SD_STD_MASK)),
+		SD_STD_PAL_BDGHI, 569408542, V4L2_STD_625_50},
+#if 0
+	{ ADV7343_HD_MODE_REG1, HD_1080I_INPUT_MODE,
+		(~(STD_MODE_MASK << STD_MODE_SHIFT)),
+		(STD_MODE_1080P_24 << STD_MODE_SHIFT),
+		569408542, V4L2_STD_1080P_24},
+	{ ADV7343_HD_MODE_REG1, HD_1080I_INPUT_MODE,
+		(~(STD_MODE_MASK << STD_MODE_SHIFT)),
+		(STD_MODE_1080P_25 << STD_MODE_SHIFT),
+		569408542, V4L2_STD_1080P_25},
+	{ ADV7343_HD_MODE_REG1, HD_1080I_INPUT_MODE,
+		(~(STD_MODE_MASK << STD_MODE_SHIFT)),
+		(STD_MODE_1080P_30 << STD_MODE_SHIFT),
+		569408542, V4L2_STD_1080P_30}
+#endif
+};
+
+struct adv7343_output_info output_info[] = {
+	{ADV7343_COMPOSITE_ID, ADV7343_COMPOSITE_NUM_STD,
+		ADV7343_COMPOSITE_POWER_VALUE,
+		adv7343_composite_std_info},
+	{ADV7343_COMPONENT_ID, ADV7343_COMPONENT_NUM_STD,
+		ADV7343_COMPONENT_POWER_VALUE,
+		adv7343_component_std_info},
+	{ADV7343_SVIDEO_ID, ADV7343_SVIDEO_NUM_STD,
+		ADV7343_SVIDEO_POWER_VALUE,
+		adv7343_composite_std_info}
 };
 
 static int adv7343_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
@@ -127,14 +197,15 @@ static int adv7343_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
 	struct adv7343_std_info *std_info;
 	int output_idx, num_std;
 	char *fsc_ptr;
-	u8 reg, val;
-	int err = 0;
+	u8 reg;
+	int err = 0, val;
 	int i = 0;
 
 	output_idx = state->output;
 
-	std_info = (struct adv7343_std_info *)stdinfo;
-	num_std = ARRAY_SIZE(stdinfo);
+	std_info =
+		(struct adv7343_std_info *)(output_info[output_idx].std_info);
+	num_std = output_info[output_idx].num_std;
 
 	for (i = 0; i < num_std; i++) {
 		if (std_info[i].stdid & std)
@@ -144,27 +215,31 @@ static int adv7343_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
 	if (i == num_std) {
 		v4l2_dbg(1, debug, sd,
 				"Invalid std or std is not supported: %llx\n",
-						(unsigned long long)std);
+				(unsigned long long)std);
 		return -EINVAL;
 	}
 
 	/* Set the standard */
-	val = state->reg80 & (~(SD_STD_MASK));
+	val = adv7343_read(sd, std_info[i].set_std_reg);
+	if (val < 0)
+		goto setstd_exit;
+
+	val = val & std_info[i].standard_val2;
 	val |= std_info[i].standard_val3;
-	err = adv7343_write(sd, ADV7343_SD_MODE_REG1, val);
+	err = adv7343_write(sd, std_info[i].set_std_reg, val);
 	if (err < 0)
 		goto setstd_exit;
 
-	state->reg80 = val;
-
 	/* Configure the input mode register */
-	val = state->reg01 & (~((u8) INPUT_MODE_MASK));
-	val |= SD_INPUT_MODE;
+	val = adv7343_read(sd, ADV7343_MODE_SELECT_REG);
+	if (val < 0)
+		goto setstd_exit;
+
+	val = val & (~((u8) INPUT_MODE_MASK));
+	val |= std_info[i].outputmode_val;
 	err = adv7343_write(sd, ADV7343_MODE_SELECT_REG, val);
 	if (err < 0)
 		goto setstd_exit;
-
-	state->reg01 = val;
 
 	/* Program the sub carrier frequency registers */
 	fsc_ptr = (unsigned char *)&std_info[i].fsc_val;
@@ -175,9 +250,11 @@ static int adv7343_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
 			goto setstd_exit;
 	}
 
-	val = state->reg80;
-
 	/* Filter settings */
+	val = adv7343_read(sd, ADV7343_SD_MODE_REG1);
+	if (val < 0)
+		goto setstd_exit;
+
 	if (std & (V4L2_STD_NTSC | V4L2_STD_NTSC_443))
 		val &= 0x03;
 	else if (std & ~V4L2_STD_SECAM)
@@ -187,8 +264,8 @@ static int adv7343_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
 	if (err < 0)
 		goto setstd_exit;
 
-	state->reg80 = val;
-
+	state->std = std;
+	return 0;
 setstd_exit:
 	if (err != 0)
 		v4l2_err(sd, "Error setting std, write failed\n");
@@ -199,7 +276,7 @@ setstd_exit:
 static int adv7343_setoutput(struct v4l2_subdev *sd, u32 output_type)
 {
 	struct adv7343_state *state = to_state(sd);
-	unsigned char val;
+	int i, val;
 	int err = 0;
 
 	if (output_type > ADV7343_SVIDEO_ID) {
@@ -210,45 +287,55 @@ static int adv7343_setoutput(struct v4l2_subdev *sd, u32 output_type)
 	}
 
 	/* Enable Appropriate DAC */
-	val = state->reg00 & 0x03;
 
-	if (output_type == ADV7343_COMPOSITE_ID)
-		val |= ADV7343_COMPOSITE_POWER_VALUE;
-	else if (output_type == ADV7343_COMPONENT_ID)
-		val |= ADV7343_COMPONENT_POWER_VALUE;
-	else
-		val |= ADV7343_SVIDEO_POWER_VALUE;
+	/* Enable PLL and disable sleep mode */
+	val = 0x02;
+	for (i = 0; i < ARRAY_SIZE(output_info); i++) {
+		if (output_type == output_info[i].output_type) {
+			val |= output_info[i].dac_enable;
+			break;
+		}
+	}
+	if (i == ARRAY_SIZE(output_info)) {
+		v4l2_dbg(1, debug, sd,
+			"Invalid output type or output type not supported:%d\n",
+			output_type);
+		return -EINVAL;
+	}
 
 	err = adv7343_write(sd, ADV7343_POWER_MODE_REG, val);
 	if (err < 0)
 		goto setoutput_exit;
 
-	state->reg00 = val;
-
 	/* Enable YUV output */
-	val = state->reg02 | YUV_OUTPUT_SELECT;
+	val = adv7343_read(sd, ADV7343_MODE_REG0);
+	if (val < 0)
+		goto setoutput_exit;
+	val = val | YUV_OUTPUT_SELECT;
 	err = adv7343_write(sd, ADV7343_MODE_REG0, val);
 	if (err < 0)
 		goto setoutput_exit;
 
-	state->reg02 = val;
-
 	/* configure SD DAC Output 2 and SD DAC Output 1 bit to zero */
-	val = state->reg82 & (SD_DAC_1_DI & SD_DAC_2_DI);
+	val = adv7343_read(sd, ADV7343_SD_MODE_REG2);
+	if (val < 0)
+		goto setoutput_exit;
+	val &= (SD_DAC_1_DI & SD_DAC_2_DI);
 	err = adv7343_write(sd, ADV7343_SD_MODE_REG2, val);
 	if (err < 0)
 		goto setoutput_exit;
 
-	state->reg82 = val;
-
 	/* configure ED/HD Color DAC Swap and ED/HD RGB Input Enable bit to
 	 * zero */
-	val = state->reg35 & (HD_RGB_INPUT_DI & HD_DAC_SWAP_DI);
+	val = adv7343_read(sd, ADV7343_HD_MODE_REG6);
+	if (val < 0)
+		goto setoutput_exit;
+	val &= (HD_RGB_INPUT_DI & HD_DAC_SWAP_DI);
 	err = adv7343_write(sd, ADV7343_HD_MODE_REG6, val);
 	if (err < 0)
 		goto setoutput_exit;
 
-	state->reg35 = val;
+	state->output = i;
 
 setoutput_exit:
 	if (err != 0)
@@ -477,13 +564,6 @@ static int adv7343_probe(struct i2c_client *client,
 	state = kzalloc(sizeof(struct adv7343_state), GFP_KERNEL);
 	if (state == NULL)
 		return -ENOMEM;
-
-	state->reg00	= 0x80;
-	state->reg01	= 0x00;
-	state->reg02	= 0x20;
-	state->reg35	= 0x00;
-	state->reg80	= ADV7343_SD_MODE_REG1_DEFAULT;
-	state->reg82	= ADV7343_SD_MODE_REG2_DEFAULT;
 
 	state->output = ADV7343_COMPOSITE_ID;
 	state->std = V4L2_STD_NTSC;
