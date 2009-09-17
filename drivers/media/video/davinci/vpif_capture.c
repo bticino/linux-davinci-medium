@@ -36,6 +36,7 @@
 #include <linux/version.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
+#include <media/davinci/videohd.h>
 
 #include "vpif_capture.h"
 #include "vpif.h"
@@ -90,6 +91,19 @@ static const struct vpif_channel_config_params ch_params[] = {
 	{
 		"PAL_BDGHIK", 720, 576, 25, 0, 1, 280, 1440, 1, 23, 311, 313,
 		336, 624, 625, 0, 1, 0, V4L2_STD_625_50,
+	},
+	/* Digital TV video standards  */
+	{
+		"1080I-30", 1920, 1080, 30, 0, 0, 272, 1920, 1, 21, 561, 564,
+		584, 1124, 1125, 0, 0, 1, V4L2_STD_1080I_60,
+	},
+	{
+		"720P-60", 1280, 720, 60, 1, 0, 362, 1280, 1, 26, 746, 0,
+		0, 0, 750, 0, 0, 1, V4L2_STD_720P_60,
+	},
+	{
+		"1080P-60", 1920, 1080, 60, 1, 0, 272, 1920, 1, 42, 1122, 0,
+		0, 0, 1125, 0, 0, 1, V4L2_STD_1080P_60,
 	},
 };
 
@@ -275,7 +289,8 @@ static void vpif_buffer_release(struct videobuf_queue *q,
 
 	common = &ch->common[VPIF_VIDEO_INDEX];
 
-	videobuf_dma_contig_free(q, vb);
+	if (common->memory == V4L2_MEMORY_MMAP)
+		videobuf_dma_contig_free(q, vb);
 	vb->state = VIDEOBUF_NEEDS_INIT;
 }
 
@@ -924,7 +939,7 @@ static int vpif_reqbufs(struct file *file, void *priv,
 
 	/* Initialize videobuf queue as per the buffer type */
 	videobuf_queue_dma_contig_init(&common->buffer_queue,
-					    &video_qops, NULL,
+					    &video_qops, vpif_dev,
 					    &common->irqlock,
 					    reqbuf->type,
 					    common->fmt.fmt.pix.field,
@@ -1464,6 +1479,19 @@ static int vpif_s_std(struct file *file, void *priv, v4l2_std_id *std_id)
 
 	/* Configure the default format information */
 	vpif_config_format(ch);
+
+	/**
+	 * if we are using one channel mode, then we need to
+	 * set filter value in ths7353 for TVP7002 input path
+	 */
+	if (!ch->vpifparams.std_info.ycmux_mode) {
+		ret = v4l2_device_call_until_err(&vpif_obj.v4l2_dev, 1, video,
+						 s_std_output, *std_id);
+		if (ret < 0) {
+			vpif_err("Failed to set filter for THS7353\n");
+			goto s_std_exit;
+		}
+	}
 
 	/* set standard in the sub device */
 	ret = v4l2_subdev_call(vpif_obj.sd[ch->curr_sd_index], core,

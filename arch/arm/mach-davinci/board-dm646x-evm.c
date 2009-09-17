@@ -37,6 +37,8 @@
 #include <linux/spi/eeprom.h>
 
 #include <media/tvp514x.h>
+#include <media/tvp7002.h>
+#include <media/davinci/videohd.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/nand.h>
 #include <linux/mtd/partitions.h>
@@ -101,6 +103,10 @@
 #define VIDCH2CLK		(BIT(10))
 #define VIDCH3CLK		(BIT(11))
 #define VIDCH1CLK		(BIT(4))
+
+#define VIDCH1CLKSRCCH1		(BIT(4))
+#define VIDCH1CLKSRCCH0		(~BIT(4))
+
 #define TVP7002_INPUT		(BIT(4))
 #define TVP5147_INPUT		(~BIT(4))
 #define VPIF_INPUT_ONE_CHANNEL	(BIT(5))
@@ -604,7 +610,7 @@ static int setup_vpif_input_channel_mode(int mux_mode)
 	unsigned long flags;
 	int err = 0;
 	int val;
-	u32 value;
+	u32 value, value1;
 
 	if (!vpif_vsclkdis_reg || !cpld_client)
 		return -ENXIO;
@@ -615,14 +621,18 @@ static int setup_vpif_input_channel_mode(int mux_mode)
 
 	spin_lock_irqsave(&vpif_reg_lock, flags);
 	value = __raw_readl(vpif_vsclkdis_reg);
+	value1 = __raw_readl(vpif_vidclkctl_reg);
 	if (mux_mode) {
 		val &= VPIF_INPUT_TWO_CHANNEL;
 		value |= VIDCH1CLK;
+		value1 |= VIDCH1CLKSRCCH1;
 	} else {
 		val |= VPIF_INPUT_ONE_CHANNEL;
 		value &= ~VIDCH1CLK;
+		value1 &= VIDCH1CLKSRCCH0;
 	}
 	__raw_writel(value, vpif_vsclkdis_reg);
+	__raw_writel(value1, vpif_vidclkctl_reg);
 	spin_unlock_irqrestore(&vpif_reg_lock, flags);
 
 	err = i2c_smbus_write_byte(cpld_client, val);
@@ -638,9 +648,22 @@ static struct tvp514x_platform_data tvp5146_pdata = {
 	.vs_polarity = 1
 };
 
+struct tvp7002_platform_data tvp7002_pdata = {
+       .clk_polarity = 1,
+       .hs_polarity = 1,
+       .vs_polarity = 1,
+       .fid_polarity = 1,
+};
+
 #define TVP514X_STD_ALL (V4L2_STD_NTSC | V4L2_STD_PAL)
+#define TVP7002_STD_ALL        (V4L2_STD_525P_60   | V4L2_STD_625P_50 	|\
+				V4L2_STD_525_60    | V4L2_STD_625_50   |\
+				V4L2_STD_720P_50   | V4L2_STD_720P_60 	|\
+				V4L2_STD_1080I_50  | V4L2_STD_1080I_60 	|\
+				V4L2_STD_1080P_50  | V4L2_STD_1080P_60)
 
 static struct vpif_subdev_info vpif_capture_sdev_info[] = {
+#ifndef CONFIG_VIDEO_TVP7002
 	{
 		.name	= TVP5147_CH0,
 		.board_info = {
@@ -673,6 +696,27 @@ static struct vpif_subdev_info vpif_capture_sdev_info[] = {
 			.fid_pol = 0,
 		},
 	},
+#else
+	{
+		.name = "ths7353",
+		.board_info = {
+			I2C_BOARD_INFO("ths7353", 0x2e),
+		},
+	},
+	{
+		.name = "tvp7002",
+		.board_info = {
+			I2C_BOARD_INFO("tvp7002", 0x5d),
+			.platform_data = &tvp7002_pdata,
+		},
+		.vpif_if = {
+			.if_type = VPIF_IF_BT1120,
+			.hd_pol = 1,
+			.vd_pol = 1,
+			.fid_pol = 0,
+		},
+	},
+#endif
 };
 
 static const struct vpif_input dm6467_ch0_inputs[] = {
@@ -684,6 +728,15 @@ static const struct vpif_input dm6467_ch0_inputs[] = {
 			.std = TVP514X_STD_ALL,
 		},
 		.subdev_name = TVP5147_CH0,
+	},
+	{
+		.input = {
+			.index = 1,
+			.name = "Component",
+			.type = V4L2_INPUT_TYPE_CAMERA,
+			.std = TVP7002_STD_ALL,
+		},
+		.subdev_name = "tvp7002",
 	},
 };
 
