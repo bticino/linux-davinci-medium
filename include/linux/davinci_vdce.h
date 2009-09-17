@@ -23,7 +23,7 @@
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
 #endif
-#include <mach/davinci_vdce_hw.h>
+//#include <mach/davinci_vdce_hw.h>
 #define	  VDCE_IOC_BASE			   'G'
 #define	  VDCE_IOC_MAXNR			    9
 /* Ioctl options which are to be passed	while calling the ioctl	*/
@@ -38,6 +38,8 @@
 #define	VDCE_MIN_PRIORITY		  0
 #define	VDCE_DEFAULT_PRIORITY		  0
 #define	MAX_BUFFERS			  8
+
+#define MAX_BLEND_TABLE 		  (4)
 
 #ifdef __KERNEL__
 #define	MAX_RSZ_INTENSITY		  128

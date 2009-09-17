@@ -28,8 +28,8 @@
 #include <asm/uaccess.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
-#include <mach/davinci_vdce_hw.h>
-#include <mach/davinci_vdce.h>
+#include "davinci_vdce_hw.h"
+#include <linux/davinci_vdce.h>
 #include <linux/init.h>
 #include <asm/cacheflush.h>
 #include <mach/edma.h>

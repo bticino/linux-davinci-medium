@@ -18,8 +18,8 @@
 /* davinci_vdce_hw.c	file */
 
 /*Header files*/
-#include <mach/davinci_vdce_hw.h>
-#include <mach/davinci_vdce.h>
+#include "davinci_vdce_hw.h"
+#include <linux/davinci_vdce.h>
 #include <linux/kernel.h>	/* printk()     */
 #include <linux/device.h>
 
