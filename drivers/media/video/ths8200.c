@@ -130,7 +130,7 @@ static int ths8200_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
 
 	num_std = sizeof(mode_info) / sizeof(struct ths8200_mode_info);
 	for (i = 0; i < num_std; i++) {
-		if (std == mode_info[i].std) {
+		if (std & mode_info[i].std) {
 			err = 0;
 
 			ths8200_write(sd, THS8200_CHIP_CTL, 0x01);
