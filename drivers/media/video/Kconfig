@@ -484,6 +484,19 @@ config VIDEO_THS7353
 	  To compile this driver as a module, choose M here: the
 	  module will be called ths7353.
 
+config VIDEO_THS7353_LUMA_CHANNEL
+	int "THS7353 channel number for Luma Input"
+	default 3
+	depends on VIDEO_THS7353
+	help
+	  Select the luma channel number for the THS7353 input.
+
+	  THS7353 has three identical channels. For the component
+	  interface, luma input will be connected to one of these
+	  channels and cb and cr will be connected to other channels
+	  This config option is used to select the luma input channel
+	  number. Possible values for this option are 1,2 or 3. Any
+	  other value will result in value 2.
 
 config VIDEO_ADV7343
 	tristate "ADV7343 video encoder"
