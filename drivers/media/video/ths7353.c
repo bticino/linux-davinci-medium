@@ -57,6 +57,7 @@ static int ths7353_setvalue(struct v4l2_subdev *sd,
 	u8 val = 0, input_bias_luma = 5, input_bias_chroma = 4, temp;
 	struct i2c_client *client;
 	int err = 0, disable = 0;
+	int channel = 3;
 
 	client = v4l2_get_subdevdata(sd);
 
@@ -87,24 +88,34 @@ static int ths7353_setvalue(struct v4l2_subdev *sd,
 		disable = 1;
 	}
 
+	if (CONFIG_VIDEO_THS7353_LUMA_CHANNEL < THS7353_CHANNEL_1 ||
+		CONFIG_VIDEO_THS7353_LUMA_CHANNEL > THS7353_CHANNEL_3)
+		channel = 2;
+	else
+		channel = CONFIG_VIDEO_THS7353_LUMA_CHANNEL;
+
 	/* Setup channel 2 - Luma - Green */
 	temp = val;
 	if (!disable)
 		val |= input_bias_luma;
-	err = i2c_smbus_write_byte_data(client, THS7353_CHANNEL_2, val);
+	err = i2c_smbus_write_byte_data(client, channel, val);
 	if (err)
 		goto out;
 
 	/* setup two chroma channels */
 	if (!disable)
 		temp |= input_bias_chroma;
-
-	err = i2c_smbus_write_byte_data(client, THS7353_CHANNEL_1, temp);
+	channel++;
+	if (channel > THS7353_CHANNEL_3)
+		channel = THS7353_CHANNEL_1;
+	err = i2c_smbus_write_byte_data(client, channel, temp);
 	if (err)
 		goto out;
 
-	err = i2c_smbus_write_byte_data(client, THS7353_CHANNEL_3, temp);
-
+	channel++;
+	if (channel > THS7353_CHANNEL_3)
+		channel = THS7353_CHANNEL_1;
+	err = i2c_smbus_write_byte_data(client, channel, temp);
 	if (err)
 		goto out;
 	return 0;
