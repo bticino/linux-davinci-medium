@@ -437,10 +437,29 @@ static void musb_advance_schedule(struct musb *musb, struct urb *urb,
 				list_del(&qh->ring);
 				kfree(qh);
 				qh = first_qh(head);
-				break;
+			} else {
+				kfree(qh);
+				qh = NULL;
 			}
+			break;
 
 		case USB_ENDPOINT_XFER_INT:
+			if (is_intr_sched() && musb->intr_ep) {
+				list_del(&qh->ring);
+				if (list_empty(is_in ? &musb->in_intr :
+							&musb->out_intr)) {
+					u8      intrusbe;
+					DBG(4, "Disable SOF\n");
+					intrusbe = musb_readb(musb->mregs,
+								MUSB_INTRUSBE);
+					intrusbe &= ~MUSB_INTR_SOF;
+					musb_writeb(musb->mregs,
+						MUSB_INTRUSBE, intrusbe);
+				}
+				kfree(qh);
+				qh = NULL;
+				break;
+			}
 		case USB_ENDPOINT_XFER_ISOC:
 			kfree(qh);
 			qh = NULL;
