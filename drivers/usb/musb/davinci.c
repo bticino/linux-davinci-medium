@@ -41,7 +41,7 @@
 
 #include "musb_core.h"
 
-#ifdef CONFIG_MACH_DAVINCI_EVM
+#if defined(CONFIG_MACH_DAVINCI_EVM) || defined(CONFIG_MACH_DAVINCI_DM6467_EVM)
 #define GPIO_nVBUS_DRV		160
 #endif
 
@@ -71,6 +71,13 @@ static inline void phy_on(void)
 	/* power everything up; start the on-chip PHY and its PLL */
 	phy_ctrl &= ~(USBPHY_OSCPDWN | USBPHY_OTGPDWN | USBPHY_PHYPDWN);
 	phy_ctrl |= USBPHY_SESNDEN | USBPHY_VBDTCTEN | USBPHY_PHYPLLON;
+	if (cpu_is_davinci_dm646x()) {
+		phy_ctrl |= USBPHY_NDATAPOL | USBPHY_SESSION_VBUS;
+		phy_ctrl |= is_peripheral_enabled() ? USBPHY_PERI_USBID :
+						phy_ctrl;
+		phy_ctrl &= ~USBPHY_VBDTCTEN;
+	}
+
 	__raw_writel(phy_ctrl, USB_PHY_CTRL);
 
 	/* wait for PLL to lock before proceeding */
@@ -163,7 +170,7 @@ void musb_platform_disable(struct musb *musb)
  * when J10 is out, and TI documents it as handling OTG.
  */
 
-#ifdef CONFIG_MACH_DAVINCI_EVM
+#if defined(CONFIG_MACH_DAVINCI_EVM) || defined(CONFIG_MACH_DAVINCI_DM6467_EVM)
 
 static int vbus_state = -1;
 
@@ -173,7 +180,12 @@ static int vbus_state = -1;
  */
 static void evm_deferred_drvvbus(struct work_struct *ignored)
 {
-	gpio_set_value_cansleep(GPIO_nVBUS_DRV, vbus_state);
+	if (machine_is_davinci_evm())
+		gpio_set_value_cansleep(GPIO_nVBUS_DRV, vbus_state);
+
+	if (machine_is_davinci_dm6467_evm())
+		usb_vbus_control(vbus_state);
+
 	vbus_state = !vbus_state;
 }
 
@@ -181,7 +193,7 @@ static void evm_deferred_drvvbus(struct work_struct *ignored)
 
 static void davinci_source_power(struct musb *musb, int is_on, int immediate)
 {
-#ifdef CONFIG_MACH_DAVINCI_EVM
+#if defined(CONFIG_MACH_DAVINCI_EVM) || defined(CONFIG_MACH_DAVINCI_DM6467_EVM)
 	if (is_on)
 		is_on = 1;
 
@@ -189,12 +201,16 @@ static void davinci_source_power(struct musb *musb, int is_on, int immediate)
 		return;
 	vbus_state = !is_on;		/* 0/1 vs "-1 == unknown/init" */
 
-	if (machine_is_davinci_evm()) {
+	if (machine_is_davinci_evm() || machine_is_davinci_dm6467_evm()) {
 		static DECLARE_WORK(evm_vbus_work, evm_deferred_drvvbus);
 
-		if (immediate)
-			gpio_set_value_cansleep(GPIO_nVBUS_DRV, vbus_state);
-		else
+		if (immediate) {
+			if (machine_is_davinci_evm())
+				gpio_set_value_cansleep(GPIO_nVBUS_DRV,
+							vbus_state);
+			if (machine_is_davinci_dm6467_evm())
+				usb_vbus_control(vbus_state);
+		} else
 			schedule_work(&evm_vbus_work);
 	}
 	if (immediate)

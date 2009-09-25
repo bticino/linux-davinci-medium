@@ -16,6 +16,9 @@
 
 /* Integrated highspeed/otg PHY */
 #define USBPHY_CTL_PADDR	(DAVINCI_SYSTEM_MODULE_BASE + 0x34)
+#define USBPHY_NDATAPOL		BIT(18)
+#define USBPHY_SESSION_VBUS	BIT(17)
+#define USBPHY_PERI_USBID	BIT(16)
 #define USBPHY_DATAPOL		BIT(11)	/* (dm355) switch D+/D- */
 #define USBPHY_PHYCLKGD		BIT(8)
 #define USBPHY_SESNDEN		BIT(7)	/* v(sess_end) comparator */
@@ -104,4 +107,7 @@
 
 #define DAVINCI_BASE_OFFSET		0x400
 
+#ifdef CONFIG_MACH_DAVINCI_DM6467_EVM
+extern void usb_vbus_control(u8 on);
+#endif
 #endif	/* __MUSB_HDRDF_H__ */
