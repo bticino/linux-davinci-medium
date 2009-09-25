@@ -1647,7 +1647,7 @@ void musb_host_rx(struct musb *musb, u8 epnum)
 		/* done if urb buffer is full or short packet is recd */
 		done = (urb->actual_length + xfer_len >=
 				urb->transfer_buffer_length
-			|| dma->actual_len < qh->maxpacket);
+			|| dma->actual_len % qh->maxpacket || !dma->actual_len);
 		}
 
 		/* send IN token for next packet, without AUTOREQ */
