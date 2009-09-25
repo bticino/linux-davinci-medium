@@ -7,6 +7,8 @@
  */
 
 #include <linux/usb.h>
+#include <linux/platform_device.h>
+
 
 #include "musb_core.h"
 #include "musb_host.h"
@@ -1090,6 +1092,10 @@ struct dma_controller *__init
 dma_controller_create(struct musb *musb, void __iomem *mregs)
 {
 	struct cppi 		*controller;
+	struct device		*dev = musb->controller;
+	struct platform_device	*pdev = to_platform_device(dev);
+	int			irq = platform_get_irq(pdev, 1);
+
 
 	controller = kzalloc(sizeof *controller, GFP_KERNEL);
 	if (!controller)
@@ -1118,6 +1124,14 @@ dma_controller_create(struct musb *musb, void __iomem *mregs)
 	if (!controller->pool) {
 		kfree(controller);
 		return NULL;
+	}
+
+	if (irq > 0) {
+		if (request_irq(irq, davinci_interrupt, 0, "cppi-dma", musb)) {
+			dev_err(dev, "request_irq %d failed!\n", irq);
+			dma_controller_destroy(&controller->controller);
+			return NULL;
+		}
 	}
 
 	return &controller->controller;

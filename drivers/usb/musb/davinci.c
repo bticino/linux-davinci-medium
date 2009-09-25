@@ -288,7 +288,7 @@ static void otg_timer(unsigned long _musb)
 	spin_unlock_irqrestore(&musb->lock, flags);
 }
 
-static irqreturn_t davinci_interrupt(int irq, void *__hci)
+irqreturn_t davinci_interrupt(int irq, void *__hci)
 {
 	unsigned long	flags;
 	irqreturn_t	retval = IRQ_NONE;
