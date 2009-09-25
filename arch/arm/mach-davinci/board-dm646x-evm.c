@@ -98,6 +98,7 @@
 /* CPLD Register 0 bits to control ATA */
 #define DM646X_EVM_ATA_RST		BIT(0)
 #define DM646X_EVM_ATA_PWD		BIT(1)
+#define DM646X_EVM_USB_VBUS		BIT(7)
 
 #define DM646X_EVM_PHY_MASK		(0x2)
 #define DM646X_EVM_MDIO_FREQUENCY	(2200000) /* PHY bus frequency */
@@ -252,11 +253,13 @@ static void dm646xevm_pci_setup(void)
 		pr_info("PCI_EN is already asserted.\n");
 	}
 }
+static struct i2c_client *cpld_reg0_client;
 
 /* CPLD Register 0 Client: used for I/O Control */
 static int cpld_reg0_probe(struct i2c_client *client,
 			   const struct i2c_device_id *id)
 {
+	cpld_reg0_client = client;
 	if (HAS_ATA && !HAS_PCI) {
 		u8 data;
 		struct i2c_msg msg[2] = {
@@ -280,8 +283,38 @@ static int cpld_reg0_probe(struct i2c_client *client,
 		i2c_transfer(client->adapter, msg + 1, 1);
 	}
 
+	setup_usb(500, 8);
+
 	return 0;
 }
+
+void usb_vbus_control(u8 on)
+{
+	u8 data;
+	struct i2c_msg msg[2] = {
+		{
+			.addr = cpld_reg0_client->addr,
+			.flags = I2C_M_RD,
+			.len = 1,
+			.buf = &data,
+		},
+		{
+			.addr = cpld_reg0_client->addr,
+			.flags = 0,
+			.len = 1,
+			.buf = &data,
+		},
+	};
+
+	i2c_transfer(cpld_reg0_client->adapter, msg, 1);
+	if (on)
+		data |= DM646X_EVM_USB_VBUS;
+	else
+		data &= ~DM646X_EVM_USB_VBUS;
+
+	i2c_transfer(cpld_reg0_client->adapter, msg + 1, 1);
+}
+EXPORT_SYMBOL(usb_vbus_control);
 
 static const struct i2c_device_id cpld_reg_ids[] = {
 	{ "cpld_reg0", 0, },
