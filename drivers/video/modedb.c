@@ -756,10 +756,12 @@ void fb_videomode_to_var(struct fb_var_screeninfo *var,
 {
 	var->xres = mode->xres;
 	var->yres = mode->yres;
+#if 0
 	var->xres_virtual = mode->xres;
 	var->yres_virtual = mode->yres;
 	var->xoffset = 0;
 	var->yoffset = 0;
+#endif
 	var->pixclock = mode->pixclock;
 	var->left_margin = mode->left_margin;
 	var->right_margin = mode->right_margin;
