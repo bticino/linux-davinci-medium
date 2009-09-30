@@ -85,6 +85,7 @@ struct ths8200_mode_info {
 	u32 full_line_pulse_duration;
 	u32 vback_porch;
 	u32 dtg_spec_k1;
+	u32 vs_in_delay;
 };
 
 static inline struct ths8200_state *to_state(struct v4l2_subdev *sd)
@@ -110,32 +111,32 @@ static const struct ths8200_mode_info mode_info[] = {
 	/* 1080P Mode */
 	{V4L2_STD_1080P_60, THS8200_INTF_20BIT_YUV422, THS8200_1080P_60,
 		1125, 2047, 2200, 0x80,
-		44, 44, 132, 88, 192, 0x00, 0x00, 88, 0x00},
+		44, 44, 132, 88, 192, 0x00, 0x00, 88, 0x00, 0x03},
 	/* SD Modes */
 	{V4L2_STD_525_60, THS8200_INTF_10BIT_YUV422, THS8200_480I_60,
 		525, 263, 858, 0x44,
-		0x3E, 0x1E, 0x79, 0x14, 0x00, 0x16B, 0x31B, 0x11, 0x0A},
+		0x3E, 0x1E, 0x79, 0x14, 0x00, 0x16B, 0x31B, 0x11, 0x0A, 0x00},
 	{V4L2_STD_625_50, THS8200_INTF_10BIT_YUV422, THS8200_576I_60,
 		525, 312, 864, 0x40,
-		0x3E, 0x20, 0x83, 0x58, 0xC0, 0x170, 0x31B, 0x0D, 0x0A},
+		0x3E, 0x20, 0x83, 0x58, 0xC0, 0x170, 0x31B, 0x0D, 0x0A, 0x02},
 	/* 720P Mode */
 	{V4L2_STD_720P_60, THS8200_INTF_20BIT_YUV422, THS8200_720P_60,
 		750, 2047, 1650, 0xA5,
-		0x2C, 0x2C, 0x84, 0x58, 0xC0, 0x00, 0x00, 0x58, 0x00},
+		0x2C, 0x2C, 0x84, 0x58, 0xC0, 0x00, 0x00, 0x58, 0x00, 0x05},
 	{V4L2_STD_720P_50, THS8200_INTF_20BIT_YUV422, THS8200_720P_60,
 		750, 2047, 1980, 0x1F0,
-		0x2C, 0x2C, 0x84, 0x58, 0xC0, 0x00, 0x00, 0x58, 0x00},
+		0x2C, 0x2C, 0x84, 0x58, 0xC0, 0x00, 0x00, 0x58, 0x00, 0x20},
 	/* 1080I Mode */
 	{V4L2_STD_1080I_60, THS8200_INTF_20BIT_YUV422, THS8200_1080I_60,
 		1125, 563, 2200, 0x90,
-		44, 44, 132, 88, 192, 0x00, 0x00, 88, 0x00},
+		44, 44, 132, 88, 192, 0x00, 0x00, 88, 0x00, 0x03},
 	{V4L2_STD_1080I_50, THS8200_INTF_20BIT_YUV422, THS8200_1080I_60,
 		1125, 563, 2640, 0x240,
-		44, 44, 132, 88, 192, 0x00, 0x00, 88, 0x00},
+		44, 44, 132, 88, 192, 0x00, 0x00, 88, 0x00, 0x01},
 	/* ED Modes */
 	{V4L2_STD_525P_60, THS8200_INTF_20BIT_YUV422, THS8200_480P_60,
 		525, 0x7FF, 0x35A, 0x40,
-		0x3D, 0x20, 0x7A, 0x10, 0xC0, 0x190, 0x31B, 0x10, 0x00}
+		0x3D, 0x20, 0x7A, 0x10, 0xC0, 0x190, 0x31B, 0x10, 0x00, 0x00}
 };
 
 
@@ -281,6 +282,12 @@ static int ths8200_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
 			err |= ths8200_write(sd, THS8200_DTG1_SPEC_K1,
 					mode_info[i].dtg_spec_k1);
 
+			err |= ths8200_write(sd, THS8200_DTG2_VS_IN_DLY_LSB,
+					(mode_info[i].vs_in_delay &
+					 THS8200_DTG2_VS_IN_DLY_LSB_MASK));
+			err |= ths8200_write(sd, THS8200_DTG2_VS_IN_DLY_MSB,
+					((mode_info[i].vs_in_delay >> 8) &
+                                         THS8200_DTG2_VS_IN_DLY_MSB_MASK));
 			ths8200_write(sd, THS8200_CHIP_CTL, 0x00);
 			mdelay(10);
 			ths8200_write(sd, THS8200_CHIP_CTL, 0x01);
