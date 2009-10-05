@@ -798,6 +798,9 @@ static struct vpif_subdev_info vpif_capture_sdev_info[] = {
 		.name = "ths7353",
 		.board_info = {
 			I2C_BOARD_INFO("ths7353", 0x2e),
+			/* From driver point of view, we need only
+			   channel number for Luma*/
+			.platform_data = CONFIG_VIDEO_THS7353_LUMA_CHANNEL,
 		},
 	},
 	{
