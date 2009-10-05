@@ -41,6 +41,7 @@ MODULE_PARM_DESC(debug, "Debug level 0-1");
 #define THS7353_CHANNEL_1	1
 #define THS7353_CHANNEL_2	2
 #define THS7353_CHANNEL_3	3
+#define THS7353_DEF_LUMA_CHANNEL 2
 
 /* all supported modes */
 enum ths7353_filter_mode {
@@ -49,6 +50,8 @@ enum ths7353_filter_mode {
 	THS_FILTER_MODE_720P_1080I,
 	THS_FILTER_MODE_1080P
 };
+
+static int ths7353_luma_channel;
 
 /* following function is used to set ths7353 */
 static int ths7353_setvalue(struct v4l2_subdev *sd,
@@ -88,11 +91,7 @@ static int ths7353_setvalue(struct v4l2_subdev *sd,
 		disable = 1;
 	}
 
-	if (CONFIG_VIDEO_THS7353_LUMA_CHANNEL < THS7353_CHANNEL_1 ||
-		CONFIG_VIDEO_THS7353_LUMA_CHANNEL > THS7353_CHANNEL_3)
-		channel = 2;
-	else
-		channel = CONFIG_VIDEO_THS7353_LUMA_CHANNEL;
+	channel = ths7353_luma_channel;
 
 	/* Setup channel 2 - Luma - Green */
 	temp = val;
@@ -171,6 +170,18 @@ static int ths7353_probe(struct i2c_client *client,
 
 	v4l_info(client, "chip found @ 0x%x (%s)\n",
 			client->addr << 1, client->adapter->name);
+
+	if (!client->dev.platform_data) {
+		v4l_warn(client, "No platform data!!\n");
+		ths7353_luma_channel = THS7353_DEF_LUMA_CHANNEL;
+	} else {
+		ths7353_luma_channel = (int)(client->dev.platform_data);
+		if ((ths7353_luma_channel < THS7353_CHANNEL_1) ||
+				(ths7353_luma_channel > THS7353_CHANNEL_3)) {
+			v4l_warn(client, "Wring Luma Channel!!\n");
+			ths7353_luma_channel = THS7353_DEF_LUMA_CHANNEL;
+		}
+	}
 
 	sd = kzalloc(sizeof(struct v4l2_subdev), GFP_KERNEL);
 	if (sd == NULL)
