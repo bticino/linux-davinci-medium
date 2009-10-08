@@ -291,7 +291,7 @@ static int _davinci_disp_dm6446_vid0_pingpong(int field_inversion,
 #if 0
 	if (!cpu_is_davinci_dm644x_pg1x())
 		return 0;
-#endif
+
 
 	if (!field_inversion || !lconfig->interlaced) {
 		osd_write(fb_base_phys & ~0x1F, OSD_VIDWIN0ADR);
@@ -315,6 +315,8 @@ static int _davinci_disp_dm6446_vid0_pingpong(int field_inversion,
 
 		return 1;
 	}
+#endif
+	return 0;
 }
 
 int davinci_disp_get_field_inversion(void)
