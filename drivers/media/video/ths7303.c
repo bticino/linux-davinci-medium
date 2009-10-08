@@ -28,6 +28,8 @@
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-chip-ident.h>
 
+#include "ths7303.h"
+
 MODULE_DESCRIPTION("TI THS7303 video amplifier driver");
 MODULE_AUTHOR("Chaithrika U S");
 MODULE_LICENSE("GPL");
@@ -40,13 +42,62 @@ MODULE_PARM_DESC(debug, "Debug level 0-1");
 #define THS7353_CHANNEL_2       (2)
 #define THS7353_CHANNEL_3       (3)
 
-/* all supported modes */
-enum ths7303_filter_mode {
-	THS7303_FILTER_MODE_480I_576I,
-	THS7303_FILTER_MODE_480P_576P,
-	THS7303_FILTER_MODE_720P_1080I,
-	THS7303_FILTER_MODE_1080P
-};
+static struct i2c_client *ths7303_client = NULL;
+
+/* following function is used to set ths7303 */
+int ths7303_setval(enum ths7303_filter_mode mode)
+{
+	u8 val = 0, input_bias_luma = 2, input_bias_chroma = 2, temp;
+	int err = 0, disable = 0;
+
+	if (ths7303_client == NULL)
+		return 0;
+
+	switch (mode) {
+	case THS7303_FILTER_MODE_1080P:
+		val = (3 << 6);
+		val |= (3 << 3);
+		break;
+	case THS7303_FILTER_MODE_720P_1080I:
+		val = (2 << 6);
+		val |= (2 << 3);
+		break;
+	case THS7303_FILTER_MODE_480P_576P:
+		val = (1 << 6);
+		val |= (1 << 3);
+		break;
+	case THS7303_FILTER_MODE_480I_576I:
+		break;
+	default:
+		/* disable all channels */
+		disable = 1;
+	}
+	/* Setup channel 2 - Luma - Green */
+	temp = val;
+	if (!disable)
+		val |= input_bias_luma;
+	err = i2c_smbus_write_byte_data(ths7303_client, THS7353_CHANNEL_2, val);
+	if (err)
+		goto out;
+
+	/* setup two chroma channels */
+	if (!disable)
+		temp |= input_bias_chroma;
+
+	err = i2c_smbus_write_byte_data(ths7303_client, THS7353_CHANNEL_1, temp);
+	if (err)
+		goto out;
+
+	err = i2c_smbus_write_byte_data(ths7303_client, THS7353_CHANNEL_3, temp);
+
+	if (err)
+		goto out;
+	return 0;
+
+out:
+	return err;
+}
+EXPORT_SYMBOL(ths7303_setval);
 
 /* following function is used to set ths7303 */
 static int ths7303_setvalue(struct v4l2_subdev *sd,
@@ -157,6 +208,8 @@ static int ths7303_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	v4l2_i2c_subdev_init(sd, client, &ths7303_ops);
+
+	ths7303_client = client;
 
 	return ths7303_s_std_output(sd, std_id);
 }
