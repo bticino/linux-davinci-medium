@@ -23,12 +23,16 @@
 #include <linux/interrupt.h>
 #include <linux/string.h>
 #include <media/v4l2-dev.h>
+#include <media/v4l2-common.h>
+#include <media/v4l2-ioctl.h>
+#include <media/v4l2-device.h>
 #include <linux/wait.h>
 #include <linux/time.h>
 #include <linux/platform_device.h>
 #include <linux/irq.h>
 #include <linux/mm.h>
 #include <linux/mutex.h>
+#include <linux/videodev2.h>
 #include <asm/pgtable.h>
 #include <mach/cputype.h>
 #include <media/davinci/davinci_enc.h>
@@ -42,14 +46,10 @@
 static u32 video2_numbuffers = 3;
 static u32 video3_numbuffers = 3;
 
-#define DAVINCI_DISPLAY_HD_BUF_SIZE (1920*1088*2)
+#define DAVINCI_DISPLAY_HD_BUF_SIZE (1280*720*2)
 #define DAVINCI_DISPLAY_SD_BUF_SIZE (720*576*2)
 
-#ifdef CONFIG_DAVINCI_THS8200_ENCODER
-static u32 video2_bufsize = DAVINCI_DISPLAY_HD_BUF_SIZE;
-#else
 static u32 video2_bufsize = DAVINCI_DISPLAY_SD_BUF_SIZE;
-#endif
 static u32 video3_bufsize = DAVINCI_DISPLAY_SD_BUF_SIZE;
 
 module_param(video2_numbuffers, uint, S_IRUGO);
@@ -65,13 +65,8 @@ static struct buf_config_params display_buf_config_params = {
 	.numbuffers[1] = DAVINCI_DEFAULT_NUM_BUFS,
 	.min_bufsize[0] = DAVINCI_DISPLAY_SD_BUF_SIZE,
 	.min_bufsize[1] = DAVINCI_DISPLAY_SD_BUF_SIZE,
-#ifdef CONFIG_DAVINCI_THS8200_ENCODER
-	.layer_bufsize[0] = DAVINCI_DISPLAY_HD_BUF_SIZE,
-	.layer_bufsize[1] = DAVINCI_DISPLAY_SD_BUF_SIZE,
-#else
 	.layer_bufsize[0] = DAVINCI_DISPLAY_SD_BUF_SIZE,
 	.layer_bufsize[1] = DAVINCI_DISPLAY_SD_BUF_SIZE,
-#endif
 };
 
 static int davinci_display_nr[] = { 2, 3 };
@@ -99,75 +94,43 @@ static struct v4l2_rect hd_720p_bounds = DAVINCI_DISPLAY_WIN_720P;
 static struct v4l2_rect hd_1080i_bounds = DAVINCI_DISPLAY_WIN_1080I;
 
 /*
- * davinci_alloc_buffer()
- * Function to allocate memory for buffers
- */
-static inline unsigned long davinci_alloc_buffer(unsigned int buf_size)
-{
-	void *mem = 0;
-	u32 size = PAGE_SIZE << (get_order(buf_size));
-
-	mem = (void *)__get_free_pages(GFP_KERNEL | GFP_DMA,
-				       get_order(buf_size));
-	if (mem) {
-		unsigned long adr = (unsigned long)mem;
-		while (size > 0) {
-			SetPageReserved(virt_to_page(adr));
-			adr += PAGE_SIZE;
-			size -= PAGE_SIZE;
-		}
-	}
-	return (unsigned long)mem;
-}
-
-/*
- * davinci_free_buffer()
- * function to Free memory for buffers
- */
-static inline void davinci_free_buffer(unsigned long addr,
-				       unsigned int buf_size)
-{
-	unsigned int size, adr;
-
-	if (!addr)
-		return;
-	adr = addr;
-	size = PAGE_SIZE << (get_order(buf_size));
-	while (size > 0) {
-		ClearPageReserved(virt_to_page(adr));
-		adr += PAGE_SIZE;
-		size -= PAGE_SIZE;
-	}
-	free_pages(addr, get_order(buf_size));
-}
-
-/*
  * davinci_uservirt_to_phys()
  * This inline function is used to convert user space virtual address
  * to physical address.
  */
-static inline u32 davinci_uservirt_to_phys(u32 virt)
+static inline u32 davinci_uservirt_to_phys(u32 virtp)
 {
-	pgd_t *pgd;
-	pmd_t *pmd;
-	pte_t *pte;
-
 	struct mm_struct *mm = current->mm;
-	pgd = pgd_offset(mm, virt);
-	if (!(pgd_none(*pgd) || pgd_bad(*pgd))) {
-		pmd = pmd_offset(pgd, virt);
+	unsigned long physp = 0;
+	struct vm_area_struct *vma;
 
-		if (!(pmd_none(*pmd) || pmd_bad(*pmd))) {
-			pte = pte_offset_kernel(pmd, virt);
+	vma = find_vma(mm, virtp);
 
-			if (pte_present(*pte)) {
-				return __pa(page_address(pte_page(*pte))
-					    + (virt & ~PAGE_MASK));
-			}
+	/* For kernel direct-mapped memory, take the easy way */
+	if (virtp >= PAGE_OFFSET)
+		physp = virt_to_phys((void *)virtp);
+	else if (vma && (vma->vm_flags & VM_IO) && (vma->vm_pgoff))
+		/* this will catch, kernel-allocated, mmaped-to-usermode addr */
+		physp = (vma->vm_pgoff << PAGE_SHIFT) + (virtp - vma->vm_start);
+	else {
+		/* otherwise, use get_user_pages() for general userland pages */
+		int res, nr_pages = 1;
+		struct page *pages;
+		down_read(&current->mm->mmap_sem);
+
+		res = get_user_pages(current, current->mm,
+				     virtp, nr_pages, 1, 0, &pages, NULL);
+		up_read(&current->mm->mmap_sem);
+
+		if (res == nr_pages)
+			physp = __pa(page_address(&pages[0]) +
+				     (virtp & ~PAGE_MASK));
+		else {
+			dev_dbg(davinci_display_dev, "get_user_pages failed\n");
+			return 0;
 		}
 	}
-
-	return 0;
+	return physp;
 }
 
 /*
@@ -180,9 +143,9 @@ static int davinci_buffer_prepare(struct videobuf_queue *q,
 				  struct videobuf_buffer *vb,
 				  enum v4l2_field field)
 {
-	/* Get the file handle object and layer object */
-	struct davinci_fh *fh = q->priv_data;
-	struct display_obj *layer = fh->layer;
+	unsigned long addr;
+	int ret = 0;
+
 	dev_dbg(davinci_display_dev, "<davinci_buffer_prepare>\n");
 
 	/* If buffer is not initialized, initialize it */
@@ -191,48 +154,28 @@ static int davinci_buffer_prepare(struct videobuf_queue *q,
 		vb->height = davinci_dm.mode_info.yres;
 		vb->size = vb->width * vb->height;
 		vb->field = field;
-	}
-	vb->state = VIDEOBUF_PREPARED;
-	/* if user pointer memory mechanism is used, get the physical
-	 * address of the buffer
-	 */
-	if (V4L2_MEMORY_USERPTR == layer->memory) {
-		vb->boff = davinci_uservirt_to_phys(vb->baddr);
-		if (!ISALIGNED(vb->boff)) {
-			dev_err(davinci_display_dev, "buffer_prepare:offset is \
-				not aligned to 8 bytes\n");
-			return -EINVAL;
+
+		ret = videobuf_iolock(q, vb, NULL);
+		if (ret < 0)
+			goto buf_align_exit;
+
+		addr = videobuf_to_dma_contig(vb);
+
+		if (q->streaming) {
+			if (!ISALIGNED(addr)) {
+				dev_err(davinci_display_dev, "buffer_prepare:offset is \
+					not aligned to 32 bytes\n");
+				goto buf_align_exit;
+			}
 		}
+		vb->state = VIDEOBUF_PREPARED;
 	}
-	dev_dbg(davinci_display_dev, "</davinci_buffer_prepare>\n");
+
 	return 0;
+
+buf_align_exit:
+	return -EINVAL;
 }
-
-/*
- * davinci_buffer_config()
- * This function is responsible to responsible for buffer's
- * physical address
- */
-static void davinci_buffer_config(struct videobuf_queue *q, unsigned int count)
-{
-	/* Get the file handle object and layer object */
-	struct davinci_fh *fh = q->priv_data;
-	struct display_obj *layer = fh->layer;
-	int i;
-	dev_dbg(davinci_display_dev, "<davinci_buffer_config>\n");
-
-	/* If memory type is not mmap, return */
-	if (V4L2_MEMORY_MMAP != layer->memory)
-		return;
-	/* Convert kernel space virtual address to physical address */
-	for (i = 0; i < count; i++) {
-		q->bufs[i]->boff = virt_to_phys((void *)layer->fbuffers[i]);
-		dev_dbg(davinci_display_dev, "buffer address: %x\n",
-			q->bufs[i]->boff);
-	}
-	dev_dbg(davinci_display_dev, "</davinci_buffer_config>\n");
-}
-
 /*
  * davinci_buffer_setup()
  * This function allocates memory for the buffers
@@ -243,7 +186,7 @@ static int davinci_buffer_setup(struct videobuf_queue *q, unsigned int *count,
 	/* Get the file handle object and layer object */
 	struct davinci_fh *fh = q->priv_data;
 	struct display_obj *layer = fh->layer;
-	int i;
+
 	dev_dbg(davinci_display_dev, "<davinci_buffer_setup>\n");
 
 	/* If memory type is not mmap, return */
@@ -252,16 +195,9 @@ static int davinci_buffer_setup(struct videobuf_queue *q, unsigned int *count,
 
 	/* Calculate the size of the buffer */
 	*size = display_buf_config_params.layer_bufsize[layer->device_id];
-
-	for (i = display_buf_config_params.numbuffers[layer->device_id];
-	     i < *count; i++) {
-		/* Allocate memory for the buffers */
-		layer->fbuffers[i] = davinci_alloc_buffer(*size);
-		if (!layer->fbuffers[i])
-			break;
-	}
 	/* Store number of buffers allocated in numbuffer member */
-	*count = layer->numbuffers = i;
+	if (*count < display_buf_config_params.min_numbuffers)
+		*count = layer->numbuffers = display_buf_config_params.numbuffers[layer->device_id];
 	dev_dbg(davinci_display_dev, "</davinci_buffer_setup>\n");
 	return 0;
 }
@@ -299,20 +235,18 @@ static void davinci_buffer_release(struct videobuf_queue *q,
 	unsigned int buf_size = 0;
 	dev_dbg(davinci_display_dev, "<davinci_buffer_release>\n");
 
+	if (V4L2_MEMORY_USERPTR != layer->memory)
+		videobuf_dma_contig_free(q, vb);
+
+	vb->state = VIDEOBUF_NEEDS_INIT;
+
+
 	/* If memory type is not mmap, return */
 	if (V4L2_MEMORY_MMAP != layer->memory)
 		return;
 	/* Calculate the size of the buffer */
 	buf_size = display_buf_config_params.layer_bufsize[layer->device_id];
 
-	if (((vb->i < layer->numbuffers)
-	     && (vb->i >=
-		 display_buf_config_params.numbuffers[layer->device_id]))
-	    && layer->fbuffers[vb->i]) {
-		davinci_free_buffer(layer->fbuffers[vb->i], buf_size);
-		layer->fbuffers[vb->i] = 0;
-	}
-	vb->state = VIDEOBUF_NEEDS_INIT;
 	dev_dbg(davinci_display_dev, "</davinci_buffer_release>\n");
 }
 
@@ -321,7 +255,6 @@ static struct videobuf_queue_ops video_qops = {
 	.buf_prepare = davinci_buffer_prepare,
 	.buf_queue = davinci_buffer_queue,
 	.buf_release = davinci_buffer_release,
-//	.buf_config = davinci_buffer_config,
 };
 
 static u8 layer_first_int = 1;
@@ -373,7 +306,8 @@ static void davinci_display_isr(unsigned int event, void *dispObj)
 			list_del(&layer->nextFrm->queue);
 			/* Mark status of the buffer as active */
 			layer->nextFrm->state = VIDEOBUF_ACTIVE;
-			addr = layer->curFrm->boff;
+			
+			addr = videobuf_to_dma_contig(layer->curFrm);
 			davinci_disp_start_layer(layer->layer_info.id,
 						 addr,
 						 davinci_dm.cbcr_ofst);
@@ -383,8 +317,6 @@ static void davinci_display_isr(unsigned int event, void *dispObj)
 			 */
 			if (layer_first_int) {
 				layer_first_int = 0;
-				dev_dbg(davinci_display_dev,
-					"irq_first time\n");
 				return;
 			}
 
@@ -403,8 +335,6 @@ static void davinci_display_isr(unsigned int event, void *dispObj)
 				/* Make them in sync */
 				if (0 == fid) {
 					layer->field_id = fid;
-					dev_dbg(davinci_display_dev,
-						"field synced\n");
 				}
 				return;
 			}
@@ -420,8 +350,6 @@ static void davinci_display_isr(unsigned int event, void *dispObj)
 				 */
 				layer->curFrm->ts = timevalue;
 				/* Change status of the curFrm */
-				dev_dbg(davinci_display_dev,
-					"Done with this video buffer\n");
 				layer->curFrm->state = VIDEOBUF_DONE;
 				/* unlock semaphore on curFrm */
 				wake_up_interruptible(&layer->curFrm->done);
@@ -454,7 +382,8 @@ static void davinci_display_isr(unsigned int event, void *dispObj)
 				 * to active
 				 */
 				layer->nextFrm->state = VIDEOBUF_ACTIVE;
-				addr = layer->nextFrm->boff;
+
+				addr = videobuf_to_dma_contig(layer->curFrm);
 				davinci_disp_start_layer(layer->layer_info.id,
 							addr,
 							davinci_dm.cbcr_ofst);
@@ -479,8 +408,8 @@ static int davinci_config_layer(enum davinci_display_device_id id);
 static int davinci_set_video_display_params(struct display_obj *layer)
 {
 	unsigned long addr;
-	addr = layer->curFrm->boff;
 
+	addr = videobuf_to_dma_contig(layer->curFrm);
 	/* Set address in the display registers */
 	davinci_disp_start_layer(layer->layer_info.id,
 				 addr,
@@ -778,888 +707,643 @@ static int vpbe_try_format(struct v4l2_pix_format *pixfmt, int check)
 	return 0;
 }
 
-/*
- * davinci_doioctl()
- * This function will provide different V4L2 commands.This function can be
- * used to configure driver or get status of driver as per command passed
- * by application
- */
-static int davinci_doioctl(struct file *file,
-			   unsigned int cmd, unsigned long arg)
+static int vpbe_g_priority(struct file *file, void *priv,
+				enum v4l2_priority *p)
+{
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+
+	*p = v4l2_prio_max(&layer->prio);
+
+	return 0;
+}
+
+static int vpbe_s_priority(struct file *file, void *priv,
+				enum v4l2_priority p)
+{
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+	int ret;
+
+	ret = v4l2_prio_change(&layer->prio, &fh->prio, p);
+
+	return ret;
+}
+
+static int vpbe_querycap(struct file *file, void  *priv,
+			       struct v4l2_capability *cap)
+{
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+
+	dev_dbg(davinci_display_dev, "VIDIOC_QUERYCAP, layer id = %d\n",
+			layer->device_id);
+	
+	memset(cap, 0, sizeof(*cap));
+	*cap = davinci_display_videocap;
+
+	return 0;
+}
+
+static int vpbe_s_crop(struct file *file, void *priv,
+			     struct v4l2_crop *crop)
+{
+	int ret = 0;
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+
+	dev_dbg(davinci_display_dev,
+				"VIDIOC_S_CROP, layer id = %d\n",
+				layer->device_id);
+
+	if (crop->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
+		struct v4l2_rect *rect = &crop->c;
+
+		if (rect->top < 0 || rect->left < 0) {
+			dev_err(davinci_display_dev,
+					"Error in S_CROP params"
+					" Negative values for"
+					" top/left" );
+			return -EINVAL;
+
+		}
+
+		if (davinci_disp_check_window_params(rect)) {
+			dev_err(davinci_display_dev,
+					"Error in S_CROP params\n");
+					return -EINVAL;
+		}
+		ret = mutex_lock_interruptible(&davinci_dm.lock);
+		if (ret)
+			return ret;
+				
+		davinci_disp_get_layer_config(layer->layer_info.id,
+						&layer->layer_info.config);
+
+		davinci_disp_calculate_scale_factor(layer, rect->width,
+							rect->height);
+
+		davinci_disp_adj_position(layer, rect->top, rect->left);
+
+		if (davinci_disp_set_layer_config(layer->layer_info.id,
+			&layer->layer_info.config)) {
+		
+			dev_err(davinci_display_dev,
+					"Error in S_CROP params\n");
+			mutex_unlock(&davinci_dm.lock);
+			return -EINVAL;
+		}
+
+		/* apply zooming and h or v expansion */
+		davinci_disp_set_zoom(layer->layer_info.id,
+				     layer->layer_info.h_zoom,
+				     layer->layer_info.v_zoom);
+
+		davinci_disp_set_vid_expansion(layer->layer_info.h_exp,
+						layer->layer_info.v_exp);
+
+		if ((layer->layer_info.h_zoom != ZOOM_X1) ||
+			(layer->layer_info.v_zoom != ZOOM_X1) ||
+			(layer->layer_info.h_exp != H_EXP_OFF) ||
+			(layer->layer_info.v_exp != V_EXP_OFF))
+				/* Enable expansion filter */
+				davinci_disp_set_interpolation_filter(1);
+		else
+				davinci_disp_set_interpolation_filter(0);
+				mutex_unlock(&davinci_dm.lock);
+	} else {
+		dev_err(davinci_display_dev, "Invalid buf type \n");
+		return -EINVAL;
+	}
+	
+	return ret;
+}
+
+static int vpbe_g_crop(struct file *file, void *priv,
+			     struct v4l2_crop *crop)
+{
+	int ret = 0;
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+	
+	dev_dbg(davinci_display_dev, "VIDIOC_G_CROP, layer id = %d\n",
+			layer->device_id);
+
+	if (crop->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
+		struct v4l2_rect *rect = &crop->c;
+		ret = mutex_lock_interruptible(&davinci_dm.lock);
+		if (ret)
+			return ret;
+				
+		davinci_disp_get_layer_config(layer->layer_info.id,
+						&layer->layer_info.config);
+		rect->top = layer->layer_info.config.ypos;
+		rect->left = layer->layer_info.config.xpos;
+		rect->width = layer->layer_info.config.xsize;
+		rect->height = layer->layer_info.config.ysize;
+		mutex_unlock(&davinci_dm.lock);
+	} else {
+		dev_err(davinci_display_dev,"Invalid buf type \n");
+		ret = -EINVAL;
+	}
+	
+	return ret;
+}
+
+static int vpbe_cropcap(struct file *file, void *priv,
+			      struct v4l2_cropcap *cropcap)
+{
+	int ret = 0;
+
+	dev_dbg(davinci_display_dev, "\nStart of VIDIOC_CROPCAP ioctl");
+			
+	if (davinci_enc_get_mode(0, &davinci_dm.mode_info)) {
+		dev_err(davinci_display_dev,
+			"Error in getting current display mode"
+			" from enc mngr\n");
+		return -EINVAL;
+	}
+			
+	ret = mutex_lock_interruptible(&davinci_dm.lock);
+	if (ret)
+		return ret;
+			
+	cropcap->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+	if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_NTSC)) {
+		cropcap->bounds = cropcap->defrect = ntsc_bounds;
+		cropcap->pixelaspect = ntsc_aspect;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_PAL)) {
+		cropcap->bounds = cropcap->defrect = pal_bounds;
+		cropcap->pixelaspect = pal_aspect;
+	} else if (!strcmp(davinci_dm.mode_info.name,VID_ENC_STD_640x480)) {
+		cropcap->bounds = cropcap->defrect = vga_bounds;
+		cropcap->pixelaspect = sp_aspect;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_640x400)) {
+		cropcap->bounds = cropcap->defrect = vga_bounds;
+		cropcap->bounds.height = cropcap->defrect.height = 400;
+		cropcap->pixelaspect = sp_aspect;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_640x350)) {
+		cropcap->bounds = cropcap->defrect = vga_bounds;
+		cropcap->bounds.height = cropcap->defrect.height = 350;
+		cropcap->pixelaspect = sp_aspect;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_720P_60)) {
+		cropcap->bounds = cropcap->defrect = hd_720p_bounds;
+		cropcap->pixelaspect = sp_aspect;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_1080I_30)) {
+		cropcap->bounds = cropcap->defrect = hd_1080i_bounds;
+		cropcap->pixelaspect = sp_aspect;
+	} else {
+		dev_err(davinci_display_dev, "Unknown encoder display mode\n");
+		return -EINVAL;
+	}
+	
+	mutex_unlock(&davinci_dm.lock);
+	dev_dbg(davinci_display_dev, "\nEnd of VIDIOC_CROPCAP ioctl");
+
+	return ret;
+}
+
+static int vpbe_streamoff(struct file *file, void *priv,
+			  enum v4l2_buf_type buf_type)
+{
+	int ret = 0;
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+
+	dev_dbg(davinci_display_dev, "VIDIOC_STREAMOFF,layer id = %d\n",
+		layer->device_id);
+	/* If io is allowed for this file handle, return error */
+	if (!fh->io_allowed) {
+		dev_err(davinci_display_dev, "No io_allowed\n");
+		return -EACCES;
+	}
+			
+	/* If streaming is not started, return error */
+	if (!layer->started) {
+		dev_err(davinci_display_dev, "streaming not started in layer"
+			" id = %d\n", layer->device_id);
+		return -EINVAL;
+	}
+			
+	ret = mutex_lock_interruptible(&davinci_dm.lock);
+	if (ret)
+		return ret;
+	davinci_disp_disable_layer(layer->layer_info.id);
+	layer->started = 0;
+	mutex_unlock(&davinci_dm.lock);
+	ret = videobuf_streamoff(&layer->buffer_queue);
+
+	return ret;
+}
+
+static int vpbe_streamon(struct file *file, void *priv,
+			 enum v4l2_buf_type buf_type)
+{
+	int ret = 0;
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+
+	dev_dbg(davinci_display_dev, "VIDIOC_STREAMON, layer id = %d\n",
+			layer->device_id);
+	/* If file handle is not allowed IO, return error */
+	if (!fh->io_allowed) {
+		dev_err(davinci_display_dev, "No io_allowed\n");
+		return -EACCES;
+	}
+	/* If Streaming is already started, return error */
+	if (layer->started) {
+		dev_err(davinci_display_dev, "layer is already streaming\n");
+		return -EBUSY;
+	}
+
+	/*
+	 * Call videobuf_streamon to start streaming
+	 * in videobuf
+	 */
+	ret = videobuf_streamon(&layer->buffer_queue);
+	if (ret) {
+		dev_err(davinci_display_dev,
+		"error in videobuf_streamon\n");
+		return ret;
+	}
+	ret = mutex_lock_interruptible(&davinci_dm.lock);
+	if (ret)
+		return ret;
+	/* If buffer queue is empty, return error */
+	if (list_empty(&layer->dma_queue)) {
+		dev_err(davinci_display_dev, "buffer queue is empty\n");
+		mutex_unlock(&davinci_dm.lock);
+		return -EIO;
+	}
+	/* Get the next frame from the buffer queue */
+	layer->nextFrm = layer->curFrm = list_entry(layer->dma_queue.next,
+				struct videobuf_buffer, queue);
+	/* Remove buffer from the buffer queue */
+	list_del(&layer->curFrm->queue);
+	/* Mark state of the current frame to active */
+	layer->curFrm->state = VIDEOBUF_ACTIVE;
+	/* Initialize field_id and started member */
+
+	layer->field_id = 0;
+
+	/* Set parameters in OSD and VENC */
+	ret = davinci_set_video_display_params(layer);
+	if (ret < 0) {
+		mutex_unlock(&davinci_dm.lock);
+		return ret;
+	}
+	/* if request format is yuv420 semiplanar, need to
+	 * enable both video windows
+	 */
+
+	layer->started = 1;
+	dev_dbg(davinci_display_dev, "Started streaming on layer id = %d,"
+		" ret = %d\n", layer->device_id, ret);
+			
+	layer_first_int = 1;
+	mutex_unlock(&davinci_dm.lock);
+
+	return ret;
+}
+
+static int vpbe_dqbuf(struct file *file, void *priv,
+		      struct v4l2_buffer *buf)
+{
+	int ret = 0;
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+
+	dev_dbg(davinci_display_dev, "VIDIOC_DQBUF, layer id = %d\n",
+			layer->device_id);
+
+	/* If this file handle is not allowed to do IO, return error */
+	if (!fh->io_allowed) {
+		dev_err(davinci_display_dev, "No io_allowed\n");
+		return -EACCES;
+	}
+	if (file->f_flags & O_NONBLOCK)
+		/* Call videobuf_dqbuf for non blocking mode */
+		ret = videobuf_dqbuf(&layer->buffer_queue, buf, 1);
+	else
+		/* Call videobuf_dqbuf for blocking mode */
+		ret = videobuf_dqbuf(&layer->buffer_queue, buf, 0);
+
+	return ret;
+}
+
+static int vpbe_qbuf(struct file *file, void *priv,
+		     struct v4l2_buffer *p)
+{
+	int ret = 0;
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+
+	dev_dbg(davinci_display_dev, "VIDIOC_QBUF, layer id = %d\n",
+		layer->device_id);
+
+	/* If this file handle is not allowed to do IO, return error */
+	if (!fh->io_allowed) {
+		dev_err(davinci_display_dev, "No io_allowed\n");
+		return -EACCES;
+	}
+
+	return videobuf_qbuf(&layer->buffer_queue, p);
+}
+
+static int vpbe_querybuf(struct file *file, void *priv,
+			 struct v4l2_buffer *buf)
+{
+	int ret = 0;
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+
+	dev_dbg(davinci_display_dev, "VIDIOC_QUERYBUF, layer id = %d\n",
+			layer->device_id);
+
+	/* Call videobuf_querybuf to get information */
+	ret = videobuf_querybuf(&layer->buffer_queue, buf);
+
+	return ret;
+}
+
+static int vpbe_reqbufs(struct file *file, void *priv,
+			struct v4l2_requestbuffers *req_buf)
+{
+	int ret = 0;
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+
+	dev_dbg(davinci_display_dev, "VIDIOC_REQBUFS, count= %d, type = %d,"
+			"memory = %d\n",
+			req_buf->count, req_buf->type, req_buf->memory);
+
+	/* If io users of the layer is not zero, return error */
+	if (0 != layer->io_usrs) {
+		dev_err(davinci_display_dev, "not IO user\n");
+		return -EBUSY;
+	}
+	ret = mutex_lock_interruptible(&davinci_dm.lock);
+	if (ret)
+		return ret;
+	/* Initialize videobuf queue as per the buffer type */
+			
+	videobuf_queue_dma_contig_init(&layer->buffer_queue,
+					    &video_qops, davinci_display_dev,
+					    &layer->irqlock,
+					    V4L2_BUF_TYPE_VIDEO_OUTPUT,
+					    layer->pix_fmt.field,
+					    sizeof(struct videobuf_buffer), fh);
+
+	/* Set io allowed member of file handle to TRUE */
+	fh->io_allowed = 1;
+	/* Increment io usrs member of layer object to 1 */
+	layer->io_usrs = 1;
+	/* Store type of memory requested in layer object */
+	layer->memory = req_buf->memory;
+	/* Initialize buffer queue */
+	INIT_LIST_HEAD(&layer->dma_queue);
+	/* Allocate buffers */
+	ret = videobuf_reqbufs(&layer->buffer_queue, req_buf);
+	mutex_unlock(&davinci_dm.lock);
+
+	return ret;
+}
+
+static int vpbe_s_fmt(struct file *file, void *priv,
+				struct v4l2_format *fmt)
+{
+	int ret = 0;
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+
+	dev_dbg(davinci_display_dev, "VIDIOC_S_FMT, layer id = %d\n",
+			layer->device_id);
+
+	/* If streaming is started, return error */
+	if (layer->started) {
+		dev_err(davinci_display_dev, "Streaming is started\n");
+		return -EBUSY;
+	}
+	if (V4L2_BUF_TYPE_VIDEO_OUTPUT == fmt->type) {
+		struct v4l2_pix_format *pixfmt = &fmt->fmt.pix;
+		/* Check for valid field format */
+		ret = vpbe_try_format(pixfmt, 1);
+		if (ret)
+			return ret;
+
+	/* YUV420 is requested, check availability of the other video window */
+	ret = mutex_lock_interruptible(&davinci_dm.lock);
+	if (ret)
+		return ret;
+
+	layer->pix_fmt = *pixfmt;
+	if (pixfmt->pixelformat == V4L2_PIX_FMT_NV12 &&
+		cpu_is_davinci_dm365()) {
+		struct display_obj *otherlayer =
+			_davinci_disp_get_other_win(layer);
+
+		/* if other layer is available, only
+		 * claim it, do not configure it
+		 */
+		if (davinci_disp_request_layer(otherlayer->layer_info.id)) {
+			/* Couldn't get layer */
+			dev_err(davinci_display_dev,
+						"Display Manager"
+						" failed to allocate"
+						" the other layer:"
+						"vidwin %d\n",
+						otherlayer->
+						layer_info.id);
+			mutex_unlock(&davinci_dm.lock);
+			return -EBUSY;
+		}
+	}
+				
+	/* store the pixel format in the layer object */
+	davinci_disp_get_layer_config(layer->layer_info.id,
+		&layer->layer_info.config);
+
+	layer->layer_info.config.xsize = pixfmt->width;
+	layer->layer_info.config.ysize = pixfmt->height;
+	layer->layer_info.config.line_length = pixfmt->bytesperline;
+	layer->layer_info.config.ypos = 0;
+	layer->layer_info.config.xpos = 0;
+	layer->layer_info.config.interlaced =
+			davinci_dm.mode_info.interlaced;
+
+	/* change of the default pixel format for both vid windows */
+	if (V4L2_PIX_FMT_NV12 == pixfmt->pixelformat) {
+		struct display_obj *otherlayer;
+		layer->layer_info.config.pixfmt = PIXFMT_NV12;
+		otherlayer = _davinci_disp_get_other_win(layer);
+		otherlayer->layer_info.config.pixfmt = PIXFMT_NV12;
+	}
+
+	if (davinci_disp_set_layer_config(layer->layer_info.id,
+					&layer->layer_info.config)) {
+		dev_err(davinci_display_dev, "Error in S_FMT params:\n");
+		mutex_unlock(&davinci_dm.lock);
+		return -EINVAL;
+	}
+
+	/* readback and fill the local copy of current pix format */
+	davinci_disp_get_layer_config(layer->layer_info.id,
+					&layer->layer_info.config);
+		
+	/* verify if readback values are as expected */
+	if (layer->pix_fmt.width != layer->layer_info.config.xsize ||
+		layer->pix_fmt.height != layer->layer_info.config.ysize ||
+		layer->pix_fmt.bytesperline != layer->layer_info.config.line_length ||
+		(layer->layer_info.config.interlaced && layer->pix_fmt.field !=
+		V4L2_FIELD_INTERLACED) || (!layer->layer_info.config.interlaced &&
+		layer->pix_fmt.field != V4L2_FIELD_NONE)) {
+		dev_err(davinci_display_dev, "mismatch with layer config"
+				" params:\n");
+		dev_err(davinci_display_dev, "layer->layer_info.config.xsize ="
+				"%d layer->pix_fmt.width = %d\n",
+				layer->layer_info.config.xsize,
+				layer->pix_fmt.width);
+		dev_err(davinci_display_dev,
+				"layer->layer_info.config.ysize ="
+				"%d layer->pix_fmt.height = %d\n",
+				layer->layer_info.config.ysize,
+				layer->pix_fmt.height);
+		dev_err(davinci_display_dev, "layer->layer_info.config."
+				"line_length= %d layer->pix_fmt"
+				".bytesperline = %d\n",
+				layer->layer_info.config.line_length,
+				layer->pix_fmt.bytesperline);
+		dev_err(davinci_display_dev, "layer->layer_info.config."
+				"interlaced =%d layer->pix_fmt."
+				"field = %d\n", layer->layer_info.config.interlaced,
+				layer->pix_fmt.field);
+		mutex_unlock(&davinci_dm.lock);
+		return -EFAULT;
+	}
+
+		dev_notice(davinci_display_dev,
+				"Before finishing with S_FMT:\n"
+				"layer.pix_fmt.bytesperline = %d,\n"
+				" layer.pix_fmt.width = %d, \n"
+				" layer.pix_fmt.height = %d, \n"
+				" layer.pix_fmt.sizeimage =%d\n",
+				layer->pix_fmt.bytesperline,
+				layer->pix_fmt.width,
+				layer->pix_fmt.height,
+				layer->pix_fmt.sizeimage);
+
+		dev_notice(davinci_display_dev,
+				"pixfmt->width = %d,\n"
+				" layer->layer_info.config.line_length"
+				"= %d\n",
+				pixfmt->width,
+				layer->layer_info.config.line_length);
+
+		mutex_unlock(&davinci_dm.lock);
+	} else {
+		dev_err(davinci_display_dev, "invalid type\n");
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
+static int vpbe_try_fmt(struct file *file, void *priv,
+				  struct v4l2_format *fmt)
+{
+	int ret = 0;
+
+	dev_dbg(davinci_display_dev, "VIDIOC_TRY_FMT\n");
+
+	if (V4L2_BUF_TYPE_VIDEO_OUTPUT == fmt->type) {
+		struct v4l2_pix_format *pixfmt = &fmt->fmt.pix;
+		/* Check for valid field format */
+		ret = vpbe_try_format(pixfmt, 0);
+	} else {
+		dev_err(davinci_display_dev, "invalid type\n");
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
+static int vpbe_enum_fmt(struct file *file, void  *priv,
+				   struct v4l2_fmtdesc *fmt)
 {
 	int ret = 0;
 	struct davinci_fh *fh = file->private_data;
 	struct display_obj *layer = fh->layer;
 	unsigned int index = 0;
-	unsigned long addr, flags;
-	dev_dbg(davinci_display_dev, "<davinci_doioctl>\n");
 
-	/* Check for the priority */
-	switch (cmd) {
-	case VIDIOC_S_FMT:
-		ret = v4l2_prio_check(&layer->prio, &fh->prio);
-		if (0 != ret)
-			return ret;
-		break;
-	}
-
-	/* Check for null value of parameter */
-	if (ISNULL((void *)arg)) {
-		dev_err(davinci_display_dev, "Null pointer\n");
+	dev_dbg(davinci_display_dev, "VIDIOC_ENUM_FMT, layer id = %d\n",
+		layer->device_id);
+	if (fmt->index > 0) {
+		dev_err(davinci_display_dev,
+			"Invalid format index\n");
 		return -EINVAL;
 	}
-	/* Switch on the command value */
+	/* Fill in the information about format */
+
+	index = fmt->index;
+	memset(fmt, 0, sizeof(*fmt));
+	fmt->index = index;
+	fmt->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+	if (index == 0) {
+		strcpy(fmt->description, "YUV 4:2:2 - UYVY");
+		fmt->pixelformat = V4L2_PIX_FMT_UYVY;
+	} else if (index == 1) {
+		strcpy(fmt->description, "Y/CbCr 4:2:0");
+		fmt->pixelformat = V4L2_PIX_FMT_NV12;
+	}
+
+	return ret;
+}
+
+static int vpbe_g_fmt(struct file *file, void *priv,
+				struct v4l2_format *fmt)
+{
+	int ret = 0;
+	struct davinci_fh *fh = file->private_data;
+	struct display_obj *layer = fh->layer;
+
+	dev_dbg(davinci_display_dev, "VIDIOC_G_FMT, layer id = %d\n",
+			layer->device_id);
+
+	/* If buffer type is video output */
+	if (V4L2_BUF_TYPE_VIDEO_OUTPUT == fmt->type) {
+		struct v4l2_pix_format *pixfmt = &fmt->fmt.pix;
+		/* Fill in the information about format */
+		ret = mutex_lock_interruptible(&davinci_dm.lock);
+		if (!ret) {
+			*pixfmt = layer->pix_fmt;
+			mutex_unlock(&davinci_dm.lock);
+		}
+	} else {
+		dev_err(davinci_display_dev, "invalid type\n");
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
+static long vpbe_param_handler(struct file *file, void *priv,
+		int cmd, void *param)
+{
+	int ret = 0;
+
+	ret = mutex_lock_interruptible(&davinci_dm.lock);
+	if (ret)
+		return ret;
+
 	switch (cmd) {
-		/* If the case is for querying capabilities */
-	case VIDIOC_QUERYCAP:
-		{
-			struct v4l2_capability *cap =
-			    (struct v4l2_capability *)arg;
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_QUERYCAP, layer id = %d\n",
-				layer->device_id);
-			memset(cap, 0, sizeof(*cap));
-			*cap = davinci_display_videocap;
-			break;
-		}
-
-	case VIDIOC_CROPCAP:
-		{
-			struct v4l2_cropcap *cropcap =
-			    (struct v4l2_cropcap *)arg;
-			dev_dbg(davinci_display_dev,
-				"\nStart of VIDIOC_CROPCAP ioctl");
-			if (davinci_enc_get_mode(0, &davinci_dm.mode_info)) {
-				dev_err(davinci_display_dev,
-					"Error in getting current display mode"
-					" from enc mngr\n");
-				ret = -EINVAL;
-				break;
-			}
-			ret = mutex_lock_interruptible(&davinci_dm.lock);
-			if (ret)
-				break;
-			cropcap->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-			if (!strcmp
-			    (davinci_dm.mode_info.name, VID_ENC_STD_NTSC)) {
-				cropcap->bounds = cropcap->defrect =
-				    ntsc_bounds;
-				cropcap->pixelaspect = ntsc_aspect;
-			} else
-			    if (!strcmp
-				(davinci_dm.mode_info.name, VID_ENC_STD_PAL)) {
-				cropcap->bounds = cropcap->defrect = pal_bounds;
-				cropcap->pixelaspect = pal_aspect;
-			} else
-			    if (!strcmp
-				(davinci_dm.mode_info.name,
-				 VID_ENC_STD_640x480)) {
-				cropcap->bounds = cropcap->defrect = vga_bounds;
-				cropcap->pixelaspect = sp_aspect;
-			} else
-			    if (!strcmp
-				(davinci_dm.mode_info.name,
-				 VID_ENC_STD_640x400)) {
-				cropcap->bounds = cropcap->defrect = vga_bounds;
-				cropcap->bounds.height =
-				    cropcap->defrect.height = 400;
-				cropcap->pixelaspect = sp_aspect;
-			} else
-			    if (!strcmp
-				(davinci_dm.mode_info.name,
-				 VID_ENC_STD_640x350)) {
-				cropcap->bounds = cropcap->defrect = vga_bounds;
-				cropcap->bounds.height =
-				    cropcap->defrect.height = 350;
-				cropcap->pixelaspect = sp_aspect;
-			} else
-			    if (!strcmp
-				(davinci_dm.mode_info.name,
-				 VID_ENC_STD_720P_60)) {
-				cropcap->bounds = cropcap->defrect =
-				    hd_720p_bounds;
-				cropcap->pixelaspect = sp_aspect;
-			} else
-			    if (!strcmp
-				(davinci_dm.mode_info.name,
-				 VID_ENC_STD_1080I_30)) {
-				cropcap->bounds = cropcap->defrect =
-				    hd_1080i_bounds;
-				cropcap->pixelaspect = sp_aspect;
-			} else {
-				dev_err(davinci_display_dev,
-					"Unknown encoder display mode\n");
-				ret = -EINVAL;
-			}
-			mutex_unlock(&davinci_dm.lock);
-			dev_dbg(davinci_display_dev,
-				"\nEnd of VIDIOC_CROPCAP ioctl");
-			break;
-		}
-
-	case VIDIOC_G_CROP:
-		{
-			/* TBD to get the x,y and height/width params */
-			struct v4l2_crop *crop = (struct v4l2_crop *)arg;
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_G_CROP, layer id = %d\n",
-				layer->device_id);
-
-			if (crop->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
-				struct v4l2_rect *rect = &crop->c;
-				ret = mutex_lock_interruptible(
-							&davinci_dm.lock);
-				if (ret)
-					break;
-				davinci_disp_get_layer_config(layer->layer_info.
-							      id,
-							      &layer->
-							      layer_info.
-							      config);
-				rect->top = layer->layer_info.config.ypos;
-				rect->left = layer->layer_info.config.xpos;
-				rect->width = layer->layer_info.config.xsize;
-				rect->height = layer->layer_info.config.ysize;
-				mutex_unlock(&davinci_dm.lock);
-			} else {
-				dev_err(davinci_display_dev,
-					"Invalid buf type \n");
-				ret = -EINVAL;
-			}
-			break;
-		}
-	case VIDIOC_S_CROP:
-		{
-			/* TBD to get the x,y and height/width params */
-			struct v4l2_crop *crop = (struct v4l2_crop *)arg;
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_S_CROP, layer id = %d\n",
-				layer->device_id);
-
-			if (crop->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
-				struct v4l2_rect *rect = &crop->c;
-
-				if (rect->top < 0 || rect->left < 0) {
-					dev_err(davinci_display_dev,
-						"Error in S_CROP params"
-						" Negative values for"
-						" top/left" );
-					ret = -EINVAL;
-					break;
-				}
-
-				if (davinci_disp_check_window_params(rect)) {
-					dev_err(davinci_display_dev,
-						"Error in S_CROP params\n");
-					ret = -EINVAL;
-					break;
-				}
-				ret = mutex_lock_interruptible(
-						&davinci_dm.lock);
-				if (ret)
-					break;
-				davinci_disp_get_layer_config(layer->layer_info.
-							      id,
-							      &layer->
-							      layer_info.
-							      config);
-
-				davinci_disp_calculate_scale_factor(layer,
-								    rect->width,
-								    rect->
-								    height);
-
-				davinci_disp_adj_position(layer, rect->top,
-							  rect->left);
-
-				if (davinci_disp_set_layer_config
-				    (layer->layer_info.id,
-				     &layer->layer_info.config)) {
-					dev_err(davinci_display_dev,
-						"Error in S_CROP params\n");
-					mutex_unlock(&davinci_dm.lock);
-					ret = -EINVAL;
-					break;
-				}
-				/* apply zooming and h or v expansion */
-				davinci_disp_set_zoom
-				    (layer->layer_info.id,
-				     layer->layer_info.h_zoom,
-				     layer->layer_info.v_zoom);
-
-				davinci_disp_set_vid_expansion
-				    (layer->layer_info.h_exp,
-				     layer->layer_info.v_exp);
-
-				if ((layer->layer_info.h_zoom != ZOOM_X1) ||
-				    (layer->layer_info.v_zoom != ZOOM_X1) ||
-				    (layer->layer_info.h_exp != H_EXP_OFF) ||
-				    (layer->layer_info.v_exp != V_EXP_OFF))
-					/* Enable expansion filter */
-					davinci_disp_set_interpolation_filter
-					    (1);
-				else
-					davinci_disp_set_interpolation_filter
-					    (0);
-				mutex_unlock(&davinci_dm.lock);
-			} else {
-				dev_err(davinci_display_dev,
-					"Invalid buf type \n");
-				ret = -EINVAL;
-			}
-			break;
-		}
-		/* If the case is for enumerating formats */
-	case VIDIOC_ENUM_FMT:
-		{
-			struct v4l2_fmtdesc *fmt = (struct v4l2_fmtdesc *)arg;
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_ENUM_FMT, layer id = %d\n",
-				layer->device_id);
-			if (fmt->index > 0) {
-				dev_err(davinci_display_dev,
-					"Invalid format index\n");
-				ret = -EINVAL;
-				break;
-			}
-			/* Fill in the information about format */
-
-			index = fmt->index;
-			memset(fmt, 0, sizeof(*fmt));
-			fmt->index = index;
-			fmt->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-			if (index == 0) {
-				strcpy(fmt->description, "YUV 4:2:2 - UYVY");
-				fmt->pixelformat = V4L2_PIX_FMT_UYVY;
-			} else if (index == 1) {
-				strcpy(fmt->description, "Y/CbCr 4:2:0");
-				fmt->pixelformat = V4L2_PIX_FMT_NV12;
-			}
-			break;
-		}
-
-		/* If the case is for getting formats */
-	case VIDIOC_G_FMT:
-		{
-			struct v4l2_format *fmt = (struct v4l2_format *)arg;
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_G_FMT, layer id = %d\n",
-				layer->device_id);
-
-			/* If buffer type is video output */
-			if (V4L2_BUF_TYPE_VIDEO_OUTPUT == fmt->type) {
-				struct v4l2_pix_format *pixfmt = &fmt->fmt.pix;
-				/* Fill in the information about
-				 * format
-				 */
-				ret = mutex_lock_interruptible(
-							&davinci_dm.lock);
-				if (!ret) {
-					*pixfmt = layer->pix_fmt;
-					mutex_unlock(&davinci_dm.lock);
-				}
-			} else {
-				dev_err(davinci_display_dev, "invalid type\n");
-				ret = -EINVAL;
-			}
-			break;
-		}
-
-		/* If the case is for setting formats */
-	case VIDIOC_S_FMT:
-		{
-			struct v4l2_format *fmt = (struct v4l2_format *)arg;
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_S_FMT, layer id = %d\n",
-				layer->device_id);
-
-			/* If streaming is started, return error */
-			if (layer->started) {
-				dev_err(davinci_display_dev,
-					"Streaming is started\n");
-				ret = -EBUSY;
-				break;
-			}
-			if (V4L2_BUF_TYPE_VIDEO_OUTPUT == fmt->type) {
-				struct v4l2_pix_format *pixfmt = &fmt->fmt.pix;
-				/* Check for valid field format */
-				ret = vpbe_try_format(pixfmt, 1);
-				if (ret)
-					return ret;
-
-				/* YUV420 is requested, check availability of
-				 * the other video window
-				 */
-				ret = mutex_lock_interruptible(
-						&davinci_dm.lock);
-				if (ret)
-					break;
-
-				layer->pix_fmt = *pixfmt;
-				if (pixfmt->pixelformat == V4L2_PIX_FMT_NV12 &&
-				    cpu_is_davinci_dm365()) {
-					struct display_obj *otherlayer =
-					_davinci_disp_get_other_win(layer);
-
-					/* if other layer is available, only
-					 * claim it, do not configure it
-					 */
-					if (davinci_disp_request_layer(
-								otherlayer->
-								layer_info.
-								id)) {
-						/* Couldn't get layer */
-						dev_err(davinci_display_dev,
-							"Display Manager"
-							" failed to allocate"
-							" the other layer:"
-							"vidwin %d\n",
-							otherlayer->
-							layer_info.id);
-						mutex_unlock(&davinci_dm.lock);
-						ret = -EBUSY;
-						break;
-					}
-				}
-				/* store the pixel format in the layer
-				 * object
-				 */
-				davinci_disp_get_layer_config(layer->layer_info.
-							      id,
-							      &layer->
-							      layer_info.
-							      config);
-
-				layer->layer_info.config.xsize =
-					pixfmt->width;
-				layer->layer_info.config.ysize =
-					pixfmt->height;
-				layer->layer_info.config.line_length =
-					pixfmt->bytesperline;
-				layer->layer_info.config.ypos = 0;
-				layer->layer_info.config.xpos = 0;
-				layer->layer_info.config.interlaced =
-					davinci_dm.mode_info.interlaced;
-
-				/* change of the default pixel format for
-				 * both vid windows
-				 */
-				if (V4L2_PIX_FMT_NV12 == pixfmt->pixelformat) {
-					struct display_obj *otherlayer;
-					layer->layer_info.config.pixfmt =
-						PIXFMT_NV12;
-					otherlayer =
-					_davinci_disp_get_other_win(layer);
-					otherlayer->layer_info.config.pixfmt =
-						PIXFMT_NV12;
-				}
-
-				if (davinci_disp_set_layer_config(layer->
-							layer_info.id,
-							&layer->
-							layer_info.config)) {
-					dev_err(davinci_display_dev,
-					    "Error in S_FMT params:\n");
-					mutex_unlock(&davinci_dm.lock);
-					ret = -EINVAL;
-					break;
-				}
-
-				/* readback and fill the local copy of current
-				 * pix format
-				 */
-				davinci_disp_get_layer_config(layer->layer_info.
-							id,
-							&layer->
-							layer_info.
-							config);
-
-
-				/* verify if readback values are as expected */
-				if (layer->pix_fmt.width !=
-					layer->layer_info.config.xsize ||
-				    layer->pix_fmt.height !=
-					layer->layer_info.config.ysize ||
-				    layer->pix_fmt.bytesperline !=
-					layer->layer_info.config.line_length ||
-				    (layer->layer_info.config.interlaced &&
-				     layer->pix_fmt.field !=
-					 V4L2_FIELD_INTERLACED) ||
-				    (!layer->layer_info.config.interlaced &&
-				     layer->pix_fmt.field != V4L2_FIELD_NONE)) {
-					dev_err(davinci_display_dev,
-					    "mismatch with layer config"
-					    " params:\n");
-					dev_err(davinci_display_dev,
-					    "layer->layer_info.config.xsize ="
-					    "%d layer->pix_fmt.width = %d\n",
-					    layer->layer_info.config.xsize,
-					    layer->pix_fmt.width);
-					dev_err(davinci_display_dev,
-					    "layer->layer_info.config.ysize ="
-					    "%d layer->pix_fmt.height = %d\n",
-					    layer->layer_info.config.ysize,
-					    layer->pix_fmt.height);
-					dev_err(davinci_display_dev,
-					    "layer->layer_info.config."
-					    "line_length= %d layer->pix_fmt"
-					    ".bytesperline = %d\n",
-					    layer->layer_info.config.
-						line_length,
-					    layer->pix_fmt.bytesperline);
-					dev_err(davinci_display_dev,
-					    "layer->layer_info.config."
-					    "interlaced =%d layer->pix_fmt."
-					    "field = %d\n",
-					    layer->layer_info.config.interlaced,
-					    layer->pix_fmt.field);
-					mutex_unlock(&davinci_dm.lock);
-					ret = -EFAULT;
-					break;
-				}
-
-				dev_notice(davinci_display_dev,
-					"Before finishing with S_FMT:\n"
-					"layer.pix_fmt.bytesperline = %d,\n"
-					" layer.pix_fmt.width = %d, \n"
-					" layer.pix_fmt.height = %d, \n"
-					" layer.pix_fmt.sizeimage =%d\n",
-					layer->pix_fmt.bytesperline,
-					layer->pix_fmt.width,
-					layer->pix_fmt.height,
-					layer->pix_fmt.sizeimage);
-
-				dev_notice(davinci_display_dev,
-					"pixfmt->width = %d,\n"
-					" layer->layer_info.config.line_length"
-					"= %d\n",
-					pixfmt->width,
-					layer->layer_info.config.line_length);
-				mutex_unlock(&davinci_dm.lock);
-			} else {
-				dev_err(davinci_display_dev, "invalid type\n");
-				ret = -EINVAL;
-			}
-			break;
-		}
-		/* If the case is for trying formats */
-	case VIDIOC_TRY_FMT:
-		{
-			struct v4l2_format *fmt;
-			dev_dbg(davinci_display_dev, "VIDIOC_TRY_FMT\n");
-			fmt = (struct v4l2_format *)arg;
-
-			if (V4L2_BUF_TYPE_VIDEO_OUTPUT == fmt->type) {
-				struct v4l2_pix_format *pixfmt = &fmt->fmt.pix;
-				/* Check for valid field format */
-				ret = vpbe_try_format(pixfmt, 0);
-			} else {
-				dev_err(davinci_display_dev, "invalid type\n");
-				ret = -EINVAL;
-			}
-			break;
-		}
-
-		/* If the case is for requesting buffer allocation */
-	case VIDIOC_REQBUFS:
-		{
-			struct v4l2_requestbuffers *reqbuf;
-			reqbuf = (struct v4l2_requestbuffers *)arg;
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_REQBUFS, count= %d, type = %d,"
-				"memory = %d\n",
-				reqbuf->count, reqbuf->type, reqbuf->memory);
-
-			/* If io users of the layer is not zero,
-			 * return error
-			 */
-			if (0 != layer->io_usrs) {
-				dev_err(davinci_display_dev, "not IO user\n");
-				ret = -EBUSY;
-				break;
-			}
-			ret = mutex_lock_interruptible(&davinci_dm.lock);
-			if (ret)
-				break;
-			/* Initialize videobuf queue as per the
-			 * buffer type
-			 */
-			videobuf_queue_dma_contig_init(&layer->buffer_queue,
-					    &video_qops, NULL,
-					    &layer->irqlock,
-					    V4L2_BUF_TYPE_VIDEO_OUTPUT,
-					    layer->pix_fmt.field,
-					    sizeof(struct videobuf_buffer), fh);
-			/* Set buffer to Linear buffer */
-//Sandeep
-#if 0
-			videobuf_set_buftype(&layer->buffer_queue,
-					     VIDEOBUF_BUF_LINEAR);
-#endif
-			/* Set io allowed member of file handle to
-			 * TRUE
-			 */
-			fh->io_allowed = 1;
-			/* Increment io usrs member of layer object
-			 * to 1
-			 */
-			layer->io_usrs = 1;
-			/* Store type of memory requested in layer
-			 * object
-			 */
-			layer->memory = reqbuf->memory;
-			/* Initialize buffer queue */
-			INIT_LIST_HEAD(&layer->dma_queue);
-			/* Allocate buffers */
-			ret = videobuf_reqbufs(&layer->buffer_queue, reqbuf);
-			mutex_unlock(&davinci_dm.lock);
-			break;
-		}
-		/* If the case is for en-queing buffer in the buffer
-		 * queue
-		 */
-	case VIDIOC_QBUF:
-		{
-			struct v4l2_buffer tbuf;
-			struct videobuf_buffer *buf1;
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_QBUF, layer id = %d\n",
-				layer->device_id);
-
-			/* If this file handle is not allowed to do IO,
-			 * return error
-			 */
-			if (!fh->io_allowed) {
-				dev_err(davinci_display_dev, "No io_allowed\n");
-				ret = -EACCES;
-				break;
-			}
-			if (!(list_empty(&layer->dma_queue)) ||
-			    (layer->curFrm != layer->nextFrm) ||
-			    !(layer->started) ||
-			    (layer->started && (0 == layer->field_id))) {
-
-				ret = videobuf_qbuf(&layer->buffer_queue,
-						    (struct v4l2_buffer *)arg);
-				break;
-			}
-			/* bufferqueue is empty store buffer address
-			 * in VPBE registers
-			 */
-			mutex_lock(&layer->buffer_queue.vb_lock);
-			tbuf = *(struct v4l2_buffer *)arg;
-			buf1 = layer->buffer_queue.bufs[tbuf.index];
-			if (buf1->memory != tbuf.memory) {
-				mutex_unlock(&layer->buffer_queue.vb_lock);
-				dev_err(davinci_display_dev,
-					"invalid buffer type\n");
-				ret = -EINVAL;
-				break;
-			}
-			if ((buf1->state == VIDEOBUF_QUEUED) ||
-			    (buf1->state == VIDEOBUF_ACTIVE)) {
-				mutex_unlock(&layer->buffer_queue.vb_lock);
-				dev_err(davinci_display_dev, "invalid state\n");
-				ret = -EINVAL;
-				break;
-			}
-
-			switch (buf1->memory) {
-			case V4L2_MEMORY_MMAP:
-				if (buf1->baddr == 0) {
-					mutex_unlock(&layer->buffer_queue.vb_lock);
-					dev_err(davinci_display_dev,
-						"No Buffer address\n");
-					return -EINVAL;
-				}
-				break;
-			case V4L2_MEMORY_USERPTR:
-				/*
-				 * if user requested size is less than the S_FMT
-				 * calculated img size, return error
-				 */
-				if (tbuf.length < layer->pix_fmt.sizeimage) {
-					mutex_unlock(&layer->buffer_queue.vb_lock);
-					dev_err(davinci_display_dev,
-					"Insufficient USEPTR buffer size\n");
-					return -EINVAL;
-				}
-				if ((VIDEOBUF_NEEDS_INIT != buf1->state)
-				    && (buf1->baddr != tbuf.m.userptr))
-					davinci_buffer_release(&layer->
-							       buffer_queue,
-							       buf1);
-				buf1->baddr = tbuf.m.userptr;
-				break;
-			default:
-				mutex_unlock(&layer->buffer_queue.vb_lock);
-				dev_err(davinci_display_dev,
-					"Unknow Buffer type \n");
-				return -EINVAL;
-			}
-			local_irq_save(flags);
-			ret =
-			    davinci_buffer_prepare(&layer->buffer_queue,
-						   buf1,
-						   layer->buffer_queue.field);
-			buf1->state = VIDEOBUF_ACTIVE;
-			addr = buf1->boff;
-			layer->nextFrm = buf1;
-
-			davinci_disp_start_layer(layer->layer_info.id,
-						 addr,
-						 davinci_dm.cbcr_ofst);
-			local_irq_restore(flags);
-			list_add_tail(&buf1->stream,
-				      &(layer->buffer_queue.stream));
-			mutex_unlock(&layer->buffer_queue.vb_lock);
-			break;
-		}
-
-		/* If the case is for de-queing buffer from the
-		 * buffer queue
-		 */
-	case VIDIOC_DQBUF:
-		{
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_DQBUF, layer id = %d\n",
-				layer->device_id);
-
-			/* If this file handle is not allowed to do IO,
-			 * return error
-			 */
-			if (!fh->io_allowed) {
-				dev_err(davinci_display_dev, "No io_allowed\n");
-				ret = -EACCES;
-				break;
-			}
-			if (file->f_flags & O_NONBLOCK)
-				/* Call videobuf_dqbuf for non
-				 * blocking mode
-				 */
-				ret =
-				    videobuf_dqbuf(&layer->buffer_queue,
-						   (struct v4l2_buffer *)
-						   arg, 1);
-			else
-				/* Call videobuf_dqbuf for
-				 * blocking mode
-				 */
-				ret =
-				    videobuf_dqbuf(&layer->buffer_queue,
-						   (struct v4l2_buffer *)
-						   arg, 0);
-			break;
-		}
-
-		/* If the case is for querying information about
-		 * buffer for memory mapping io
-		 */
-	case VIDIOC_QUERYBUF:
-		{
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_QUERYBUF, layer id = %d\n",
-				layer->device_id);
-			/* Call videobuf_querybuf to get information */
-			ret = videobuf_querybuf(&layer->buffer_queue,
-						(struct v4l2_buffer *)
-						arg);
-			break;
-		}
-
-		/* If the case is starting streaming */
-	case VIDIOC_STREAMON:
-		{
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_STREAMON, layer id = %d\n",
-				layer->device_id);
-			/* If file handle is not allowed IO,
-			 * return error
-			 */
-			if (!fh->io_allowed) {
-				dev_err(davinci_display_dev, "No io_allowed\n");
-				ret = -EACCES;
-				break;
-			}
-			/* If Streaming is already started,
-			 * return error
-			 */
-			if (layer->started) {
-				dev_err(davinci_display_dev,
-					"layer is already streaming\n");
-				ret = -EBUSY;
-				break;
-			}
-
-			/*
-			 * Call videobuf_streamon to start streaming
-			 * in videobuf
-			 */
-			ret = videobuf_streamon(&layer->buffer_queue);
-			if (ret) {
-				dev_err(davinci_display_dev,
-					"error in videobuf_streamon\n");
-				break;
-			}
-			ret = mutex_lock_interruptible(&davinci_dm.lock);
-			if (ret)
-				break;
-			/* If buffer queue is empty, return error */
-			if (list_empty(&layer->dma_queue)) {
-				dev_err(davinci_display_dev,
-					"buffer queue is empty\n");
-				ret = -EIO;
-				mutex_unlock(&davinci_dm.lock);
-				break;
-			}
-			/* Get the next frame from the buffer queue */
-			layer->nextFrm = layer->curFrm =
-			    list_entry(layer->dma_queue.next,
-				       struct videobuf_buffer, queue);
-			/* Remove buffer from the buffer queue */
-			list_del(&layer->curFrm->queue);
-			/* Mark state of the current frame to active */
-			layer->curFrm->state = VIDEOBUF_ACTIVE;
-			/* Initialize field_id and started member */
-
-			layer->field_id = 0;
-
-			/* Set parameters in OSD and VENC */
-			ret = davinci_set_video_display_params(layer);
-			if (ret < 0) {
-				mutex_unlock(&davinci_dm.lock);
-				break;
-			}
-			/* if request format is yuv420 semiplanar, need to
-			 * enable both video windows
-			 */
-
-			layer->started = 1;
-			dev_dbg(davinci_display_dev,
-				"Started streaming on layer id = %d,"
-				" ret = %d\n",
-				layer->device_id, ret);
-			layer_first_int = 1;
-			mutex_unlock(&davinci_dm.lock);
-			break;
-		}
-		/* If the case is for stopping streaming */
-	case VIDIOC_STREAMOFF:
-		{
-			dev_dbg(davinci_display_dev,
-				"VIDIOC_STREAMOFF,layer id = %d\n",
-				layer->device_id);
-			/* If io is allowed for this file handle,
-			 * return error
-			 */
-			if (!fh->io_allowed) {
-				dev_err(davinci_display_dev, "No io_allowed\n");
-				ret = -EACCES;
-				break;
-			}
-			/* If streaming is not started, return error */
-			if (!layer->started) {
-				dev_err(davinci_display_dev,
-					"streaming not started in layer"
-					" id = %d\n",
-					layer->device_id);
-				ret = -EINVAL;
-				break;
-			}
-			ret = mutex_lock_interruptible(&davinci_dm.lock);
-			if (ret)
-				break;
-			davinci_disp_disable_layer(layer->layer_info.id);
-			layer->started = 0;
-			mutex_unlock(&davinci_dm.lock);
-			ret = videobuf_streamoff(&layer->buffer_queue);
-			break;
-		}
-	case VIDIOC_S_PRIORITY:
-		{
-			enum v4l2_priority *p = (enum v4l2_priority *)arg;
-			ret = v4l2_prio_change(&layer->prio, &fh->prio, *p);
-			break;
-		}
-	case VIDIOC_G_PRIORITY:
-		{
-			enum v4l2_priority *p = (enum v4l2_priority *)arg;
-			*p = v4l2_prio_max(&layer->prio);
-			break;
-		}
 	case VIDIOC_S_COFST:
-		{
-			ret = mutex_lock_interruptible(&davinci_dm.lock);
-			if (!ret) {
-				davinci_dm.cbcr_ofst = *((unsigned long *) arg);
-				mutex_unlock(&davinci_dm.lock);
-			}
-			break;
-		}
+		davinci_dm.cbcr_ofst = *((unsigned long *) param);
+		mutex_unlock(&davinci_dm.lock);
+	
 	default:
 		ret = -EINVAL;
 	}
 
-	dev_dbg(davinci_display_dev, "<davinci_doioctl>\n");
-	return ret;
-}
-
-/*
- * davinci_ioctl()
- * Calls davinci_doioctl function
- */
-static long davinci_ioctl(struct file *file,
-			 unsigned int cmd, unsigned long arg)
-{
-	int ret;
-	char sbuf[128];
-	void *mbuf = NULL;
-	void *parg = NULL;
-
-	dev_dbg(davinci_display_dev, "Start of davinci ioctl\n");
-
-	/*  Copy arguments into temp kernel buffer  */
-	switch (_IOC_DIR(cmd)) {
-	case _IOC_NONE:
-		parg = NULL;
-		break;
-	case _IOC_READ:
-	case _IOC_WRITE:
-	case (_IOC_WRITE | _IOC_READ):
-		if (_IOC_SIZE(cmd) <= sizeof(sbuf)) {
-			parg = sbuf;
-		} else {
-			/* too big to allocate from stack */
-			mbuf = kmalloc(_IOC_SIZE(cmd), GFP_KERNEL);
-			if (NULL == mbuf)
-				return -ENOMEM;
-			parg = mbuf;
-		}
-
-		ret = -EFAULT;
-		if (_IOC_DIR(cmd) & _IOC_WRITE)
-			if (copy_from_user(parg, (void __user *)arg,
-					   _IOC_SIZE(cmd)))
-				goto out;
-		break;
-	}
-
-	/* call driver */
-	ret = davinci_doioctl(file, cmd, (unsigned long)parg);
-	if (ret == -ENOIOCTLCMD)
-		ret = -EINVAL;
-
-	/*  Copy results into user buffer  */
-	switch (_IOC_DIR(cmd)) {
-	case _IOC_READ:
-	case (_IOC_WRITE | _IOC_READ):
-		if (copy_to_user((void __user *)arg, parg, _IOC_SIZE(cmd)))
-			ret = -EFAULT;
-		break;
-	}
-out:
-	kfree(mbuf);
-	dev_dbg(davinci_display_dev, "</davinci_ioctl>\n");
 	return ret;
 }
 
@@ -1692,16 +1376,6 @@ static unsigned int davinci_poll(struct file *filep, poll_table *wait)
 
 	if (layer->started)
 		err = videobuf_poll_stream(filep, &layer->buffer_queue, wait);
-
-	if (err & POLLIN) {
-		err &= (~POLLIN);
-		err |= POLLOUT;
-	}
-	if (err & POLLRDNORM) {
-		err &= (~POLLRDNORM);
-		err |= POLLWRNORM;
-	}
-
 	dev_dbg(davinci_display_dev, "</davinci_poll>");
 	return err;
 }
@@ -1747,12 +1421,6 @@ static int davinci_config_layer(enum davinci_display_device_id id)
 	/* turn off ping-pong buffer and field inversion to fix
 	 * the image shaking problem in 1080I mode
 	 */
-#if 0
-	if (id == DAVINCI_DISPLAY_DEVICE_0 &&
-	    strcmp(mode_info->name, VID_ENC_STD_1080I_30) == 0 &&
-	    (cpu_is_davinci_dm644x_pg1x() || cpu_is_davinci_dm357()))
-		davinci_disp_set_field_inversion(0);
-#endif
 
 	if (layer->layer_info.config.interlaced)
 		layer->pix_fmt.field = V4L2_FIELD_INTERLACED;
@@ -1769,7 +1437,6 @@ static int davinci_config_layer(enum davinci_display_device_id id)
  */
 static int davinci_open(struct file *filep)
 {
-//	int minor = iminor(inode);
 	int minor = iminor(filep->f_path.dentry->d_inode);
 	int found = -1;
 	int i = 0;
@@ -1833,6 +1500,7 @@ static int davinci_open(struct file *filep)
  */
 static int davinci_release(struct file *filep)
 {
+	int ret = 0;
 	/* Get the layer object and file handle object */
 	struct davinci_fh *fh = filep->private_data;
 	struct display_obj *layer = fh->layer;
@@ -1844,7 +1512,10 @@ static int davinci_release(struct file *filep)
 		return -EAGAIN;
 	}
 	/* Get the lock on layer object */
-	mutex_lock_interruptible(&davinci_dm.lock);
+	ret = mutex_lock_interruptible(&davinci_dm.lock);
+	if (ret)
+		return ret;
+
 	/* if this instance is doing IO */
 	if (fh->io_allowed) {
 		/* Reset io_usrs member of layer object */
@@ -1892,19 +1563,34 @@ static void davinci_platform_release(struct device
 	/* This is called when the reference count goes to zero */
 }
 
-static struct v4l2_file_operations davinci_fops = {
+static struct v4l2_file_operations vpbe_fops = {
 	.owner = THIS_MODULE,
 	.open = davinci_open,
 	.release = davinci_release,
-	.ioctl = davinci_ioctl,
+	.ioctl = video_ioctl2,
 	.mmap = davinci_mmap,
 	.poll = davinci_poll
 };
 
-static struct video_device davinci_video_template = {
-	.name = "davinci",
-	.fops = &davinci_fops,
-	.minor = -1
+/* vpbe capture ioctl operations */
+static const struct v4l2_ioctl_ops vpbe_ioctl_ops = {
+	.vidioc_querycap	 = vpbe_querycap,
+	.vidioc_g_fmt_vid_out    = vpbe_g_fmt,
+	.vidioc_enum_fmt_vid_out = vpbe_enum_fmt,
+	.vidioc_s_fmt_vid_out    = vpbe_s_fmt,
+	.vidioc_try_fmt_vid_out  = vpbe_try_fmt,
+	.vidioc_reqbufs		 = vpbe_reqbufs,
+	.vidioc_querybuf	 = vpbe_querybuf,
+	.vidioc_qbuf		 = vpbe_qbuf,
+	.vidioc_dqbuf		 = vpbe_dqbuf,
+	.vidioc_streamon	 = vpbe_streamon,
+	.vidioc_streamoff	 = vpbe_streamoff,
+	.vidioc_cropcap		 = vpbe_cropcap,
+	.vidioc_g_crop		 = vpbe_g_crop,
+	.vidioc_s_crop		 = vpbe_s_crop,
+	.vidioc_g_priority	 = vpbe_g_priority,
+	.vidioc_s_priority	 = vpbe_s_priority,
+	.vidioc_default		 = vpbe_param_handler,
 };
 
 /*
@@ -1944,9 +1630,13 @@ static __init int davinci_probe(struct device *device)
 		}
 
 		/* Initialize field of video device */
-		*vbd = davinci_video_template;
 		vbd->dev = *device;
-		vbd->release = video_device_release;
+		vbd->release 		= video_device_release;
+		vbd->fops		= &vpbe_fops;
+		vbd->ioctl_ops		= &vpbe_ioctl_ops;
+		vbd->minor		= -1;
+		vbd->current_norm	= V4L2_STD_NTSC;
+
 		snprintf(vbd->name, sizeof(vbd->name),
 			 "DaVinci_VPBEDisplay_DRIVER_V%d.%d.%d",
 			 (DAVINCI_DISPLAY_VERSION_CODE >> 16)
@@ -2033,6 +1723,7 @@ static struct platform_device _davinci_display_device = {
 	.id = 1,
 	.dev = {
 		.release = davinci_platform_release,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
 		}
 };
 
@@ -2047,8 +1738,7 @@ static __init int davinci_display_init(void)
 	int free_layer_objects_index;
 	int free_buffer_layer_index;
 	int free_buffer_index;
-	u32 addr;
-	int size;
+
 
 	printk(KERN_DEBUG "<davinci_display_init>\n");
 
@@ -2103,21 +1793,6 @@ static __init int davinci_display_init(void)
 	}
 	free_layer_objects_index = DAVINCI_DISPLAY_MAX_DEVICES;
 
-	/* Allocate memory for buffers */
-	for (i = 0; i < DAVINCI_DISPLAY_MAX_DEVICES; i++) {
-		size = display_buf_config_params.layer_bufsize[i];
-		for (j = 0; j < display_buf_config_params.numbuffers[i]; j++) {
-			addr = davinci_alloc_buffer(size);
-			if (!addr) {
-				free_buffer_layer_index = i;
-				free_buffer_index = j;
-				printk(KERN_ERR "ran out of memory\n");
-				err = -ENOMEM;
-				goto davinci_init_free_buffers;
-			}
-			davinci_dm.dev[i]->fbuffers[j] = addr;
-		}
-	}
 	if (display_buf_config_params.numbuffers[0] == 0)
 		printk(KERN_ERR "no vid2 buffer allocated\n");
 	if (display_buf_config_params.numbuffers[1] == 0)
@@ -2126,9 +1801,9 @@ static __init int davinci_display_init(void)
 	free_buffer_index = display_buf_config_params.numbuffers[i - 1];
 	/* Register driver to the kernel */
 	err = driver_register(&davinci_driver);
-	if (0 != err) {
-		goto davinci_init_free_buffers;
-	}
+	if (0 != err)
+		goto davinci_init_free_layer_objects;
+
 	/* register device as a platform device to the kernel */
 	err = platform_device_register(&_davinci_display_device);
 	if (0 != err) {
@@ -2155,32 +1830,6 @@ static __init int davinci_display_init(void)
 davinci_init_unregister_driver:
 	driver_unregister(&davinci_driver);
 
-davinci_init_free_buffers:
-	for (i = 0; i < free_buffer_layer_index; i++) {
-		for (j = 0; j < display_buf_config_params.numbuffers[i]; j++) {
-			addr = davinci_dm.dev[i]->fbuffers[j];
-			if (addr) {
-				davinci_free_buffer(addr,
-						    display_buf_config_params.
-						    layer_bufsize[i]
-				    );
-				davinci_dm.dev[i]->fbuffers[j] = 0;
-			}
-		}
-	}
-	for (j = 0; j < display_buf_config_params.numbuffers[free_buffer_index];
-	     j++) {
-		addr = davinci_dm.dev[free_buffer_layer_index]->fbuffers[j];
-		if (addr) {
-			davinci_free_buffer(addr,
-					    display_buf_config_params.
-					    layer_bufsize[i]);
-			davinci_dm.dev[free_buffer_layer_index]->fbuffers[j]
-			    = 0;
-		}
-
-	}
-
 davinci_init_free_layer_objects:
 	for (j = 0; j < free_layer_objects_index; j++) {
 		if (davinci_dm.dev[i]) {
@@ -2198,24 +1847,12 @@ davinci_init_free_layer_objects:
  */
 static void davinci_cleanup(void)
 {
-	int i = 0, j = 0;
-	u32 addr;
+	int i = 0;
 	printk(KERN_INFO "<davinci_cleanup>\n");
 
 	davinci_disp_unregister_callback(&davinci_dm.event_callback);
 	platform_device_unregister(&_davinci_display_device);
 	driver_unregister(&davinci_driver);
-	for (i = 0; i < DAVINCI_DISPLAY_MAX_DEVICES; i++) {
-		for (j = 0; j < display_buf_config_params.numbuffers[i]; j++) {
-			addr = davinci_dm.dev[i]->fbuffers[j];
-			if (addr) {
-				davinci_free_buffer(addr,
-						    display_buf_config_params.
-						    layer_bufsize[i]);
-				davinci_dm.dev[i]->fbuffers[j] = 0;
-			}
-		}
-	}
 	for (i = 0; i < DAVINCI_DISPLAY_MAX_DEVICES; i++) {
 		if (davinci_dm.dev[i]) {
 			kfree(davinci_dm.dev[i]);
