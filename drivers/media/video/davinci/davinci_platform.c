@@ -35,6 +35,7 @@
 #include <video/davinci_osd.h>
 #include <media/davinci/davinci_enc_mngr.h>
 #include <media/davinci/davinci_platform.h>
+#include "../ths7303.h"
 
 #define MSP430_I2C_ADDR		(0x25)
 #define PCA9543A_I2C_ADDR	(0x73)
@@ -675,12 +676,9 @@ static void davinci_enc_set_525p(struct vid_enc_mode_info *mode_info)
 	osd_write_upper_margin(mode_info->upper_margin);
 
 	if (cpu_is_davinci_dm365()) {
-/* TODO */
-#if 0
-		tvp73xx_setup_channel(THS7303, THS_FILTER_MODE_480P);
+		ths7303_setval(THS7303_FILTER_MODE_480P_576P);
 		msleep(40);
-#endif
-		__raw_writel(0x081141EF, DM3XX_VDAC_CONFIG);
+		__raw_writel(0x081141EF, IO_ADDRESS(DM3XX_VDAC_CONFIG));
 	}
 
 	if (cpu_is_davinci_dm644x())
@@ -718,11 +716,8 @@ static void davinci_enc_set_625p(struct vid_enc_mode_info *mode_info)
 	osd_write_upper_margin(mode_info->upper_margin);
 
 	if (cpu_is_davinci_dm365()) {
-/* TODO */
-#if 0
-		tvp73xx_setup_channel(THS7303, THS_FILTER_MODE_576P);
+		ths7303_setval(THS7303_FILTER_MODE_480P_576P);
 		msleep(40);
-#endif
 		__raw_writel(0x081141EF, IO_ADDRESS(DM3XX_VDAC_CONFIG));
 	}
 
@@ -1072,19 +1067,16 @@ static void davinci_enc_set_1080i(struct vid_enc_mode_info *mode_info)
 	dispc_reg_out(VENC_LCDOUT, 1);
 }
 
-/* TODO */
-#if 0
 static void davinci_enc_set_internal_hd(struct vid_enc_mode_info *mode_info)
 {
 	/* set sysclk4 to output 74.25 MHz from pll1 */
-	__raw_writel(0x38, SYS_VPSS_CLKCTL);
+	__raw_writel(0x38, IO_ADDRESS(SYS_VPSS_CLKCTL));
 
-	tvp73xx_setup_channel(THS7303, THS_FILTER_MODE_720P);
+	ths7303_setval(THS7303_FILTER_MODE_720P_1080I);
 	msleep(50);
-	__raw_writel(0x081141EF, DM3XX_VDAC_CONFIG);
+	__raw_writel(0x081141EF, IO_ADDRESS(DM3XX_VDAC_CONFIG));
 	return;
 }
-#endif
 
 void davinci_enc_priv_setmode(struct vid_enc_device_mgr *mgr)
 {
@@ -1143,23 +1135,17 @@ void davinci_enc_priv_setmode(struct vid_enc_device_mgr *mgr)
 		/* DM365 has built-in HD DAC; otherwise, they depend on
 		 * THS8200
 		 */
-/* TODO */
-#if 0
 		if (cpu_is_davinci_dm365()) {
 			davinci_enc_set_internal_hd(&mgr->current_mode);
 			/* changed for 720P demo */
 			davinci_enc_set_basep(0, 0xf0, 10);
 		} else
-#endif
 			davinci_enc_set_720p(&mgr->current_mode);
 	} else if (strcmp(mgr->current_mode.name, VID_ENC_STD_1080I_30) == 0) {
-/* TODO */
-#if 0
 		if (cpu_is_davinci_dm365()) {
 			davinci_enc_set_internal_hd(&mgr->current_mode);
 			davinci_enc_set_basep(0, 0xd0, 10);
 		} else
-#endif
 			davinci_enc_set_1080i(&mgr->current_mode);
 	}
 
