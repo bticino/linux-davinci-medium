@@ -35,6 +35,9 @@ void __init dm646x_init(void);
 void __init dm646x_init_ide(void);
 void __init dm646x_init_mcasp0(struct snd_platform_data *pdata);
 void __init dm646x_init_mcasp1(struct snd_platform_data *pdata);
+void __init dm646x_init_cir_device(void);
+
+
 struct spi_board_info;
 void dm646x_init_spi0(struct spi_board_info *info, unsigned len);
 
