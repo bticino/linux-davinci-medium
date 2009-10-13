@@ -12,6 +12,8 @@ obj-y	 += mem.o random.o tty_io.o n_tty.o tty_ioctl.o tty_ldisc.o tty_buffer.o t
 davinci_vdce_driver-objs := davinci_vdce_hw.o davinci_vdce.o
 obj-$(CONFIG_VDCE) += davinci_vdce_driver.o
 
+obj-$(CONFIG_CIR) += cir.o
+
 obj-$(CONFIG_LEGACY_PTYS)	+= pty.o
 obj-$(CONFIG_UNIX98_PTYS)	+= pty.o
 obj-y				+= misc.o

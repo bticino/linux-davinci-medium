@@ -1131,6 +1131,14 @@ config VDCE
         help
                 DaVinci VDCE Driver.
 
+config CIR
+        tristate "DaVinci CIR Driver"
+        default n
+        depends on ARCH_DAVINCI_DM646x
+        help
+                DaVinci CIR Driver.
+
+
 source "drivers/s390/char/Kconfig"
 
 endmenu
