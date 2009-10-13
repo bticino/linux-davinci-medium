@@ -426,6 +426,7 @@ void __init dm646x_init_spi0(struct spi_board_info *info, unsigned len)
 	platform_device_register(&dm646x_spi0_device);
 }
 
+
 static struct emac_platform_data dm646x_emac_pdata = {
 	.ctrl_reg_offset	= DM646X_EMAC_CNTRL_OFFSET,
 	.ctrl_mod_reg_offset	= DM646X_EMAC_CNTRL_MOD_OFFSET,
@@ -473,6 +474,36 @@ static struct platform_device dm646x_emac_device = {
 	.resource	= dm646x_emac_resources,
 };
 
+
+static struct resource dm646x_cir_resources[] = {
+	{
+			.start  = 0x01c20800,
+			.end    = 0x01c20Bff,
+			.flags  = IORESOURCE_MEM,
+
+	},
+	{
+			.start  = IRQ_DM646X_UARTINT2,
+			.flags  = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device cir_device = {
+	.name = "cir",
+	.id = 0,
+	.dev = {
+	},
+	.num_resources = ARRAY_SIZE(dm646x_cir_resources),
+	.resource = dm646x_cir_resources,
+};
+
+void __init dm646x_init_cir_device()
+{
+
+	davinci_cfg_reg(DM646X_CIR_UART2);
+	platform_device_register(&cir_device);
+}
+
 #define PINMUX0		0x00
 #define PINMUX1		0x04
 
@@ -515,6 +546,8 @@ MUX_CFG(DM646X, PTSIMUX_PARALLEL,	0,   16,    3,    2,	 true)
 MUX_CFG(DM646X, PTSOMUX_SERIAL,		0,   18,    3,    3,	 true)
 
 MUX_CFG(DM646X, PTSIMUX_SERIAL,		0,   16,    3,    3,	 true)
+
+MUX_CFG(DM646X, CIR_UART2,              1,    4,    3,    2 ,    false)
 #endif
 };
 

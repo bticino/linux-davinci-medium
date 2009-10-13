@@ -90,6 +90,13 @@
 #define HAS_NAND 0
 #endif
 
+
+#if defined(CONFIG_CIR)
+#define HAS_CIR 1
+#else
+#define HAS_CIR 0
+#endif
+
 #define DAVINCI_ASYNC_EMIF_CONTROL_BASE		0x20008000
 #define DAVINCI_ASYNC_EMIF_DATA_CE0_BASE	0x42000000
 
@@ -99,6 +106,7 @@
 #define DM646X_EVM_ATA_RST		BIT(0)
 #define DM646X_EVM_ATA_PWD		BIT(1)
 #define DM646X_EVM_USB_VBUS		BIT(7)
+#define DM646X_EVM_CIR_UART             BIT(5)
 
 #define DM646X_EVM_PHY_MASK		(0x2)
 #define DM646X_EVM_MDIO_FREQUENCY	(2200000) /* PHY bus frequency */
@@ -280,6 +288,28 @@ static int cpld_reg0_probe(struct i2c_client *client,
 		/* Clear ATA_RSTn and ATA_PWD bits to enable ATA operation. */
 		i2c_transfer(client->adapter, msg, 1);
 		data &= ~(DM646X_EVM_ATA_RST | DM646X_EVM_ATA_PWD);
+		i2c_transfer(client->adapter, msg + 1, 1);
+	}
+	if (HAS_CIR) {
+		u8 data;
+		struct i2c_msg msg[2] = {
+			{
+				.addr = client->addr,
+				.flags = I2C_M_RD,
+				.len = 1,
+				.buf = &data,
+			},
+			{
+				.addr = client->addr,
+				.flags = 0,
+				.len = 1,
+				.buf = &data,
+			},
+		};
+
+	/* Clear UART CIR to enable cir operation. */
+		i2c_transfer(client->adapter, msg, 1);
+		data &= ~(DM646X_EVM_CIR_UART);
 		i2c_transfer(client->adapter, msg + 1, 1);
 	}
 
@@ -935,7 +965,8 @@ static __init void evm_init(void)
 	} else {
 		if (HAS_ATA)
 			dm646x_init_ide();
-
+		if (HAS_CIR)
+			dm646x_init_cir_device();
 		if (HAS_NAND)
 			platform_device_register(&davinci_nand_device);
 	}
