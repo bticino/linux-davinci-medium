@@ -120,6 +120,9 @@ enum davinci_dm646x_index {
 	DM646X_PTSIMUX_PARALLEL,
 	DM646X_PTSOMUX_SERIAL,
 	DM646X_PTSIMUX_SERIAL,
+
+	/* CIR control */
+	DM646X_CIR_UART2,
 };
 
 enum davinci_dm355_index {
