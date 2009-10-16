@@ -95,12 +95,13 @@ static ssize_t
 output_store(struct device *cdev, struct device_attribute *attr, const char *buffer, size_t count)
 {
 	struct display_device *dev = to_display_dev(cdev);
-	char name[count];
+	char name[VID_ENC_NAME_MAX_CHARS];
 	int ret;
-	if (!buffer || (count == 0))
+
+	if (!buffer || (count == 0)|| (count > VID_ENC_NAME_MAX_CHARS))
 		return 0;
 
-	strncpy(name, buffer, VID_ENC_NAME_MAX_CHARS);
+	strncpy(name, buffer, count);
 	name[count - 1] = 0;
 	ret = davinci_enc_set_output(dev->channel, name);
 	if (ret < 0) {
@@ -131,14 +132,14 @@ static ssize_t
 mode_store(struct device *cdev, struct device_attribute *attr, const char *buffer, size_t count)
 {
 	struct display_device *dev = to_display_dev(cdev);
-	char name[count];
+	char name[VID_ENC_NAME_MAX_CHARS];
 	struct vid_enc_mode_info mode_info;
 	int ret;
 
-	if (!buffer || (count == 0))
+	if (!buffer || (count == 0) || (count > VID_ENC_NAME_MAX_CHARS))
 		return 0;
 
-	strncpy(name, buffer, VID_ENC_NAME_MAX_CHARS);
+	strncpy(name, buffer, count);
 	name[count - 1] = 0;
 
 	ret = davinci_enc_get_mode(dev->channel, &mode_info);
@@ -275,7 +276,7 @@ static void *create_sysfs_files(int channel)
 	dev->channel = channel;
 	dev->class_dev.class = &display_class;
 	dev_set_name(&dev->class_dev, "ch%d", channel);
-//	dev_set_drvdata(&dev->class_dev, dev);
+	dev_set_drvdata(&dev->class_dev, dev);
 	ret = device_register(&dev->class_dev);
 	if (ret < 0) {
 		printk(KERN_ERR "DaVinci Enc Manager: Error in device_register\n");
@@ -291,6 +292,7 @@ static void *create_sysfs_files(int channel)
 				device_remove_file(&dev->class_dev,
 							 &bl_device_attributes
 							 [i]);
+			dev_set_drvdata(&dev->class_dev, NULL);
 			device_unregister(&dev->class_dev);
 			return NULL;
 		}
@@ -307,6 +309,7 @@ static void remove_sysfs_files(struct display_device *dev)
 		device_remove_file(&dev->class_dev,
 					 &bl_device_attributes[i]);
 
+	dev_set_drvdata(&dev->class_dev, NULL);
 	device_unregister(&dev->class_dev);
 }
 
@@ -628,7 +631,6 @@ int davinci_enc_set_output(int channel, char *output)
 	char buf[VID_ENC_NAME_MAX_CHARS];
 
 	cur_enc = davinci_get_cur_encoder(channel);
-
 	if (NULL == cur_enc || NULL == output)
 		return err;
 
