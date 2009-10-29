@@ -398,16 +398,21 @@ static struct resource dm355_spi0_resources[] = {
 		.flags = IORESOURCE_MEM,
 	},
 	{
-		.start = IRQ_DM355_SPINT0_1,
+		.start = IRQ_DM355_SPINT0_0,
 		.flags = IORESOURCE_IRQ,
 	},
-	/* Not yet used, so not included:
-	 * IORESOURCE_IRQ:
-	 *  - IRQ_DM355_SPINT0_0
-	 * IORESOURCE_DMA:
-	 *  - DAVINCI_DMA_SPI_SPIX
-	 *  - DAVINCI_DMA_SPI_SPIR
-	 */
+	{
+		.start = 17,
+		.flags = IORESOURCE_DMA | IORESOURCE_DMA_RX_CHAN,
+	},
+	{
+		.start = 16,
+		.flags = IORESOURCE_DMA | IORESOURCE_DMA_TX_CHAN,
+	},
+	{
+		.start = EVENTQ_1,
+		.flags = IORESOURCE_DMA | IORESOURCE_DMA_EVENT_Q,
+	},
 };
 
 static struct davinci_spi_platform_data dm355_spi0_pdata = {
@@ -416,7 +421,10 @@ static struct davinci_spi_platform_data dm355_spi0_pdata = {
 	.clk_internal	= 1,
 	.cs_hold	= 1,
 	.intr_level	= 0,
-	.poll_mode	= 1,
+	.poll_mode	= 1,	/* 0 -> interrupt mode 1-> polling mode */
+	.use_dma	= 1,	/* when 1, value in poll_mode is ignored */
+	.c2tdelay	= 0,
+	.t2cdelay	= 0,
 };
 
 static struct platform_device dm355_spi0_device = {
@@ -582,7 +590,7 @@ static u8 dm355_default_priorities[DAVINCI_N_AINTC_IRQ] = {
 
 static const s8 dma_chan_dm355_no_event[] = {
 	0, 1, 4, 5, 6, 7, 10, 11,
-	12, 13, 14, 15, 16, 17, 18,
+	12, 13, 14, 15, 18,
 	19, 20, 21, 22, 23, 24, 25,
 	28, 29, 32, 33, 34, 35, 36,
 	37, 38, 39, 40, 41, 42, 43,
