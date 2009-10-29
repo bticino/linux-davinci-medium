@@ -390,7 +390,8 @@ static struct davinci_spi_platform_data dm646x_spi0_pdata = {
 	.clk_internal	= 1,
 	.cs_hold	= 1,
 	.intr_level	= 0,
-	.poll_mode	= 1,
+	.poll_mode	= 1,	/* 0 -> interrupt mode 1-> polling mode */
+	.use_dma	= 1,	/* when 1, value in poll_mode is ignored */
 	.c2tdelay	= 8,
 	.t2cdelay	= 8,
 };
@@ -404,6 +405,18 @@ static struct resource dm646x_spi0_resources[] = {
 	{
 		.start = IRQ_DM646X_SPINT0,
 		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = 17,
+		.flags = IORESOURCE_DMA | IORESOURCE_DMA_RX_CHAN,
+	},
+	{
+		.start = 16,
+		.flags = IORESOURCE_DMA | IORESOURCE_DMA_TX_CHAN,
+	},
+	{
+		.start = EVENTQ_3,
+		.flags = IORESOURCE_DMA | IORESOURCE_DMA_EVENT_Q,
 	},
 };
 
