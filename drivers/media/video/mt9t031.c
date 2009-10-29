@@ -748,7 +748,7 @@ static int mt9t031_probe(struct i2c_client *client,
 	mt9t031->width_max	= MT9T031_MAX_WIDTH;
 	mt9t031->height_min	= MT9T031_MIN_HEIGHT;
 	mt9t031->height_max	= MT9T031_MAX_HEIGHT;
-	mt9t031->y_skip_top	= 0;
+	mt9t031->y_skip_top	= 10;
 	mt9t031->autoexposure = 1;
 	mt9t031->xskip = 1;
 	mt9t031->yskip = 1;
