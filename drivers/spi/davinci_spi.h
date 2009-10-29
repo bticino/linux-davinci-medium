@@ -137,6 +137,20 @@ struct davinci_spi_slave {
 	u8	active_cs;
 };
 
+#define SPI_BUFSIZ	(SMP_CACHE_BYTES + 1)
+
+/* We have 2 DMA channels per CS, one for RX and one for TX */
+struct davinci_spi_dma {
+	int			dma_tx_channel;
+	int			dma_rx_channel;
+	int			dma_tx_sync_dev;
+	int			dma_rx_sync_dev;
+	enum dma_event_q	eventq;
+
+	struct completion	dma_tx_completion;
+	struct completion	dma_rx_completion;
+};
+
 /* SPI Controller driver's private data. */
 struct davinci_spi {
 	struct spi_bitbang	bitbang;
@@ -151,7 +165,9 @@ struct davinci_spi {
 
 	const void		*tx;
 	void			*rx;
+	u8			*tmp_buf;
 	int			count;
+	struct davinci_spi_dma	*dma_channels;
 	struct			davinci_spi_platform_data *pdata;
 
 	void			(*get_rx)(u32 rx_data, struct davinci_spi *);

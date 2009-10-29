@@ -21,6 +21,11 @@
 
 #define SPI_INTERN_CS	0xFF
 
+/* resource flags for IORESOURCE_DMA resources */
+#define IORESOURCE_DMA_RX_CHAN		0x01
+#define IORESOURCE_DMA_TX_CHAN		0x02
+#define IORESOURCE_DMA_EVENT_Q		0x04
+
 enum {
 	SPI_VERSION_1, /* For DM355/DM365/DM6467*/
 	SPI_VERSION_2, /* For DA8xx */
@@ -38,6 +43,7 @@ struct davinci_spi_platform_data {
 	u32	cs_hold;
 	u32	intr_level;
 	u32	poll_mode;
+	u32	use_dma;
 	u8	c2tdelay;
 	u8	t2cdelay;
 };
