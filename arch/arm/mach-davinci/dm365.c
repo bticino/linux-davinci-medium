@@ -624,9 +624,10 @@ static struct davinci_spi_platform_data dm365_spi0_pdata = {
 	.clk_internal	= 1,
 	.cs_hold	= 1,
 	.intr_level	= 0,
-	.poll_mode	= 1,
-	.c2tdelay	= 8,
-	.t2cdelay	= 8,
+	.poll_mode	= 1,	/* 0 -> interrupt mode 1-> polling mode */
+	.use_dma	= 1,	/* when 1, value in poll_mode is ignored */
+	.c2tdelay	= 0,
+	.t2cdelay	= 0,
 };
 
 static struct resource dm365_spi0_resources[] = {
@@ -638,6 +639,18 @@ static struct resource dm365_spi0_resources[] = {
 	{
 		.start = IRQ_DM365_SPIINT0_0,
 		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = 17,
+		.flags = IORESOURCE_DMA | IORESOURCE_DMA_RX_CHAN,
+	},
+	{
+		.start = 16,
+		.flags = IORESOURCE_DMA | IORESOURCE_DMA_TX_CHAN,
+	},
+	{
+		.start = EVENTQ_3,
+		.flags = IORESOURCE_DMA | IORESOURCE_DMA_EVENT_Q,
 	},
 };
 
@@ -846,7 +859,7 @@ static u8 dm365_default_priorities[DAVINCI_N_AINTC_IRQ] = {
 
 static const s8 dma_chan_dm365_no_event[] = {
 	0, 1, 4, 5, 6, 7, 8, 9, 10,
-	11, 12, 13, 14, 15, 16, 17,
+	11, 12, 13, 14, 15,
 	18, 19, 20, 21, 22, 23, 24,
 	25, 28, 29, 32, 33, 34, 35,
 	36, 37, 38, 39, 40, 41, 42,
