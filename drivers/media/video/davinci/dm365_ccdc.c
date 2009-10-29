@@ -34,54 +34,6 @@
 
 static struct device *dev;
 
-/* holds live module configuation paramaters */
-static struct ccdc_params_raw ccdc_hw_params_bayer = {
-	.pix_fmt = CCDC_PIXFMT_RAW,
-	.frm_fmt = CCDC_FRMFMT_PROGRESSIVE,
-	.win = CCDC_WIN_VGA,
-	.fid_pol = VPFE_PINPOL_POSITIVE,
-	.vd_pol = VPFE_PINPOL_POSITIVE,
-	.hd_pol = VPFE_PINPOL_POSITIVE,
-	.gain = {
-		.r_ye = {1, 0},
-		.gr_cy = {1, 0},
-		.gb_g = {1, 0},
-		.b_mg = {1, 0},
-	},
-	.cfa_pat = CCDC_CFA_PAT_MOSAIC,
-	.data_msb = CCDC_BIT_MSB_11,
-	.config_params = {
-		.data_size = CCDC_12_BITS,
-		.data_shift = CCDC_NO_SHIFT,
-		.col_pat_field0 = {
-			.olop = CCDC_GREEN_BLUE,
-			.olep = CCDC_BLUE,
-			.elop = CCDC_RED,
-			.elep = CCDC_GREEN_RED
-		},
-		.col_pat_field1 = {
-			.olop = CCDC_GREEN_BLUE,
-			.olep = CCDC_BLUE,
-			.elop = CCDC_RED,
-			.elep = CCDC_GREEN_RED
-		},
-		.test_pat_gen = 0
-	}
-};
-
-static struct ccdc_ycbcr_config ccdc_hw_params_ycbcr = {
-	.pix_fmt = CCDC_PIXFMT_YCBCR_8BIT,
-	.frm_fmt = CCDC_FRMFMT_INTERLACED,
-	.win = CCDC_WIN_NTSC,
-	.fid_pol = VPFE_PINPOL_POSITIVE,
-	.vd_pol = VPFE_PINPOL_POSITIVE,
-	.hd_pol = VPFE_PINPOL_POSITIVE,
-	.pix_order = CCDC_PIXORDER_CBYCRY,
-	.buf_type = CCDC_BUFTYPE_FLD_INTERLEAVED
-};
-
-static enum ccdc_data_pack data_pack = CCDC_DATA_PACK8;
-
 /* Defauts for module configuation paramaters */
 static struct ccdc_config_params_raw ccdc_config_defaults = {
 	.linearize = {
@@ -119,9 +71,63 @@ static struct ccdc_config_params_raw ccdc_config_defaults = {
 	},
 };
 
+/* ISIF operation configuration */
+struct ccdc_oper_config {
+	enum vpfe_hw_if_type if_type;
+	struct ccdc_ycbcr_config ycbcr;
+	struct ccdc_params_raw bayer;
+	enum ccdc_data_pack data_pack;
+	void *__iomem base_addr;
+	void *__iomem linear_tbl0_addr;
+	void *__iomem linear_tbl1_addr;
+};
 
-static enum vpfe_hw_if_type ccdc_if_type;
-static void *__iomem isif_base_addr;
+static struct ccdc_oper_config ccdc_cfg = {
+	.ycbcr = {
+		.pix_fmt = CCDC_PIXFMT_YCBCR_8BIT,
+		.frm_fmt = CCDC_FRMFMT_INTERLACED,
+		.win = CCDC_WIN_NTSC,
+		.fid_pol = VPFE_PINPOL_POSITIVE,
+		.vd_pol = VPFE_PINPOL_POSITIVE,
+		.hd_pol = VPFE_PINPOL_POSITIVE,
+		.pix_order = CCDC_PIXORDER_CBYCRY,
+		.buf_type = CCDC_BUFTYPE_FLD_INTERLEAVED,
+	},
+	.bayer = {
+		.pix_fmt = CCDC_PIXFMT_RAW,
+		.frm_fmt = CCDC_FRMFMT_PROGRESSIVE,
+		.win = CCDC_WIN_VGA,
+		.fid_pol = VPFE_PINPOL_POSITIVE,
+		.vd_pol = VPFE_PINPOL_POSITIVE,
+		.hd_pol = VPFE_PINPOL_POSITIVE,
+		.gain = {
+			.r_ye = {1, 0},
+			.gr_cy = {1, 0},
+			.gb_g = {1, 0},
+			.b_mg = {1, 0},
+		},
+		.cfa_pat = CCDC_CFA_PAT_MOSAIC,
+		.data_msb = CCDC_BIT_MSB_11,
+		.config_params = {
+			.data_size = CCDC_12_BITS,
+			.data_shift = CCDC_NO_SHIFT,
+			.col_pat_field0 = {
+				.olop = CCDC_GREEN_BLUE,
+				.olep = CCDC_BLUE,
+				.elop = CCDC_RED,
+				.elep = CCDC_GREEN_RED,
+			},
+			.col_pat_field1 = {
+				.olop = CCDC_GREEN_BLUE,
+				.olep = CCDC_BLUE,
+				.elop = CCDC_RED,
+				.elep = CCDC_GREEN_RED,
+			},
+			.test_pat_gen = 0,
+		},
+	},
+	.data_pack = CCDC_DATA_PACK8,
+};
 
 /* Raw Bayer formats */
 static u32 ccdc_raw_bayer_pix_formats[] =
@@ -134,12 +140,12 @@ static u32 ccdc_raw_yuv_pix_formats[] =
 /* register access routines */
 static inline u32 regr(u32 offset)
 {
-	return __raw_readl(isif_base_addr + offset);
+	return __raw_readl(ccdc_cfg.base_addr + offset);
 }
 
 static inline void regw(u32 val, u32 offset)
 {
-	__raw_writel(val, isif_base_addr + offset);
+	__raw_writel(val, ccdc_cfg.base_addr + offset);
 }
 
 static inline u32 ccdc_merge(u32 mask, u32 val, u32 offset)
@@ -148,6 +154,14 @@ static inline u32 ccdc_merge(u32 mask, u32 val, u32 offset)
 
 	regw(new_val, offset);
 	return new_val;
+}
+
+static inline void regw_lin_tbl(u32 val, u32 offset, int i)
+{
+	if (!i)
+		__raw_writel(val, ccdc_cfg.linear_tbl0_addr + offset);
+	else
+		__raw_writel(val, ccdc_cfg.linear_tbl1_addr + offset);
 }
 
 static void ccdc_disable_all_modules(void)
@@ -168,21 +182,14 @@ static void ccdc_enable(int en)
 	if (!en) {
 		/* Before disable isif, disable all ISIF modules */
 		ccdc_disable_all_modules();
-		/* wait for next VD. Assume lowest scan rate is 12 Hz. So
+		/**
+		 * wait for next VD. Assume lowest scan rate is 12 Hz. So
 		 * 100 msec delay is good enough
 		 */
 	}
 	msleep(100);
 	ccdc_merge(CCDC_SYNCEN_VDHDEN_MASK, en, SYNCEN);
 }
-
-#if 0
-static void ccdc_set_ccdc_base(void *addr, int size)
-{
-	isif_base_addr = addr;
-	isif_addr_size = size;
-}
-#endif
 
 static void ccdc_enable_output_to_sdram(int en)
 {
@@ -209,7 +216,7 @@ static void ccdc_config_culling(struct ccdc_cul *cul)
 static void ccdc_config_gain_offset(void)
 {
 	struct ccdc_gain_offsets_adj *gain_off_ptr =
-		&ccdc_hw_params_bayer.config_params.gain_offset;
+		&ccdc_cfg.bayer.config_params.gain_offset;
 	u32 val;
 
 	val = ((gain_off_ptr->gain_sdram_en & 1) << GAIN_SDRAM_EN_SHIFT) |
@@ -223,7 +230,7 @@ static void ccdc_config_gain_offset(void)
 
 	val = ((gain_off_ptr->gain.r_ye.integer	& GAIN_INTEGER_MASK)
 		<< GAIN_INTEGER_SHIFT);
-	val |= (ccdc_hw_params_bayer.
+	val |= (ccdc_cfg.bayer.
 		config_params.gain_offset.gain.r_ye.decimal &
 		GAIN_DECIMAL_MASK);
 	regw(val, CRGAIN);
@@ -255,10 +262,9 @@ static void ccdc_restore_defaults(void)
 	enum vpss_ccdc_source_sel source = VPSS_CCDCIN;
 	int i;
 
-	memcpy(&ccdc_hw_params_bayer.config_params, &ccdc_config_defaults,
+	memcpy(&ccdc_cfg.bayer.config_params, &ccdc_config_defaults,
 		sizeof(struct ccdc_config_params_raw));
 
-	/* disable CCDC */
 	dev_dbg(dev, "\nstarting ccdc_restore_defaults...");
 	/* Enable clock to ISIF, IPIPEIF and BL */
 	vpss_enable_clock(VPSS_CCDC_CLOCK, 1);
@@ -285,13 +291,12 @@ static int ccdc_open(struct device *device)
 {
 	dev = device;
 	ccdc_restore_defaults();
-
 	return 0;
 }
 
 /* This function will configure the window size to be capture in CCDC reg */
 static void ccdc_setwin(struct v4l2_rect *image_win,
-			enum ccdc_frmfmt frm_fmt, int ppc)
+			enum ccdc_frmfmt frm_fmt, int ppc, int mode)
 {
 	int horz_start, horz_nr_pixels;
 	int vert_start, vert_nr_lines;
@@ -325,7 +330,10 @@ static void ccdc_setwin(struct v4l2_rect *image_win,
 		regw(mid_img, VDINT1);
 	}
 
-	regw(0, VDINT0);
+	if (!mode)
+		regw(0, VDINT0);
+	else
+		regw(vert_nr_lines, VDINT0);
 	regw(vert_start & START_VER_ONE_MASK, SLV0);
 	regw(vert_start & START_VER_TWO_MASK, SLV1);
 	regw(vert_nr_lines & NUM_LINES_VER, LNV);
@@ -428,6 +436,37 @@ static void ccdc_config_bclamp(struct ccdc_black_clamp *bc)
 	}
 }
 
+static void ccdc_config_linearization(struct ccdc_linearize *linearize)
+{
+	u32 val, i;
+	if (!linearize->en) {
+		regw(0, LINCFG0);
+		return;
+	}
+
+	/* shift value for correction */
+	val = (linearize->corr_shft & CCDC_LIN_CORRSFT_MASK)
+	    << CCDC_LIN_CORRSFT_SHIFT;
+	/* enable */
+	val |= 1;
+	regw(val, LINCFG0);
+
+	/* Scale factor */
+	val = (linearize->scale_fact.integer & 1)
+	    << CCDC_LIN_SCALE_FACT_INTEG_SHIFT;
+	val |= (linearize->scale_fact.decimal &
+				CCDC_LIN_SCALE_FACT_DECIMAL_MASK);
+	regw(val, LINCFG1);
+
+	for (i = 0; i < CCDC_LINEAR_TAB_SIZE; i++) {
+		val = linearize->table[i] & CCDC_LIN_ENTRY_MASK;
+		if (i%2)
+			regw_lin_tbl(val, ((i >> 1) << 2), 1);
+		else
+			regw_lin_tbl(val, ((i >> 1) << 2), 0);
+	}
+}
+
 static void ccdc_config_dfc(struct ccdc_dfc *vdfc)
 {
 #define DFC_WRITE_WAIT_COUNT	1000
@@ -475,7 +514,7 @@ static void ccdc_config_dfc(struct ccdc_dfc *vdfc)
 
 	val = regr(DFCMEMCTL);
 	if (!count) {
-		dev_err(dev, "defect table write timeout !!!\n");
+		dev_dbg(dev, "defect table write timeout !!!\n");
 		return;
 	}
 
@@ -593,30 +632,30 @@ static void ccdc_config_csc(struct ccdc_df_csc *df_csc)
 
 static int ccdc_config_raw(int mode)
 {
-	struct ccdc_params_raw *params = &ccdc_hw_params_bayer;
+	struct ccdc_params_raw *params = &ccdc_cfg.bayer;
 	struct ccdc_config_params_raw *module_params =
-		&ccdc_hw_params_bayer.config_params;
+		&ccdc_cfg.bayer.config_params;
 	struct vpss_pg_frame_size frame_size;
 	struct vpss_sync_pol sync;
 	u32 val;
 
 	dev_dbg(dev, "\nStarting ccdc_config_raw..\n");
-	ccdc_restore_defaults();
 
 	/* Configure CCDCFG register */
 
 	/**
-	 *Set CCD Not to swap input since input is RAW data
-	 *set FID detection function to Latch at V-Sync
-	 *set WENLOG - ccdc valid area
-	 *set TRGSEL
-	 *set EXTRG
+	 * Set CCD Not to swap input since input is RAW data
+	 * Set FID detection function to Latch at V-Sync
+	 * Set WENLOG - ccdc valid area
+	 * Set TRGSEL
+	 * Set EXTRG
 	 * Packed to 8 or 16 bits
 	 */
 
 	val = CCDC_YCINSWP_RAW | CCDC_CCDCFG_FIDMD_LATCH_VSYNC |
 		CCDC_CCDCFG_WENLOG_AND | CCDC_CCDCFG_TRGSEL_WEN |
-		CCDC_CCDCFG_EXTRG_DISABLE | (data_pack & CCDC_DATA_PACK_MASK);
+		CCDC_CCDCFG_EXTRG_DISABLE | (ccdc_cfg.data_pack &
+		CCDC_DATA_PACK_MASK);
 
 	dev_dbg(dev, "Writing 0x%x to ...CCDCFG \n", val);
 	regw(val, CCDCFG);
@@ -655,11 +694,11 @@ static int ccdc_config_raw(int mode)
 		CCDC_GAMMAWD_CFA_SHIFT;
 
 	/* Gamma msb */
-	if (module_params->compress.alg == CCDC_ALAW) {
-		val = val | CCDC_ALAW_ENABLE |
-			((params->data_msb & CCDC_ALAW_GAMA_WD_MASK) <<
+	if (module_params->compress.alg == CCDC_ALAW)
+		val = val | CCDC_ALAW_ENABLE;
+
+	val = val | ((params->data_msb & CCDC_ALAW_GAMA_WD_MASK) <<
 			CCDC_ALAW_GAMA_WD_SHIFT);
-	}
 
 	regw(val, CGAMMAWD);
 
@@ -693,9 +732,9 @@ static int ccdc_config_raw(int mode)
 	     horz_flip_en & CCDC_HSIZE_FLIP_MASK) << CCDC_HSIZE_FLIP_SHIFT;
 
 	/* calculate line offset in 32 bytes based on pack value */
-	if (data_pack == CCDC_PACK_8BIT)
+	if (ccdc_cfg.data_pack == CCDC_PACK_8BIT)
 		val |= (((params->win.width + 31) >> 5) & CCDC_LINEOFST_MASK);
-	else if (data_pack == CCDC_PACK_12BIT)
+	else if (ccdc_cfg.data_pack == CCDC_PACK_12BIT)
 		val |= ((((params->win.width +
 			   (params->win.width >> 2)) +
 			  31) >> 5) & CCDC_LINEOFST_MASK);
@@ -729,7 +768,7 @@ static int ccdc_config_raw(int mode)
 	}
 
 	/* Configure video window */
-	ccdc_setwin(&params->win, params->frm_fmt, 1);
+	ccdc_setwin(&params->win, params->frm_fmt, 1, mode);
 
 	/* Configure Black Clamp */
 	ccdc_config_bclamp(&module_params->bclamp);
@@ -737,10 +776,11 @@ static int ccdc_config_raw(int mode)
 	/* Configure Vertical Defection Pixel Correction */
 	ccdc_config_dfc(&module_params->dfc);
 
-	if (!module_params->df_csc.df_or_csc) {
+	if (!module_params->df_csc.df_or_csc)
 		/* Configure Color Space Conversion */
 		ccdc_config_csc(&module_params->df_csc);
-	}
+
+	ccdc_config_linearization(&module_params->linearize);
 
 	/* Configure Culling */
 	ccdc_config_culling(&module_params->culling);
@@ -754,21 +794,19 @@ static int ccdc_config_raw(int mode)
 
 	/* Setup test pattern if enabled */
 	if (params->config_params.test_pat_gen) {
-		/* configure pattern register  */
-
 		/* Use the HD/VD pol settings from user */
 		sync.ccdpg_hdpol = params->hd_pol & CCDC_HD_POL_MASK;
 		sync.ccdpg_vdpol = params->vd_pol & CCDC_VD_POL_MASK;
 
 		vpss_set_sync_pol(sync);
 
-		frame_size.hlpfr = ccdc_hw_params_bayer.win.width;
-		frame_size.pplen = ccdc_hw_params_bayer.win.height;
+		frame_size.hlpfr = ccdc_cfg.bayer.win.width;
+		frame_size.pplen = ccdc_cfg.bayer.win.height;
 		vpss_set_pg_frame_size(frame_size);
 		vpss_select_ccdc_source(VPSS_PGLPBK);
-	} else
-	dev_dbg(dev, "\nEnd of ccdc_config_ycbcr...\n");
+	}
 
+	dev_dbg(dev, "\nEnd of ccdc_config_ycbcr...\n");
 	return 0;
 }
 
@@ -788,7 +826,7 @@ static int ccdc_validate_df_csc_params(struct ccdc_df_csc *df_csc)
 					CCDC_CSC_COEF_INTEG_MASK ||
 				    csc->coeff[i].decimal >
 					CCDC_CSC_COEF_DECIMAL_MASK) {
-					printk(KERN_ERR
+					dev_dbg(dev,
 					       "invalid csc coefficients \n");
 					return err;
 				}
@@ -797,22 +835,21 @@ static int ccdc_validate_df_csc_params(struct ccdc_df_csc *df_csc)
 	}
 
 	if (df_csc->start_pix > CCDC_DF_CSC_SPH_MASK) {
-		dev_err(dev, "invalid df_csc start pix value \n");
+		dev_dbg(dev, "invalid df_csc start pix value \n");
 		return err;
 	}
 	if (df_csc->num_pixels > CCDC_DF_NUMPIX) {
-		dev_err(dev, "invalid df_csc num pixels value \n");
+		dev_dbg(dev, "invalid df_csc num pixels value \n");
 		return err;
 	}
 	if (df_csc->start_line > CCDC_DF_CSC_LNH_MASK) {
-		dev_err(dev, "invalid df_csc start_line value \n");
+		dev_dbg(dev, "invalid df_csc start_line value \n");
 		return err;
 	}
 	if (df_csc->num_lines > CCDC_DF_NUMLINES) {
-		dev_err(dev, "invalid df_csc num_lines value \n");
+		dev_dbg(dev, "invalid df_csc num_lines value \n");
 		return err;
 	}
-
 	return 0;
 }
 
@@ -823,35 +860,34 @@ static int ccdc_validate_dfc_params(struct ccdc_dfc *dfc)
 
 	if (dfc->en) {
 		if (dfc->corr_whole_line > 1) {
-			dev_err(dev, "invalid corr_whole_line value \n");
+			dev_dbg(dev, "invalid corr_whole_line value \n");
 			return err;
 		}
 
 		if (dfc->def_level_shift > 4) {
-			dev_err(dev, "invalid def_level_shift value \n");
+			dev_dbg(dev, "invalid def_level_shift value \n");
 			return err;
 		}
 
 		if (dfc->def_sat_level > 4095) {
-			dev_err(dev, "invalid def_sat_level value \n");
+			dev_dbg(dev, "invalid def_sat_level value \n");
 			return err;
 		}
 		if ((!dfc->num_vdefects) || (dfc->num_vdefects > 8)) {
-			dev_err(dev, "invalid num_vdefects value \n");
+			dev_dbg(dev, "invalid num_vdefects value \n");
 			return err;
 		}
 		for (i = 0; i < CCDC_VDFC_TABLE_SIZE; i++) {
 			if (dfc->table[i].pos_vert > 0x1fff) {
-				dev_err(dev, "invalid pos_vert value \n");
+				dev_dbg(dev, "invalid pos_vert value \n");
 				return err;
 			}
 			if (dfc->table[i].pos_horz > 0x1fff) {
-				dev_err(dev, "invalid pos_horz value \n");
+				dev_dbg(dev, "invalid pos_horz value \n");
 				return err;
 			}
 		}
 	}
-
 	return 0;
 }
 
@@ -860,58 +896,57 @@ static int ccdc_validate_bclamp_params(struct ccdc_black_clamp *bclamp)
 	int err = -EINVAL;
 
 	if (bclamp->dc_offset > 0x1fff) {
-		dev_err(dev, "invalid bclamp dc_offset value \n");
+		dev_dbg(dev, "invalid bclamp dc_offset value \n");
 		return err;
 	}
 
 	if (bclamp->en) {
 		if (bclamp->horz.clamp_pix_limit > 1) {
-			printk(KERN_ERR
+			dev_dbg(dev,
 			       "invalid bclamp horz clamp_pix_limit value \n");
 			return err;
 		}
 
 		if (bclamp->horz.win_count_calc < 1 ||
 		    bclamp->horz.win_count_calc > 32) {
-			printk(KERN_ERR
+			dev_dbg(dev,
 			       "invalid bclamp horz win_count_calc value \n");
 			return err;
 		}
 
 		if (bclamp->horz.win_start_h_calc > 0x1fff) {
-			printk(KERN_ERR
+			dev_dbg(dev,
 			       "invalid bclamp win_start_v_calc value \n");
 			return err;
 		}
 
 		if (bclamp->horz.win_start_v_calc > 0x1fff) {
-			printk(KERN_ERR
+			dev_dbg(dev,
 			       "invalid bclamp win_start_v_calc value \n");
 			return err;
 		}
 
 		if (bclamp->vert.reset_clamp_val > 0xfff) {
-			printk(KERN_ERR
+			dev_dbg(dev,
 			       "invalid bclamp reset_clamp_val value \n");
 			return err;
 		}
 
 		if (bclamp->vert.ob_v_sz_calc > 0x1fff) {
-			dev_err(dev, "invalid bclamp ob_v_sz_calc value \n");
+			dev_dbg(dev, "invalid bclamp ob_v_sz_calc value \n");
 			return err;
 		}
 
 		if (bclamp->vert.ob_start_h > 0x1fff) {
-			dev_err(dev, "invalid bclamp ob_start_h value \n");
+			dev_dbg(dev, "invalid bclamp ob_start_h value \n");
 			return err;
 		}
 
 		if (bclamp->vert.ob_start_v > 0x1fff) {
-			dev_err(dev, "invalid bclamp ob_start_h value \n");
+			dev_dbg(dev, "invalid bclamp ob_start_h value \n");
 			return err;
 		}
 	}
-
 	return 0;
 }
 
@@ -925,22 +960,22 @@ static int ccdc_validate_gain_ofst_params(struct ccdc_gain_offsets_adj
 	    gain_offset->gain_h3a_en) {
 		if ((gain_offset->gain.r_ye.integer > 7) ||
 		    (gain_offset->gain.r_ye.decimal > 0x1ff)) {
-			dev_err(dev, "invalid  gain r_ye\n");
+			dev_dbg(dev, "invalid  gain r_ye\n");
 			return err;
 		}
 		if ((gain_offset->gain.gr_cy.integer > 7) ||
 		    (gain_offset->gain.gr_cy.decimal > 0x1ff)) {
-			dev_err(dev, "invalid  gain gr_cy\n");
+			dev_dbg(dev, "invalid  gain gr_cy\n");
 			return err;
 		}
 		if ((gain_offset->gain.gb_g.integer > 7) ||
 		    (gain_offset->gain.gb_g.decimal > 0x1ff)) {
-			dev_err(dev, "invalid  gain gb_g\n");
+			dev_dbg(dev, "invalid  gain gb_g\n");
 			return err;
 		}
 		if ((gain_offset->gain.b_mg.integer > 7) ||
 		    (gain_offset->gain.b_mg.decimal > 0x1ff)) {
-			dev_err(dev, "invalid  gain b_mg\n");
+			dev_dbg(dev, "invalid  gain b_mg\n");
 			return err;
 		}
 	}
@@ -948,7 +983,7 @@ static int ccdc_validate_gain_ofst_params(struct ccdc_gain_offsets_adj
 	    gain_offset->offset_ipipe_en ||
 	    gain_offset->offset_h3a_en) {
 		if (gain_offset->offset > 0xfff) {
-			dev_err(dev, "invalid  gain b_mg\n");
+			dev_dbg(dev, "invalid  gain b_mg\n");
 			return err;
 		}
 	}
@@ -956,72 +991,48 @@ static int ccdc_validate_gain_ofst_params(struct ccdc_gain_offsets_adj
 	return 0;
 }
 
-static int validate_ccdc_config_params_raw(struct ccdc_params_raw *param)
+static int
+validate_ccdc_config_params_raw(struct ccdc_config_params_raw *params)
 {
-	struct ccdc_config_params_raw *module_params;
-	int err = 0;
+	int err;
 
-	if ((param == NULL) || (&param->config_params == NULL)) {
-		printk(KERN_ERR
-		"Invalid argument for validate_ccdc_config_params_raw()\n");
-		return err;
-	}
-	module_params = kmalloc(sizeof(struct ccdc_config_params_raw),
-				GFP_KERNEL);
-	if (module_params == NULL) {
-		dev_err(dev, "memory allocation failure\n");
-		return -EFAULT;
-	}
-	if (copy_from_user(module_params, &param->config_params,
-			   sizeof(struct ccdc_config_params_raw))) {
-		printk(KERN_ERR
-		       "error in copying ccdc params to kernel\n");
-		kfree(module_params);
-		return -EFAULT;
-	}
-	err = ccdc_validate_df_csc_params(&module_params->df_csc);
+	err = ccdc_validate_df_csc_params(&params->df_csc);
 	if (err)
-		goto free_exit;
-	err |= ccdc_validate_dfc_params(&module_params->dfc);
+		goto exit;
+	err = ccdc_validate_dfc_params(&params->dfc);
 	if (err)
-		goto free_exit;
-	err |= ccdc_validate_bclamp_params(&module_params->bclamp);
+		goto exit;
+	err = ccdc_validate_bclamp_params(&params->bclamp);
 	if (err)
-		goto free_exit;
-	err |= ccdc_validate_gain_ofst_params(&module_params->gain_offset);
-	if (err)
-		goto free_exit;
-	memcpy(&ccdc_hw_params_bayer.config_params, module_params,
-		sizeof(struct ccdc_config_params_raw));
-
-free_exit:
-		kfree(module_params);
-		return err;
+		goto exit;
+	err = ccdc_validate_gain_ofst_params(&params->gain_offset);
+exit:
+	return err;
 }
 
 static int ccdc_set_buftype(enum ccdc_buftype buf_type)
 {
-	if (ccdc_if_type == VPFE_RAW_BAYER)
-		ccdc_hw_params_bayer.buf_type = buf_type;
+	if (ccdc_cfg.if_type == VPFE_RAW_BAYER)
+		ccdc_cfg.bayer.buf_type = buf_type;
 	else
-		ccdc_hw_params_ycbcr.buf_type = buf_type;
+		ccdc_cfg.ycbcr.buf_type = buf_type;
 
 	return 0;
 
 }
 static enum ccdc_buftype ccdc_get_buftype(void)
 {
-	if (ccdc_if_type == VPFE_RAW_BAYER)
-		return ccdc_hw_params_bayer.buf_type;
+	if (ccdc_cfg.if_type == VPFE_RAW_BAYER)
+		return ccdc_cfg.bayer.buf_type;
 
-	return ccdc_hw_params_ycbcr.buf_type;
+	return ccdc_cfg.ycbcr.buf_type;
 }
 
 static int ccdc_enum_pix(u32 *pix, int i)
 {
 	int ret = -EINVAL;
 
-	if (ccdc_if_type == VPFE_RAW_BAYER) {
+	if (ccdc_cfg.if_type == VPFE_RAW_BAYER) {
 		if (i < ARRAY_SIZE(ccdc_raw_bayer_pix_formats)) {
 			*pix = ccdc_raw_bayer_pix_formats[i];
 			ret = 0;
@@ -1038,38 +1049,33 @@ static int ccdc_enum_pix(u32 *pix, int i)
 
 static int ccdc_set_pixel_format(unsigned int pixfmt)
 {
-	if (ccdc_if_type == VPFE_RAW_BAYER) {
+	if (ccdc_cfg.if_type == VPFE_RAW_BAYER) {
 		if (pixfmt == V4L2_PIX_FMT_SBGGR8) {
-			if ((ccdc_hw_params_bayer.config_params.compress.alg !=
+			if ((ccdc_cfg.bayer.config_params.compress.alg !=
 					CCDC_ALAW) &&
-			    (ccdc_hw_params_bayer.config_params.compress.alg !=
+			    (ccdc_cfg.bayer.config_params.compress.alg !=
 					CCDC_DPCM)) {
-				dev_err(dev, "Either configure A-Law or"
+				dev_dbg(dev, "Either configure A-Law or"
 						"DPCM\n");
 				return -EINVAL;
 			}
-			data_pack = CCDC_PACK_8BIT;
+			ccdc_cfg.data_pack = CCDC_PACK_8BIT;
 		} else if (pixfmt == V4L2_PIX_FMT_SBGGR16) {
-			if (ccdc_hw_params_bayer.config_params.compress.alg !=
-					CCDC_NO_COMPRESSION) {
-				dev_err(dev, "Disable compression"
-						" for this pixel format\n");
-				return -EINVAL;
-			}
-			data_pack = CCDC_PACK_16BIT;
+			ccdc_cfg.bayer.config_params.compress.alg =
+					CCDC_NO_COMPRESSION;
+			ccdc_cfg.data_pack = CCDC_PACK_16BIT;
 		} else
 			return -EINVAL;
-		ccdc_hw_params_bayer.pix_fmt = CCDC_PIXFMT_RAW;
+		ccdc_cfg.bayer.pix_fmt = CCDC_PIXFMT_RAW;
 	} else {
 		if (pixfmt == V4L2_PIX_FMT_YUYV)
-			ccdc_hw_params_ycbcr.pix_order = CCDC_PIXORDER_YCBYCR;
+			ccdc_cfg.ycbcr.pix_order = CCDC_PIXORDER_YCBYCR;
 		else if (pixfmt == V4L2_PIX_FMT_UYVY)
-			ccdc_hw_params_ycbcr.pix_order = CCDC_PIXORDER_CBYCRY;
+			ccdc_cfg.ycbcr.pix_order = CCDC_PIXORDER_CBYCRY;
 		else
 			return -EINVAL;
-		data_pack = CCDC_PACK_8BIT;
+		ccdc_cfg.data_pack = CCDC_PACK_8BIT;
 	}
-
 	return 0;
 }
 
@@ -1077,82 +1083,80 @@ static u32 ccdc_get_pixel_format(void)
 {
 	u32 pixfmt;
 
-	if (ccdc_if_type == VPFE_RAW_BAYER)
-		if (ccdc_hw_params_bayer.config_params.compress.alg
+	if (ccdc_cfg.if_type == VPFE_RAW_BAYER)
+		if (ccdc_cfg.bayer.config_params.compress.alg
 			== CCDC_ALAW
-			|| ccdc_hw_params_bayer.config_params.compress.alg
+			|| ccdc_cfg.bayer.config_params.compress.alg
 			== CCDC_DPCM)
 				pixfmt = V4L2_PIX_FMT_SBGGR8;
 		else
 			pixfmt = V4L2_PIX_FMT_SBGGR16;
 	else {
-		if (ccdc_hw_params_ycbcr.pix_order == CCDC_PIXORDER_YCBYCR)
+		if (ccdc_cfg.ycbcr.pix_order == CCDC_PIXORDER_YCBYCR)
 			pixfmt = V4L2_PIX_FMT_YUYV;
 		else
 			pixfmt = V4L2_PIX_FMT_UYVY;
 	}
-
 	return pixfmt;
 }
 
 static int ccdc_set_image_window(struct v4l2_rect *win)
 {
-	if (ccdc_if_type == VPFE_RAW_BAYER) {
-		ccdc_hw_params_bayer.win.top = win->top;
-		ccdc_hw_params_bayer.win.left = win->left;
-		ccdc_hw_params_bayer.win.width = win->width;
-		ccdc_hw_params_bayer.win.height = win->height;
+	if (ccdc_cfg.if_type == VPFE_RAW_BAYER) {
+		ccdc_cfg.bayer.win.top = win->top;
+		ccdc_cfg.bayer.win.left = win->left;
+		ccdc_cfg.bayer.win.width = win->width;
+		ccdc_cfg.bayer.win.height = win->height;
 	} else {
-		ccdc_hw_params_ycbcr.win.top = win->top;
-		ccdc_hw_params_ycbcr.win.left = win->left;
-		ccdc_hw_params_ycbcr.win.width = win->width;
-		ccdc_hw_params_ycbcr.win.height = win->height;
+		ccdc_cfg.ycbcr.win.top = win->top;
+		ccdc_cfg.ycbcr.win.left = win->left;
+		ccdc_cfg.ycbcr.win.width = win->width;
+		ccdc_cfg.ycbcr.win.height = win->height;
 	}
-
 	return 0;
 }
 
 static void ccdc_get_image_window(struct v4l2_rect *win)
 {
-	if (ccdc_if_type == VPFE_RAW_BAYER)
-		*win = ccdc_hw_params_bayer.win;
+	if (ccdc_cfg.if_type == VPFE_RAW_BAYER)
+		*win = ccdc_cfg.bayer.win;
 	else
-		*win = ccdc_hw_params_ycbcr.win;
+		*win = ccdc_cfg.ycbcr.win;
 }
 
 static unsigned int ccdc_get_line_length(void)
 {
 	unsigned int len;
 
-	if (ccdc_if_type == VPFE_RAW_BAYER) {
-		if (data_pack == CCDC_PACK_8BIT)
-			len = ((ccdc_hw_params_bayer.win.width));
-		else if (data_pack == CCDC_PACK_12BIT)
-			len = (((ccdc_hw_params_bayer.win.width * 2) +
-				 (ccdc_hw_params_bayer.win.width >> 2)));
+	if (ccdc_cfg.if_type == VPFE_RAW_BAYER) {
+		if (ccdc_cfg.data_pack == CCDC_PACK_8BIT)
+			len = ((ccdc_cfg.bayer.win.width));
+		else if (ccdc_cfg.data_pack == CCDC_PACK_12BIT)
+			len = (((ccdc_cfg.bayer.win.width * 2) +
+				 (ccdc_cfg.bayer.win.width >> 2)));
 		else
-			len = (((ccdc_hw_params_bayer.win.width * 2)));
+			len = (((ccdc_cfg.bayer.win.width * 2)));
 	} else
-		len = (((ccdc_hw_params_ycbcr.win.width * 2)));
+		len = (((ccdc_cfg.ycbcr.win.width * 2)));
 
 	return ALIGN(len, 32);
 }
 
 static int ccdc_set_frame_format(enum ccdc_frmfmt frm_fmt)
 {
-	if (ccdc_if_type == VPFE_RAW_BAYER)
-		ccdc_hw_params_bayer.frm_fmt = frm_fmt;
+	if (ccdc_cfg.if_type == VPFE_RAW_BAYER)
+		ccdc_cfg.bayer.frm_fmt = frm_fmt;
 	else
-		ccdc_hw_params_ycbcr.frm_fmt = frm_fmt;
+		ccdc_cfg.ycbcr.frm_fmt = frm_fmt;
 
 	return 0;
 }
 static enum ccdc_frmfmt ccdc_get_frame_format(void)
 {
-	if (ccdc_if_type == VPFE_RAW_BAYER)
-		return ccdc_hw_params_bayer.frm_fmt;
+	if (ccdc_cfg.if_type == VPFE_RAW_BAYER)
+		return ccdc_cfg.bayer.frm_fmt;
 	else
-		return ccdc_hw_params_ycbcr.frm_fmt;
+		return ccdc_cfg.ycbcr.frm_fmt;
 }
 
 static int ccdc_getfid(void)
@@ -1169,25 +1173,25 @@ static void ccdc_setfbaddr(unsigned long addr)
 
 static int ccdc_set_hw_if_params(struct vpfe_hw_if_param *params)
 {
-	ccdc_if_type = params->if_type;
+	ccdc_cfg.if_type = params->if_type;
 
 	switch (params->if_type) {
 	case VPFE_BT656:
 	case VPFE_BT656_10BIT:
 	case VPFE_YCBCR_SYNC_8:
-		ccdc_hw_params_ycbcr.pix_fmt = CCDC_PIXFMT_YCBCR_8BIT;
-		ccdc_hw_params_ycbcr.pix_order = CCDC_PIXORDER_CBYCRY;
+		ccdc_cfg.ycbcr.pix_fmt = CCDC_PIXFMT_YCBCR_8BIT;
+		ccdc_cfg.ycbcr.pix_order = CCDC_PIXORDER_CBYCRY;
 		break;
 	case VPFE_BT1120:
 	case VPFE_YCBCR_SYNC_16:
-		ccdc_hw_params_ycbcr.pix_fmt = CCDC_PIXFMT_YCBCR_16BIT;
-		ccdc_hw_params_ycbcr.pix_order = CCDC_PIXORDER_CBYCRY;
+		ccdc_cfg.ycbcr.pix_fmt = CCDC_PIXFMT_YCBCR_16BIT;
+		ccdc_cfg.ycbcr.pix_order = CCDC_PIXORDER_CBYCRY;
 		break;
 	case VPFE_RAW_BAYER:
-		ccdc_hw_params_bayer.pix_fmt = CCDC_PIXFMT_RAW;
+		ccdc_cfg.bayer.pix_fmt = CCDC_PIXFMT_RAW;
 		break;
 	default:
-		dev_err(dev, "Invalid interface type\n");
+		dev_dbg(dev, "Invalid interface type\n");
 		return -EINVAL;
 	}
 
@@ -1195,40 +1199,61 @@ static int ccdc_set_hw_if_params(struct vpfe_hw_if_param *params)
 }
 
 /* Parameter operations */
-static int ccdc_set_params(void __user *params)
+static int ccdc_get_params(void __user *params)
 {
-	struct ccdc_params_raw ccdc_raw_params;
-	int ret;
-
 	/* only raw module parameters can be set through the IOCTL */
-	if (ccdc_if_type != VPFE_RAW_BAYER)
+	if (ccdc_cfg.if_type != VPFE_RAW_BAYER)
 		return -EINVAL;
 
-	ret = copy_from_user(&ccdc_raw_params, params, sizeof(ccdc_raw_params));
+	if (copy_to_user(params,
+			&ccdc_cfg.bayer.config_params,
+			sizeof(ccdc_cfg.bayer.config_params))) {
+		dev_dbg(dev, "ccdc_get_params: error in copying ccdc params\n");
+		return -EFAULT;
+	}
+	return 0;
+}
+
+/* Parameter operations */
+static int ccdc_set_params(void __user *params)
+{
+	struct ccdc_config_params_raw *ccdc_raw_params;
+	int ret = -EINVAL;
+
+	/* only raw module parameters can be set through the IOCTL */
+	if (ccdc_cfg.if_type != VPFE_RAW_BAYER)
+		return ret;
+
+	ccdc_raw_params = kzalloc(sizeof(*ccdc_raw_params), GFP_KERNEL);
+
+	if (NULL == ccdc_raw_params)
+		return -ENOMEM;
+
+	ret = copy_from_user(ccdc_raw_params,
+			     params, sizeof(*ccdc_raw_params));
 	if (ret) {
 		dev_dbg(dev, "ccdc_set_params: error in copying ccdc"
 			"params, %d\n", ret);
-		return -EFAULT;
+		ret = -EFAULT;
+		goto free_out;
 	}
 
-	if (!validate_ccdc_config_params_raw(&ccdc_raw_params)) {
-		/**
-		 *TODO:we dont need to do this here because its already done in
-		 *validate_ccdc_config_params_raw
-		 */
-		memcpy(&ccdc_hw_params_bayer.config_params,
-			&ccdc_raw_params,
-			sizeof(ccdc_raw_params));
-		return 0;
-	}
-
-	return -EINVAL;
+	if (!validate_ccdc_config_params_raw(ccdc_raw_params)) {
+		memcpy(&ccdc_cfg.bayer.config_params,
+			ccdc_raw_params,
+			sizeof(*ccdc_raw_params));
+		ret = 0;
+	} else
+		ret = -EINVAL;
+free_out:
+	kfree(ccdc_raw_params);
+	return ret;
 }
 
 /* This function will configure CCDC for YCbCr parameters. */
-static int ccdc_config_ycbcr(void)
+static int ccdc_config_ycbcr(int mode)
 {
-	struct ccdc_ycbcr_config *params = &ccdc_hw_params_ycbcr;
+	struct ccdc_ycbcr_config *params = &ccdc_cfg.ycbcr;
 	struct vpss_pg_frame_size frame_size;
 	u32 modeset = 0, ccdcfg = 0;
 	struct vpss_sync_pol sync;
@@ -1240,7 +1265,6 @@ static int ccdc_config_ycbcr(void)
 	 * a lot of registers that we didn't touch
 	 */
 	dev_dbg(dev, "\nStarting ccdc_config_ycbcr...");
-	ccdc_restore_defaults();
 
 	/* configure pixel format or input mode */
 	modeset = modeset | ((params->pix_fmt & CCDC_INPUT_MASK)
@@ -1251,10 +1275,10 @@ static int ccdc_config_ycbcr(void)
 	(((params->vd_pol & CCDC_VD_POL_MASK) << CCDC_VD_POL_SHIFT));
 
 	/* pack the data to 8-bit CCDCCFG */
-	switch (ccdc_if_type) {
+	switch (ccdc_cfg.if_type) {
 	case VPFE_BT656:
 		if (params->pix_fmt != CCDC_PIXFMT_YCBCR_8BIT) {
-			dev_err(dev, "Invalid pix_fmt(input mode)\n");
+			dev_dbg(dev, "Invalid pix_fmt(input mode)\n");
 			return -1;
 		}
 		modeset |=
@@ -1265,7 +1289,7 @@ static int ccdc_config_ycbcr(void)
 		break;
 	case VPFE_BT656_10BIT:
 		if (params->pix_fmt != CCDC_PIXFMT_YCBCR_8BIT) {
-			dev_err(dev, "Invalid pix_fmt(input mode)\n");
+			dev_dbg(dev, "Invalid pix_fmt(input mode)\n");
 			return -1;
 		}
 		/* setup BT.656, embedded sync  */
@@ -1276,7 +1300,7 @@ static int ccdc_config_ycbcr(void)
 		break;
 	case VPFE_BT1120:
 		if (params->pix_fmt != CCDC_PIXFMT_YCBCR_16BIT) {
-			dev_err(dev, "Invalid pix_fmt(input mode)\n");
+			dev_dbg(dev, "Invalid pix_fmt(input mode)\n");
 			return -EINVAL;
 		}
 		regw(3, REC656IF);
@@ -1286,19 +1310,19 @@ static int ccdc_config_ycbcr(void)
 		ccdcfg |= CCDC_DATA_PACK8;
 		ccdcfg |= CCDC_YCINSWP_YCBCR;
 		if (params->pix_fmt != CCDC_PIXFMT_YCBCR_8BIT) {
-			dev_err(dev, "Invalid pix_fmt(input mode)\n");
+			dev_dbg(dev, "Invalid pix_fmt(input mode)\n");
 			return -EINVAL;
 		}
 		break;
 	case VPFE_YCBCR_SYNC_16:
 		if (params->pix_fmt != CCDC_PIXFMT_YCBCR_16BIT) {
-			dev_err(dev, "Invalid pix_fmt(input mode)\n");
+			dev_dbg(dev, "Invalid pix_fmt(input mode)\n");
 			return -EINVAL;
 		}
 		break;
 	default:
 		/* should never come here */
-		dev_err(dev, "Invalid interface type\n");
+		dev_dbg(dev, "Invalid interface type\n");
 		return -EINVAL;
 	}
 
@@ -1311,11 +1335,11 @@ static int ccdc_config_ycbcr(void)
 	regw(ccdcfg, CCDCFG);
 
 	/* configure video window */
-	if ((ccdc_if_type == VPFE_BT1120) ||
-	    (ccdc_if_type == VPFE_YCBCR_SYNC_16))
-		ccdc_setwin(&params->win, params->frm_fmt, 1);
+	if ((ccdc_cfg.if_type == VPFE_BT1120) ||
+	    (ccdc_cfg.if_type == VPFE_YCBCR_SYNC_16))
+		ccdc_setwin(&params->win, params->frm_fmt, 1, mode);
 	else
-		ccdc_setwin(&params->win, params->frm_fmt, 2);
+		ccdc_setwin(&params->win, params->frm_fmt, 2, mode);
 
 	/**
 	 * configure the horizontal line offset
@@ -1332,7 +1356,7 @@ static int ccdc_config_ycbcr(void)
 	}
 
 	/* Setup test pattern if enabled */
-	if (ccdc_hw_params_bayer.config_params.test_pat_gen) {
+	if (ccdc_cfg.bayer.config_params.test_pat_gen) {
 		sync.ccdpg_hdpol = (params->hd_pol & CCDC_HD_POL_MASK);
 		sync.ccdpg_vdpol = (params->vd_pol & CCDC_VD_POL_MASK);
 		vpss_set_sync_pol(sync);
@@ -1342,12 +1366,12 @@ static int ccdc_config_ycbcr(void)
 	return 0;
 }
 
-static int ccdc_configure(void)
+static int ccdc_configure(int mode)
 {
-	if (ccdc_if_type == VPFE_RAW_BAYER)
-		return ccdc_config_raw(1);
+	if (ccdc_cfg.if_type == VPFE_RAW_BAYER)
+		return ccdc_config_raw(mode);
 	else
-		ccdc_config_ycbcr();
+		ccdc_config_ycbcr(mode);
 
 	return 0;
 }
@@ -1355,7 +1379,7 @@ static int ccdc_configure(void)
 static int ccdc_close(struct device *device)
 {
 	/* copy defaults to module params */
-	memcpy(&ccdc_hw_params_bayer.config_params,
+	memcpy(&ccdc_cfg.bayer.config_params,
 	       &ccdc_config_defaults,
 	       sizeof(struct ccdc_config_params_raw));
 
@@ -1372,6 +1396,7 @@ static struct ccdc_hw_device ccdc_hw_dev = {
 		.enable_out_to_sdram = ccdc_enable_output_to_sdram,
 		.set_hw_if_params = ccdc_set_hw_if_params,
 		.set_params = ccdc_set_params,
+		.get_params = ccdc_get_params,
 		.configure = ccdc_configure,
 		.set_buftype = ccdc_set_buftype,
 		.get_buftype = ccdc_get_buftype,
@@ -1392,7 +1417,8 @@ static int __init dm365_ccdc_probe(struct platform_device *pdev)
 {
 	static resource_size_t  res_len;
 	struct resource	*res;
-	int status = 0;
+	void *__iomem addr;
+	int status = 0, i;
 
 	/**
 	 * first try to register with vpfe. If not correct platform, then we
@@ -1402,24 +1428,40 @@ static int __init dm365_ccdc_probe(struct platform_device *pdev)
 	if (status < 0)
 		return status;
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res) {
-		status = -ENOENT;
-		goto fail_nores;
-	}
-
-	res_len = res->end - res->start + 1;
-
-	res = request_mem_region(res->start, res_len, res->name);
-	if (!res) {
-		status = -EBUSY;
-		goto fail_nores;
-	}
-
-	isif_base_addr = ioremap_nocache(res->start, res_len);
-	if (!isif_base_addr) {
-		status = -EBUSY;
-		goto fail;
+	i = 0;
+	/* Get the ISIF base address, linearization table0 and table1 addr. */
+	while (i < 3) {
+		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
+		if (!res) {
+			status = -ENOENT;
+			goto fail_nobase_res;
+		}
+		res_len = res->end - res->start + 1;
+		res = request_mem_region(res->start, res_len, res->name);
+		if (!res) {
+			status = -EBUSY;
+			goto fail_nobase_res;
+		}
+		addr = ioremap_nocache(res->start, res_len);
+		if (!addr) {
+			status = -EBUSY;
+			goto fail_base_iomap;
+		}
+		switch (i) {
+		case 0:
+			/* ISIF base address */
+			ccdc_cfg.base_addr = addr;
+			break;
+		case 1:
+			/* ISIF linear tbl0 address */
+			ccdc_cfg.linear_tbl0_addr = addr;
+			break;
+		default:
+			/* ISIF linear tbl0 address */
+			ccdc_cfg.linear_tbl1_addr = addr;
+			break;
+		}
+		i++;
 	}
 
 	davinci_cfg_reg(DM365_VIN_CAM_WEN);
@@ -1431,9 +1473,20 @@ static int __init dm365_ccdc_probe(struct platform_device *pdev)
 	printk(KERN_NOTICE "%s is registered with vpfe.\n",
 		ccdc_hw_dev.name);
 	return 0;
-fail:
+fail_base_iomap:
 	release_mem_region(res->start, res_len);
-fail_nores:
+	i--;
+fail_nobase_res:
+	if (ccdc_cfg.base_addr)
+		iounmap(ccdc_cfg.base_addr);
+	if (ccdc_cfg.linear_tbl0_addr)
+		iounmap(ccdc_cfg.linear_tbl0_addr);
+
+	while (i >= 0) {
+		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
+		release_mem_region(res->start, res_len);
+		i--;
+	}
 	vpfe_unregister_ccdc_device(&ccdc_hw_dev);
 	return status;
 }
@@ -1441,11 +1494,18 @@ fail_nores:
 static int dm365_ccdc_remove(struct platform_device *pdev)
 {
 	struct resource	*res;
+	int i = 0;
 
-	iounmap(isif_base_addr);
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (res)
-		release_mem_region(res->start, res->end - res->start + 1);
+	iounmap(ccdc_cfg.base_addr);
+	iounmap(ccdc_cfg.linear_tbl0_addr);
+	iounmap(ccdc_cfg.linear_tbl1_addr);
+	while (i < 3) {
+		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
+		if (res)
+			release_mem_region(res->start,
+					   res->end - res->start + 1);
+		i++;
+	}
 	vpfe_unregister_ccdc_device(&ccdc_hw_dev);
 	return 0;
 }

@@ -56,6 +56,7 @@ struct vpfe_std_info {
 	int active_lines;
 	/* current frame format */
 	int frame_format;
+	struct v4l2_fract fps;
 };
 
 struct vpfe_route {
@@ -109,6 +110,13 @@ struct vpfe_config {
 	char *clocks[];
 };
 
+/* TODO - revisit for MC */
+enum output_src {
+	VPFE_CCDC_OUT,
+	VPFE_IMP_PREV_OUT,
+	VPFE_IMP_RSZ_OUT
+};
+
 struct vpfe_device {
 	/* V4l2 specific parameters */
 	/* Identifies video device for this channel */
@@ -131,8 +139,27 @@ struct vpfe_device {
 	u32 field_id;
 	/* flag to indicate whether decoder is initialized */
 	u8 initialized;
-	/* current interface type */
-	struct vpfe_hw_if_param vpfe_if_params;
+	/* TODO for MC. Previewer is always present if IMP is chained */
+	unsigned char imp_chained;
+	/* Resizer is chained at the output of previewer */
+	unsigned char rsz_present;
+	/* if second resolution output is present */
+	unsigned char second_output;
+	/* offset where second buffer starts from the starting of
+	 * the buffer. This is for storing the second IPIPE resizer
+	 * output
+	 */
+	u32 second_off;
+	/* Size of second output image */
+	int second_out_img_sz;
+	/* output from CCDC or IPIPE */
+	enum output_src out_from;
+	/* skip frame count */
+	u8 skip_frame_count;
+	/* skip frame count init value */
+	u8 skip_frame_count_init;
+	/* time per frame for skipping */
+	struct v4l2_fract timeperframe;
 	/* ptr to currently selected sub device */
 	struct vpfe_subdev_info *current_subdev;
 	/* current input at the sub device */
@@ -141,6 +168,8 @@ struct vpfe_device {
 	struct vpfe_std_info std_info;
 	/* std index into std table */
 	int std_index;
+	/* IRQ number for DMA transfer completion at the image processor */
+	unsigned int imp_dma_irq;
 	/* CCDC IRQs used when CCDC/ISIF output to SDRAM */
 	unsigned int ccdc_irq0;
 	unsigned int ccdc_irq1;
@@ -212,4 +241,7 @@ struct vpfe_config_params {
  **/
 #define VPFE_CMD_S_CCDC_RAW_PARAMS _IOW('V', BASE_VIDIOC_PRIVATE + 1, \
 					void *)
+#define VPFE_CMD_G_CCDC_RAW_PARAMS _IOR('V', BASE_VIDIOC_PRIVATE + 2, \
+					void *)
+
 #endif				/* _DAVINCI_VPFE_H */
