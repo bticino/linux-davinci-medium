@@ -449,7 +449,7 @@ static struct spi_board_info dm355_evm_spi_info[] __initconst = {
 	{
 		.modalias	= "at25",
 		.platform_data	= &at25640a,
-		.max_speed_hz	= 10 * 1000 * 1000,	/* at 3v3 */
+		.max_speed_hz	= 30 * 1000 * 1000,	/* at 3v3 */
 		.bus_num	= 0,
 		.chip_select	= 0,
 		.mode		= SPI_MODE_0,
