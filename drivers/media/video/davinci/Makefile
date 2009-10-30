@@ -21,6 +21,13 @@ obj-$(CONFIG_VIDEO_DM355_AF)	+= dm355_af_driver.o
 dm355_aew_driver-objs		+= dm355_aew.o dm355_aew_hw.o
 obj-$(CONFIG_VIDEO_DM355_AEW)	+= dm355_aew_driver.o
 
+dm365_a3_hw_driver-objs := dm365_a3_hw.o
+obj-$(CONFIG_VIDEO_DM365_3A_HW)	+= dm365_a3_hw_driver.o
+dm365_af_driver-objs := dm365_af.o
+obj-$(CONFIG_VIDEO_DM365_AF)	+= dm365_af_driver.o
+dm365_aew_driver-objs := dm365_aew.o
+obj-$(CONFIG_VIDEO_DM365_AEW)	+= dm365_aew_driver.o
+
 # DaVinci Encoder/Display Manager and Encoders
 obj-$(CONFIG_DAVINCI_OSD)		+= davinci_osd.o davinci_platform.o
 obj-$(CONFIG_DAVINCI_ENC_MNGR)		+= davinci_enc_mngr.o

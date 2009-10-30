@@ -735,6 +735,30 @@ config VIDEO_DM355_AEW
 	  the control loops for Auto Exposure and Auto White Balance. It collects
 	  metrics about the image or video data
 
+config VIDEO_DM365_3A_HW
+	tristate "DM365 Auto Focus, Auto Exposure/ White Balance HW module"
+	depends on ARCH_DAVINCI_DM365
+	help
+	  DM365 Auto Focus, Auto Exposure and Auto White Balancing HW module
+
+config VIDEO_DM365_AF
+	tristate "DM365 Auto Focus Driver"
+	depends on ARCH_DAVINCI_DM365
+	select VIDEO_DM365_3A_HW
+	help
+	  DM365 Auto Focus Driver. Auto Focus driver is used to support
+	  control loop for Auto Focus. It collects metrics about the image or
+	  video data
+
+config VIDEO_DM365_AEW
+	tristate "DM365 Auto exposure /White Balance Driver"
+	depends on ARCH_DAVINCI_DM365
+	select VIDEO_DM365_3A_HW
+	help
+	  DM365 Auto Exposure and Auto White Balance driver is used to support
+	  the control loops for Auto Exposure and Auto White Balance. It collects
+	  metrics about the image or video data
+
 source "drivers/media/video/bt8xx/Kconfig"
 
 config VIDEO_PMS
