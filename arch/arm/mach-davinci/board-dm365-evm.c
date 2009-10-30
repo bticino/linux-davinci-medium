@@ -855,6 +855,10 @@ static __init void dm365_evm_init(void)
 
 	dm365_init_asp(&dm365_evm_snd_data);
 
+#ifdef CONFIG_RTC_DRV_DAVINCI
+	dm365_init_rtc();
+#endif
+
 #ifdef CONFIG_KEYBOARD_DAVINCI
 	dm365_init_ks(&dm365evm_ks_data);
 #endif
