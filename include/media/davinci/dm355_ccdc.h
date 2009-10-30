@@ -71,16 +71,6 @@ enum ccdc_datasft {
 	CCDC_DATA_SHIFT_6BIT
 };
 
-enum ccdc_data_size {
-	CCDC_DATA_16BITS,
-	CCDC_DATA_15BITS,
-	CCDC_DATA_14BITS,
-	CCDC_DATA_13BITS,
-	CCDC_DATA_12BITS,
-	CCDC_DATA_11BITS,
-	CCDC_DATA_10BITS,
-	CCDC_DATA_8BITS
-};
 enum ccdc_mfilt1 {
 	CCDC_NO_MEDIAN_FILTER1,
 	CCDC_AVERAGE_FILTER1,
@@ -103,8 +93,8 @@ struct ccdc_a_law {
 
 /* structure for Black Clamping */
 struct ccdc_black_clamp {
-	/* only if bClampEnable is TRUE */
-	unsigned char b_clamp_enable;
+	/* only if it is TRUE */
+	unsigned char enable;
 	/* only if bClampEnable is TRUE */
 	enum ccdc_sample_length sample_pixel;
 	/* only if bClampEnable is TRUE */
@@ -222,8 +212,6 @@ struct ccdc_data_offset {
 struct ccdc_config_params_raw {
 	/* data shift to be applied before storing */
 	enum ccdc_datasft datasft;
-	/* data size value from 8 to 16 bits */
-	enum ccdc_data_size data_sz;
 	/* median filter for sdram */
 	enum ccdc_mfilt1 mfilt1;
 	enum ccdc_mfilt2 mfilt2;
