@@ -1773,8 +1773,15 @@ static int ipipe_set_resize_config(struct device *dev,
 			param->ipipeif_param.glob_ver_size =
 			    ss_config->input.lpfr;
 			param->ipipeif_param.clk_div = ss_config->input.clk_div;
+			if (!ss_config->input.line_length)
+				param->ipipeif_param.adofs =
+					ss_config->input.image_width * 2;
+			else
+				param->ipipeif_param.adofs =
+						ss_config->input.line_length;
+			/* adjust the line length to be a multiple of 32 */
 			param->ipipeif_param.adofs =
-			    ((ss_config->input.image_width * 2) + 31) & ~0x1f;
+				((param->ipipeif_param.adofs + 31) & ~0x1f);
 			param->ipipe_hsz = ss_config->input.image_width - 1;
 			if (ss_config->input.dec_en) {
 				if ((ss_config->input.rsz < 16) ||
@@ -2042,13 +2049,18 @@ static int ipipe_set_preview_config(struct device *dev,
 		param->ipipeif_param.glob_hor_size = ss_config->input.ppln;
 		param->ipipeif_param.glob_ver_size = ss_config->input.lpfr;
 		param->ipipeif_param.clk_div = ss_config->input.clk_div;
-		if ((param->ipipeif_param.ialaw) ||
-		    (param->ipipeif_param.pack_mode))
+		if (!ss_config->input.line_length) {
+			/* Calculate the line length */
+			if ((param->ipipeif_param.ialaw) ||
+			    (param->ipipeif_param.pack_mode))
+				param->ipipeif_param.adofs =
+					ss_config->input.image_width;
+			else
+				param->ipipeif_param.adofs =
+					ss_config->input.image_width * 2;
+		} else
 			param->ipipeif_param.adofs =
-			    ss_config->input.image_width;
-		else
-			param->ipipeif_param.adofs =
-			    ss_config->input.image_width * 2;
+				ss_config->input.line_length;
 		/* Adjust adofs to be a multiple of 32 */
 		param->ipipeif_param.adofs =
 			((param->ipipeif_param.adofs + 31) & ~0x1f);

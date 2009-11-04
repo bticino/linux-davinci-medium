@@ -239,13 +239,6 @@ int ipipe_hw_setup(struct ipipe_params *config)
 		regw_if(config->ipipeif_param.hnum, IPIPEIF_HNUM);
 		regw_if(config->ipipeif_param.vnum, IPIPEIF_VNUM);
 		vpss_dm355_assign_rblctrl_master(DM355_RBLCTRL_IPIPEIF);
-//TODO
-#if 0
-		utemp = regr_vpss(VPSS_PCR);
-		RESETBIT(utemp, 4);
-		RESETBIT(utemp, 5);
-		regw_vpss(utemp, VPSS_PCR);
-#endif
 		break;
 
 	}
@@ -260,12 +253,6 @@ int ipipe_hw_setup(struct ipipe_params *config)
 	data_format =
 	    (config->ipipe_dpaths_fmt | (config->ipipe_dpaths_bypass) << 2);
 
-//TODO
-#if 0
-	utemp = regr_vpss(VPSS_PCR);
-	RESETBIT(utemp, 6);
-	regw_vpss(utemp, VPSS_PCR);
-#endif
 	vpss_dm355_assign_wblctrl_master(DM355_WBLCTRL_IPIPE);
 
 	/*enable ipipe mode to either one shot or continuous */
@@ -387,10 +374,6 @@ int ipipe_default_raw2raw(struct ipipe_params *parameter)
 	vpss_dm355_assign_dfc_memory_master(DM355_DFC_MEM_IPIPE);
 	vpss_dm355_assign_int_memory_master(DM355_INT_MEM_IPIPE);
 	vpss_dm355_ipipe_enable_any_address(1);
-//TODO
-	//vpss_dfc_memory_sel(VPSS_DFC_SEL_IPIPE);
-	//vpss_rsz_cfald_mem_select(VPSS_IPIPE_MEM);
-	//vpss_ipipe_enable_any_address(1);
 	regw_ip(1, GCL_SDR);
 
 	/*set this to 0 for dafault config */
@@ -470,19 +453,11 @@ int ipipe_set_dfc_regs(struct prev_dfc *dfc)
 
 	ipipe_enable_reg_write();
 	vpss_dm355_assign_wblctrl_master(DM355_WBLCTRL_IPIPE);
-//TODO
-#if 0
-	utemp = regr_vpss(VPSS_PCR);
-	RESETBIT(utemp, 6);
-	regw_vpss(utemp, VPSS_PCR);
-#endif
 	regw_ip(dfc->en, DFC_EN);	/*writting to enable register */
 	if (1 == dfc->en) {
 		regw_ip(dfc->vert_copy_method, DFC_SEL);
 		regw_ip(DEF_COR_START_ADDR, DFC_ADR);
 		regw_ip(dfc->dfc_size, DFC_SIZE);
-//TODO
-//		vpss_dfc_memory_sel(VPSS_DFC_SEL_IPIPE);
 		vpss_dm355_assign_dfc_memory_master(DM355_DFC_MEM_IPIPE);
 
 		/* set the auto increment,write only,dfc mode in RAM_MODE */
@@ -694,13 +669,6 @@ int ipipe_set_gamma_regs(struct prev_gamma *gamma)
 	regw_ip(utemp, GMM_CFG);
 
 	vpss_dm355_assign_wblctrl_master(DM355_WBLCTRL_IPIPE);
-//TODO
-#if 0
-	utemp = regr_vpss(VPSS_PCR);
-	RESETBIT(utemp, 6);
-	regw_vpss(utemp, VPSS_PCR);
-#endif
-
 	if (gamma->tbl_sel == IPIPE_GAMMA_TBL_RAM) {
 		if (gamma->tbl_size == IPIPE_GAMMA_TBL_SZ_128)
 			table_size = 128;
@@ -780,12 +748,6 @@ int ipipe_set_ee_regs(struct prev_yee *ee)
 
 	ipipe_enable_reg_write();
 	vpss_dm355_assign_wblctrl_master(DM355_WBLCTRL_IPIPE);
-//TODO
-#if 0
-	utemp = regr_vpss(VPSS_PCR);
-	RESETBIT(utemp, 6);
-	regw_vpss(utemp, VPSS_PCR);
-#endif
 	regw_ip(ee->en, YEE_EN);
 	if (1 == ee->en) {
 		regw_ip(ee->en_emf, YEE_EMF);
@@ -852,10 +814,6 @@ int ipipe_set_output_size(struct ipipe_params *params)
 	vpss_dm355_assign_dfc_memory_master(DM355_DFC_MEM_IPIPE);
 	vpss_dm355_assign_int_memory_master(DM355_INT_MEM_IPIPE);
 	vpss_dm355_ipipe_enable_any_address(1);
-	//TODO
-	//vpss_dfc_memory_sel(VPSS_DFC_SEL_IPIPE);
-	//vpss_rsz_cfald_mem_select(VPSS_IPIPE_MEM);
-	//vpss_ipipe_enable_any_address(1);
 	regw_ip(1, GCL_SDR);
 	/*setting rescale parameters */
 	regw_ip(params->rsz_rsc_param[0].rsz_o_vsz, RSZ_EN_0 + RSZ_O_VSZ);
@@ -916,10 +874,6 @@ int ipipe_set_rsz_structs(struct ipipe_params *params)
 	vpss_dm355_assign_dfc_memory_master(DM355_DFC_MEM_IPIPE);
 	vpss_dm355_assign_int_memory_master(DM355_INT_MEM_IPIPE);
 	vpss_dm355_ipipe_enable_any_address(1);
-//TODO
-	//vpss_dfc_memory_sel(VPSS_DFC_SEL_IPIPE);
-	//vpss_rsz_cfald_mem_select(VPSS_IPIPE_MEM);
-	//vpss_ipipe_enable_any_address(1);
 	regw_ip(params->rsz_en[0], RSZ_EN_0);
 	if (params->rsz_en[0]) {
 		printk(KERN_DEBUG
@@ -932,6 +886,8 @@ int ipipe_set_rsz_structs(struct ipipe_params *params)
 		regw_ip(params->rsz_rsc_param[0].rsz_mode, RSZ_EN_0 + RSZ_MODE);
 		regw_ip(params->rsz_rsc_param[0].rsz_i_vst,
 			RSZ_EN_0 + RSZ_I_VST);
+		regw_ip(params->rsz_rsc_param[0].rsz_i_vsz,
+			RSZ_EN_0 + RSZ_I_VSZ);
 		regw_ip(params->rsz_rsc_param[0].rsz_i_hst,
 			RSZ_EN_0 + RSZ_I_HST);
 		regw_ip(params->rsz_rsc_param[0].rsz_o_vsz,
@@ -986,6 +942,8 @@ int ipipe_set_rsz_structs(struct ipipe_params *params)
 		regw_ip(params->rsz_rsc_param[1].rsz_mode, RSZ_EN_1 + RSZ_MODE);
 		regw_ip(params->rsz_rsc_param[1].rsz_i_vst,
 			RSZ_EN_1 + RSZ_I_VST);
+		regw_ip(params->rsz_rsc_param[1].rsz_i_vsz,
+			RSZ_EN_1 + RSZ_I_VSZ);
 		regw_ip(params->rsz_rsc_param[1].rsz_i_hst,
 			RSZ_EN_1 + RSZ_I_HST);
 		regw_ip(params->rsz_rsc_param[1].rsz_o_vsz,

@@ -2947,7 +2947,13 @@ static int configure_resizer_in_ss_mode(struct device *dev,
 	ret = mutex_lock_interruptible(&oper_state.lock);
 	if (ret)
 		return ret;
-	param->ipipeif_param.adofs = line_len;
+	if (!ss_config->input.line_length)
+		param->ipipeif_param.adofs = line_len;
+	else {
+		param->ipipeif_param.adofs = ss_config->input.line_length;
+		param->ipipeif_param.adofs =
+				(param->ipipeif_param.adofs + 31) & ~0x1f;
+	}
 	if (ss_config->output1.enable) {
 		param->rsz_en[RSZ_A] = ENABLE;
 		param->rsz_rsc_param[RSZ_A].mode = ONE_SHOT;
@@ -3368,8 +3374,14 @@ static int configure_previewer_in_ss_mode(struct device *dev,
 	ret = mutex_lock_interruptible(&oper_state.lock);
 	if (ret)
 		return ret;
-	param->ipipeif_param.adofs = line_len;
 
+	if (!ss_config->input.line_length)
+		param->ipipeif_param.adofs = line_len;
+	else {
+		param->ipipeif_param.adofs = ss_config->input.line_length;
+		param->ipipeif_param.adofs =
+				(param->ipipeif_param.adofs + 31) & ~0x1f;
+	}
 	if (ss_config->input.dec_en && ss_config->input.frame_div_mode_en) {
 		dev_err(dev,
 			"Both dec_en & frame_div_mode_en"

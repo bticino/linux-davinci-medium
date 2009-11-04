@@ -761,6 +761,11 @@ struct prev_ss_input_spec {
 	unsigned int image_width;
 	/* height of the image in SDRAM */
 	unsigned int image_height;
+	/* line length. This will allow application to set a
+	 * different line length than that calculated based on
+	 * width. Set it to zero, if not used,
+	 */
+	unsigned int line_length;
 	/* vertical start position of the image
 	 * data to IPIPE
 	 */
@@ -937,6 +942,11 @@ struct rsz_ss_input_spec {
 	unsigned int image_width;
 	/* height of the image in SDRAM */
 	unsigned int image_height;
+	/* line length. This will allow application to set a
+	 * different line length than that calculated based on
+	 * width. Set it to zero, if not used,
+	 */
+	unsigned int line_length;
 	/* vertical start position of the image
 	 * data to IPIPE
 	 */
