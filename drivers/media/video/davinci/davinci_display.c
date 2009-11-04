@@ -307,7 +307,7 @@ static void davinci_display_isr(unsigned int event, void *dispObj)
 			/* Mark status of the buffer as active */
 			layer->nextFrm->state = VIDEOBUF_ACTIVE;
 			
-			addr = videobuf_to_dma_contig(layer->curFrm);
+			addr = videobuf_to_dma_contig(layer->nextFrm);
 			davinci_disp_start_layer(layer->layer_info.id,
 						 addr,
 						 davinci_dm.cbcr_ofst);
@@ -383,7 +383,7 @@ static void davinci_display_isr(unsigned int event, void *dispObj)
 				 */
 				layer->nextFrm->state = VIDEOBUF_ACTIVE;
 
-				addr = videobuf_to_dma_contig(layer->curFrm);
+				addr = videobuf_to_dma_contig(layer->nextFrm);
 				davinci_disp_start_layer(layer->layer_info.id,
 							addr,
 							davinci_dm.cbcr_ofst);
@@ -1034,7 +1034,6 @@ static int vpbe_dqbuf(struct file *file, void *priv,
 static int vpbe_qbuf(struct file *file, void *priv,
 		     struct v4l2_buffer *p)
 {
-	int ret = 0;
 	struct davinci_fh *fh = file->private_data;
 	struct display_obj *layer = fh->layer;
 
