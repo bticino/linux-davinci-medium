@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32-rc2-davinci1
-# Tue Oct 13 23:59:35 2009
+# Wed Oct 14 16:30:05 2009
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -1139,9 +1139,9 @@ CONFIG_VIDEO_CAPTURE_DRIVERS=y
 # CONFIG_VIDEO_SAA7110 is not set
 # CONFIG_VIDEO_SAA711X is not set
 # CONFIG_VIDEO_SAA717X is not set
-CONFIG_VIDEO_TVP514X=y
+# CONFIG_VIDEO_TVP514X is not set
 # CONFIG_VIDEO_TVP5150 is not set
-# CONFIG_VIDEO_TVP7002 is not set
+CONFIG_VIDEO_TVP7002=y
 # CONFIG_VIDEO_VPX3220 is not set
 
 #
