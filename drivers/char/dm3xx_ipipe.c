@@ -38,19 +38,6 @@ static inline void regw_if(u32 val, u32 offset)
 	__raw_writel(val, ipipeif_base_addr + offset);
 }
 
-#if 0
-inline u32 regr_vpss(u32 offset)
-{
-	return davinci_readl(DM355_VPSSBL_REG_BASE + offset);
-}
-
-inline u32 regw_vpss(u32 val, u32 offset)
-{
-	davinci_writel(val, DM355_VPSSBL_REG_BASE + offset);
-	return val;
-}
-#endif
-
 void ipipeif_set_enable(char en, unsigned int mode)
 {
 	regw_if(1, IPIPEIF_ENABLE);
@@ -107,7 +94,6 @@ int ipipeif_hw_setup(struct ipipeif *params)
 	/* Combine all the fields to make CFG1 register of IPIPEIF */
 	utemp = params->mode << ONESHOT_SHIFT;
 	utemp |= params->source << INPSRC_SHIFT;
-	printk("params->source = %d\n", params->source);
 	utemp |= params->clock_select << CLKSEL_SHIFT;
 	utemp |= params->avg_filter << AVGFILT_SHIFT;
 	utemp |= params->decimation << DECIM_SHIFT;
@@ -195,6 +181,30 @@ int ipipeif_hw_setup(struct ipipeif *params)
 
 				regw_if(params->var.if_5_1.clip, IPIPEIF_OCLIP);
 				/* fall through for SDRAM YUV mode */
+				isif_port_if =
+				    params->var.if_5_1.isif_port.if_type;
+				/* configure CFG2 */
+				switch (isif_port_if) {
+					case VPFE_YCBCR_SYNC_16:
+						utemp |=
+						    (0 <<
+						     IPIPEIF_CFG2_YUV8_SHIFT);
+						utemp |=
+						    (1 <<
+						     IPIPEIF_CFG2_YUV16_SHIFT);
+						regw_if(utemp, IPIPEIF_CFG2);
+						break;
+					default:
+						utemp |=
+						    (0 <<
+						     IPIPEIF_CFG2_YUV8_SHIFT);
+						utemp |=
+						    (0 <<
+						     IPIPEIF_CFG2_YUV16_SHIFT);
+						regw_if(utemp, IPIPEIF_CFG2);
+						break;
+
+					}
 			}
 		case SDRAM_YUV:
 			{

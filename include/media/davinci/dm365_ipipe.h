@@ -1039,6 +1039,12 @@ struct rsz_output_spec {
 	 * input sizes
 	 */
 	enum down_scale_ave_sz v_dscale_ave_sz;
+	/* Y offset. If set, the offset would be added to the base address
+	 */
+	unsigned int user_y_ofst;
+	/* C offset. If set, the offset would be added to the base address
+	 */
+	unsigned int user_c_ofst;
 };
 
 /* In continuous mode, few parameters are set by ccdc driver. So only
@@ -1079,6 +1085,12 @@ struct rsz_part_output_spec {
 	 * input sizes
 	 */
 	enum down_scale_ave_sz v_dscale_ave_sz;
+	/* Y offset. If set, the offset would be added to the base address
+	 */
+	unsigned int user_y_ofst;
+	/* C offset. If set, the offset would be added to the base address
+	 */
+	unsigned int user_c_ofst;
 };
 
 struct rsz_single_shot_config {
@@ -1241,6 +1253,10 @@ struct ipipe_ext_mem_param {
 	unsigned int flip_ofst_c;
 	/* c offset for YUV 420SP */
 	unsigned int c_offset;
+	/* User Defined Y offset for YUV 420SP or YUV420ILE data */
+	unsigned int user_y_ofst;
+	/* User Defined C offset for YUV 420SP data */
+	unsigned int user_c_ofst;
 };
 
 enum rsz_data_source {

@@ -540,10 +540,18 @@ int rsz_set_output_address(struct ipipe_params *params,
 		utemp = (address + mem_param->c_offset);
 			utemp = (address + mem_param->c_offset
 				+ mem_param->flip_ofst_c);
+			utemp += mem_param->user_y_ofst + mem_param->user_c_ofst;
+			if (resize_no == RSZ_B)
+				utemp += params->ext_mem_param[RSZ_A].user_y_ofst +
+				params->ext_mem_param[RSZ_A].user_c_ofst;
 			/* set C address */
 			rsz_set_c_address(utemp, rsz_start_add);
 		}
 		utemp = (address + mem_param->flip_ofst_y);
+		utemp += mem_param->user_y_ofst;
+		if (resize_no == RSZ_B)
+			utemp += params->ext_mem_param[RSZ_A].user_y_ofst +
+				params->ext_mem_param[RSZ_A].user_c_ofst;
 		/* set Y address */
 		rsz_set_y_address(utemp, rsz_start_add);
 	}
@@ -749,7 +757,7 @@ int ipipe_set_gic_regs(struct prev_gic *gic)
 }
 
 #define IPIPE_U13Q9(decimal, integer) \
-	(((decimal & 0x1ff) | ((integer & 0xf) << 8)))
+	(((decimal & 0x1ff) | ((integer & 0xf) << 9)))
 /* White balance */
 int ipipe_set_wb_regs(struct prev_wb *wb)
 {

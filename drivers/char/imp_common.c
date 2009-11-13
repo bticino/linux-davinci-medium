@@ -16,7 +16,6 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-//#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -802,21 +801,10 @@ EXPORT_SYMBOL(imp_common_request_buffer);
 
 static irqreturn_t imp_common_isr(int irq, void *device_id)
 {
-	u32 val;
-//TODO
-#if 0
-	if (cpu_is_davinci_dm365()) {
-		val = davinci_readl(0x1c7000c);
-		if (val & 0x8000) {
-			davinci_writel(0x8000, 0x1c7000c);
-			complete(&(imp_serializer_info.sem_isr));
-		}
-	} else
-#endif
-	val = 	vpss_dma_complete_interrupt();
+	u32 val = vpss_dma_complete_interrupt();
+
 	if (val == 0 || val == 2)
 		complete(&(imp_serializer_info.sem_isr));
-
 	return IRQ_HANDLED;
 }
 
@@ -1101,10 +1089,12 @@ according to priority.
 */
 static int add_to_array(struct device *dev, struct imp_logical_channel *chan)
 {
-	int array_index, device_index;
+	int array_index, device_index, ret;
 
-	/* locking the configuartion array */
-	mutex_lock(&imp_serializer_info.array_sem);
+	/* locking the configuartion aaray */
+	ret = mutex_lock_interruptible(&imp_serializer_info.array_sem);
+	if (ret < 0)
+		return ret;
 
 	/* Add configuration to the     queue according to its priority */
 	if (imp_serializer_info.array_count == 0) {
@@ -1161,9 +1151,12 @@ static int add_to_array(struct device *dev, struct imp_logical_channel *chan)
 static int delete_from_array(struct device *dev,
 			     struct imp_logical_channel *chan)
 {
-	int array_index = 0, device_index;
+	int array_index = 0, device_index, ret;
 
-	mutex_lock(&(imp_serializer_info.array_sem));
+	ret = mutex_lock_interruptible(&(imp_serializer_info.array_sem));
+
+	if (ret < 0)
+		return ret;
 
 	/*shift the     entried in array */
 	if (imp_serializer_info.array_count != 1) {
@@ -1291,7 +1284,21 @@ static int imp_common_start(struct device *dev,
 			dev_err(dev, "in_buff index is out of range\n");
 			return -1;
 		}
-		if (convert->in_buff.offset !=
+		if (cpu_is_davinci_dm365()) {
+			if ((convert->in_buff.offset + convert->in_buff.size)  >
+			 (chan->in_bufs[convert->in_buff.index]->offset +
+			 chan->in_bufs[convert->in_buff.index]->size)) {
+				dev_err(dev,
+					"in_buff offset provided "
+					" is out of range, %d:%d:%d:%d:%d\n",
+					convert->in_buff.index,
+					convert->in_buff.offset,
+					convert->in_buff.size,
+					chan->in_bufs[convert->in_buff.index]->offset,
+					chan->in_bufs[convert->in_buff.index]->size);
+				return -1;
+			}
+		} else if (convert->in_buff.offset !=
 		    chan->in_bufs[convert->in_buff.index]->offset) {
 			dev_err(dev,
 				"in_buff offset provided doesn't"
@@ -1302,9 +1309,7 @@ static int imp_common_start(struct device *dev,
 			return -1;
 		}
 		if (imp_hw_if->update_inbuf_address(chan->config,
-						    chan->in_bufs[convert->
-								  in_buff.
-								  index]->
+						    convert->in_buff.
 						    offset) < 0) {
 			dev_err(dev,
 				"Error in configuring input buffer address\n");
@@ -1342,7 +1347,22 @@ static int imp_common_start(struct device *dev,
 					"out_buff1, index is out of range\n");
 				return -1;
 			}
-			if (convert->out_buff1.offset !=
+			if (cpu_is_davinci_dm365()) {
+				if ((convert->out_buff1.offset +
+				     convert->out_buff1.size)  >
+				    (chan->out_buf1s[convert->out_buff1.index]->offset +
+				     chan->out_buf1s[convert->out_buff1.index]->size)) {
+					dev_err(dev,
+					"out_buff offset provided "
+					" is out of range, %d:%d:%d:%d:%d\n",
+					convert->out_buff1.index,
+					convert->out_buff1.offset,
+					convert->out_buff1.size,
+					chan->out_buf1s[convert->out_buff1.index]->offset,
+					chan->out_buf1s[convert->out_buff1.index]->size);
+					return -1;
+				}
+			} else if (convert->out_buff1.offset !=
 			    chan->out_buf1s[convert->out_buff1.index]->offset) {
 				dev_err(dev,
 					"out_buff1 offset provided"
@@ -1350,7 +1370,7 @@ static int imp_common_start(struct device *dev,
 				return -1;
 			}
 			offset =
-			    chan->out_buf1s[convert->out_buff1.index]->offset;
+			    convert->out_buff1.offset;
 			status = 1;
 		}
 	}
@@ -1391,7 +1411,20 @@ static int imp_common_start(struct device *dev,
 					"out_buff1, index is out of range\n");
 				return -1;
 			}
-			if (convert->out_buff2.offset !=
+			if (cpu_is_davinci_dm365()) {
+				if ((convert->out_buff2.offset + convert->out_buff2.size)  >
+				(chan->out_buf2s[convert->out_buff2.index]->offset + chan->out_buf2s[convert->out_buff2.index]->size)) {
+					dev_err(dev,
+					"out_buff offset provided "
+					" is out of range, %d:%d:%d:%d:%d\n",
+					convert->out_buff2.index,
+					convert->out_buff2.offset,
+					convert->out_buff2.size,
+					chan->out_buf2s[convert->out_buff2.index]->offset,
+					chan->out_buf2s[convert->out_buff2.index]->size);
+					return -1;
+				}
+			} else if (convert->out_buff2.offset !=
 			    chan->out_buf2s[convert->out_buff2.index]->offset) {
 				dev_err(dev,
 					"out_buff2 offset provided"
@@ -1399,7 +1432,7 @@ static int imp_common_start(struct device *dev,
 				return -1;
 			}
 			offset =
-			    chan->out_buf2s[convert->out_buff2.index]->offset;
+			    convert->out_buff2.offset;
 			status = 1;
 		}
 	}
@@ -1452,10 +1485,9 @@ static int imp_common_start(struct device *dev,
 	/* Waiting for resizing to be complete */
 	wait_for_completion_interruptible(&(imp_serializer_info.sem_isr));
 
-	//vpss_free_irq(irq.sdram, (void *)NULL);
 	free_irq(irq.sdram, (void *)NULL);
 
-	delete_from_array(dev, chan);
+	ret = delete_from_array(dev, chan);
 
 	return ret;
 }

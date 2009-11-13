@@ -2661,6 +2661,10 @@ static int configure_resizer_out_params(struct ipipe_params *param,
 			    partial_output->h_dscale_ave_sz;
 			param->rsz_rsc_param[index].v_dscale_ave_sz =
 			    partial_output->v_dscale_ave_sz;
+			param->ext_mem_param[index].user_y_ofst =
+			    (partial_output->user_y_ofst + 31) & ~0x1F;
+			param->ext_mem_param[index].user_c_ofst =
+			    (partial_output->user_c_ofst + 31) & ~0x1F;
 
 		} else
 			param->rsz_en[index] = DISABLE;
@@ -2709,6 +2713,10 @@ static int configure_resizer_out_params(struct ipipe_params *param,
 				    output->h_dscale_ave_sz;
 				param->rsz_rsc_param[index].v_dscale_ave_sz =
 				    output->h_dscale_ave_sz;
+				param->ext_mem_param[index].user_y_ofst =
+				    (output->user_y_ofst + 31) & ~0x1F;
+				param->ext_mem_param[index].user_c_ofst =
+				    (output->user_c_ofst + 31) & ~0x1F;
 			}
 		} else
 			param->rsz_en[index] = DISABLE;
@@ -2730,8 +2738,10 @@ static int calculate_line_length(enum ipipe_pix_formats pix,
 
 	if ((pix == IPIPE_UYVY) || (pix == IPIPE_BAYER))
 		*line_len = width << 1;
-	else if (pix == IPIPE_420SP_Y || pix == IPIPE_420SP_C)
+	else if (pix == IPIPE_420SP_Y || pix == IPIPE_420SP_C) {
 		*line_len = width;
+		*line_len_c = width;
+	}
 	else {
 		/* YUV 420 */
 		/* round width to upper 32 byte boundary */
@@ -3071,6 +3081,24 @@ static int configure_resizer_in_ss_mode(struct device *dev,
 			    (((ss_config->input.image_width *
 			       IPIPEIF_RSZ_CONST) / ss_config->input.rsz) - 1);
 		}
+		if (ss_config->input.pix_fmt == IPIPE_420SP_Y
+			|| ss_config->input.pix_fmt == IPIPE_420SP_C)
+		{
+			param->ipipeif_param.var.if_5_1.pack_mode
+				= IPIPEIF_5_1_PACK_8_BIT;
+			param->ipipeif_param.var.if_5_1.source1 = CCDC;
+			param->ipipeif_param.var.if_5_1.isif_port.if_type
+				= VPFE_YCBCR_SYNC_16;
+			param->ipipeif_param.var.if_5_1.data_shift
+				= IPIPEIF_5_1_BITS11_0;
+
+			param->ipipeif_param.source = SDRAM_RAW;
+
+
+		}
+		if (ss_config->input.pix_fmt == IPIPE_420SP_C)
+			param->ipipeif_param.var.if_5_1.isif_port.if_type
+				= VPFE_RAW_BAYER;
 		param->ipipe_hsz = ss_config->input.image_width - 1;
 		param->ipipe_vsz = ss_config->input.image_height - 1;
 		param->ipipe_vps = ss_config->input.vst;
@@ -3082,11 +3110,27 @@ static int configure_resizer_in_ss_mode(struct device *dev,
 
 			calculate_resize_ratios(param, RSZ_A);
 			calculate_sdram_offsets(param, RSZ_A);
+
+			/* Overriding resize ratio calculation */
+			if (ss_config->input.pix_fmt == IPIPE_420SP_C)
+			{
+				param->rsz_rsc_param[RSZ_A].v_dif =
+				    (((param->ipipe_vsz + 1) * 2) * 256) /
+				    (param->rsz_rsc_param[RSZ_A].o_vsz + 1);
+			}
 		}
 
 		if (param->rsz_en[RSZ_B]) {
 			calculate_resize_ratios(param, RSZ_B);
 			calculate_sdram_offsets(param, RSZ_B);
+
+			/* Overriding resize ratio calculation */
+			if (ss_config->input.pix_fmt == IPIPE_420SP_C)
+			{
+				param->rsz_rsc_param[RSZ_B].v_dif =
+				    (((param->ipipe_vsz + 1) * 2) * 256) /
+				    (param->rsz_rsc_param[RSZ_B].o_vsz + 1);
+			}
 		}
 	}
 	mutex_unlock(&oper_state.lock);
@@ -3596,7 +3640,7 @@ static int ipipe_reconfig_resizer(struct device *dev,
 		dev_err(dev, "reconfig - pixel format incorrect");
 		return -EINVAL;
 	}
-	if (param->rsz_common.src_img_fmt != IPIPE_YUV420SP) {
+	if (param->rsz_common.src_img_fmt != RSZ_IMG_420) {
 		dev_err(dev, "reconfig - source format originally"
 				"configured is not YUV420SP\n");
 		return -EINVAL;
