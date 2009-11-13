@@ -80,9 +80,12 @@
 
 #include "ccdc_hw_device.h"
 
+#define PAL_IMAGE_SIZE		ALIGN((720 * 576 * 2), 4096)
+#define SECOND_IMAGE_SIZE_MAX	ALIGN((640 * 480 * 2), 4096)
+
 static int debug;
 static u32 numbuffers = 3;
-static u32 bufsize = (720 * 576 * 2);
+static u32 bufsize = PAL_IMAGE_SIZE + SECOND_IMAGE_SIZE_MAX;
 static int interface;
 
 module_param(interface, bool, S_IRUGO);
@@ -1811,10 +1814,15 @@ static int vpfe_videobuf_setup(struct videobuf_queue *vq,
 	 * than or equal to the maximum specified in the driver. Assume here the
 	 * user has called S_FMT and sizeimage has been calculated.
 	 */
-	*size = vpfe_dev->fmt.fmt.pix.sizeimage;
-	if (vpfe_dev->memory == V4L2_MEMORY_MMAP &&
-	    vpfe_dev->fmt.fmt.pix.sizeimage > config_params.device_bufsize)
-		*size = config_params.device_bufsize;
+	if (vpfe_dev->second_output)
+		*size += vpfe_dev->second_out_img_sz;
+
+	*size = ALIGN(vpfe_dev->fmt.fmt.pix.sizeimage, 4096);
+	if (vpfe_dev->memory == V4L2_MEMORY_MMAP) {
+		/* Limit maximum to what is configured */
+		if (*size > config_params.device_bufsize)
+			*size = config_params.device_bufsize;
+	}
 
 	if (*count < config_params.min_numbuffers)
 		*count = config_params.min_numbuffers;
@@ -2025,7 +2033,11 @@ static void vpfe_calculate_offsets(struct vpfe_device *vpfe_dev)
 			vpfe_dev->second_off = vpfe_dev->fmt.fmt.pix.sizeimage;
 	}
 	vpfe_dev->field_off = (vpfe_dev->field_off + 31) & ~0x1F;
-	vpfe_dev->second_off = (vpfe_dev->second_off + 31) & ~0x1F;
+	/**
+	 * Adjust the second offset to page boundary since user_pages are
+	 * aligned to page boundary
+	 */
+	vpfe_dev->second_off = (vpfe_dev->second_off + 4095) & ~0xfff;
 }
 
 /* vpfe_start_ccdc_capture: start streaming in ccdc/isif */
@@ -2498,7 +2510,7 @@ static struct vpfe_device *vpfe_initialize(void)
 	config_params.numbuffers = numbuffers;
 
 	if (numbuffers)
-		config_params.device_bufsize = bufsize;
+		config_params.device_bufsize = ALIGN(bufsize, 4096);
 
 	/* Allocate memory for device objects */
 	vpfe_dev = kzalloc(sizeof(*vpfe_dev), GFP_KERNEL);

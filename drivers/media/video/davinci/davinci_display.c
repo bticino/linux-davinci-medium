@@ -94,46 +94,6 @@ static struct v4l2_rect hd_720p_bounds = DAVINCI_DISPLAY_WIN_720P;
 static struct v4l2_rect hd_1080i_bounds = DAVINCI_DISPLAY_WIN_1080I;
 
 /*
- * davinci_uservirt_to_phys()
- * This inline function is used to convert user space virtual address
- * to physical address.
- */
-static inline u32 davinci_uservirt_to_phys(u32 virtp)
-{
-	struct mm_struct *mm = current->mm;
-	unsigned long physp = 0;
-	struct vm_area_struct *vma;
-
-	vma = find_vma(mm, virtp);
-
-	/* For kernel direct-mapped memory, take the easy way */
-	if (virtp >= PAGE_OFFSET)
-		physp = virt_to_phys((void *)virtp);
-	else if (vma && (vma->vm_flags & VM_IO) && (vma->vm_pgoff))
-		/* this will catch, kernel-allocated, mmaped-to-usermode addr */
-		physp = (vma->vm_pgoff << PAGE_SHIFT) + (virtp - vma->vm_start);
-	else {
-		/* otherwise, use get_user_pages() for general userland pages */
-		int res, nr_pages = 1;
-		struct page *pages;
-		down_read(&current->mm->mmap_sem);
-
-		res = get_user_pages(current, current->mm,
-				     virtp, nr_pages, 1, 0, &pages, NULL);
-		up_read(&current->mm->mmap_sem);
-
-		if (res == nr_pages)
-			physp = __pa(page_address(&pages[0]) +
-				     (virtp & ~PAGE_MASK));
-		else {
-			dev_dbg(davinci_display_dev, "get_user_pages failed\n");
-			return 0;
-		}
-	}
-	return physp;
-}
-
-/*
  * davinci_buffer_prepare()
  * This is the callback function called from videobuf_qbuf() function
  * the buffer is prepared and user space virtual address is converted into
@@ -156,8 +116,11 @@ static int davinci_buffer_prepare(struct videobuf_queue *q,
 		vb->field = field;
 
 		ret = videobuf_iolock(q, vb, NULL);
-		if (ret < 0)
+		if (ret < 0) {
+			dev_err(davinci_display_dev, "Failed to map \
+				user address\n");
 			goto buf_align_exit;
+		}
 
 		addr = videobuf_to_dma_contig(vb);
 
@@ -186,15 +149,21 @@ static int davinci_buffer_setup(struct videobuf_queue *q, unsigned int *count,
 	/* Get the file handle object and layer object */
 	struct davinci_fh *fh = q->priv_data;
 	struct display_obj *layer = fh->layer;
+	int buf_size;
 
 	dev_dbg(davinci_display_dev, "<davinci_buffer_setup>\n");
 
-	/* If memory type is not mmap, return */
-	if (V4L2_MEMORY_MMAP != layer->memory)
-		return 0;
+	*size = layer->pix_fmt.sizeimage;
+	buf_size = display_buf_config_params.layer_bufsize[layer->device_id];
 
-	/* Calculate the size of the buffer */
-	*size = display_buf_config_params.layer_bufsize[layer->device_id];
+	/**
+	 * For MMAP, limit the memory allocation as per bootarg
+	 * configured buffer size
+	 */
+	if (V4L2_MEMORY_MMAP == layer->memory)
+		if (*size > buf_size)
+			*size = buf_size;
+
 	/* Store number of buffers allocated in numbuffer member */
 	if (*count < display_buf_config_params.min_numbuffers)
 		*count = layer->numbuffers = display_buf_config_params.numbuffers[layer->device_id];
