@@ -1307,7 +1307,7 @@ static long vpbe_param_handler(struct file *file, void *priv,
 	case VIDIOC_S_COFST:
 		davinci_dm.cbcr_ofst = *((unsigned long *) param);
 		mutex_unlock(&davinci_dm.lock);
-	
+		break;
 	default:
 		ret = -EINVAL;
 	}
