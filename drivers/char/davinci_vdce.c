@@ -504,10 +504,10 @@ static int edma3_memcpy(int acnt, int bcnt, int ccnt,
 		/* Allocate Any EDMA Channel*/
 		dma_ch = edma_alloc_channel(EDMA_CHANNEL_ANY, callback1, NULL,
 							EVENTQ_DEFAULT);
-		if (0 < dma_ch) {
+		if (0 > dma_ch) {
 			dev_err(vdce_device, "Cannot Allocate Channel:%d\n",
-									result);
-			return result;
+									dma_ch);
+			return dma_ch;
 		}
 
 		/* Set the Source EDMA Params */
