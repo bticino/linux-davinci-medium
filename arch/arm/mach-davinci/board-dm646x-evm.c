@@ -91,12 +91,6 @@
 #endif
 
 
-#if defined(CONFIG_CIR)
-#define HAS_CIR 1
-#else
-#define HAS_CIR 0
-#endif
-
 #define DAVINCI_ASYNC_EMIF_CONTROL_BASE		0x20008000
 #define DAVINCI_ASYNC_EMIF_DATA_CE0_BASE	0x42000000
 
@@ -267,49 +261,33 @@ static struct i2c_client *cpld_reg0_client;
 static int cpld_reg0_probe(struct i2c_client *client,
 			   const struct i2c_device_id *id)
 {
-	cpld_reg0_client = client;
-	if (HAS_ATA && !HAS_PCI) {
-		u8 data;
-		struct i2c_msg msg[2] = {
-			{
-				.addr = client->addr,
-				.flags = I2C_M_RD,
-				.len = 1,
-				.buf = &data,
-			},
-			{
-				.addr = client->addr,
-				.flags = 0,
-				.len = 1,
-				.buf = &data,
-			},
-		};
+	u8 data;
+	struct i2c_msg msg[2] = {
+		{
+			.addr = client->addr,
+			.flags = I2C_M_RD,
+			.len = 1,
+			.buf = &data,
+		},
+		{
+			.addr = client->addr,
+			.flags = 0,
+			.len = 1,
+			.buf = &data,
+		},
+	};
 
-		/* Clear ATA_RSTn and ATA_PWD bits to enable ATA operation. */
-		i2c_transfer(client->adapter, msg, 1);
-		data &= ~(DM646X_EVM_ATA_RST | DM646X_EVM_ATA_PWD);
-		i2c_transfer(client->adapter, msg + 1, 1);
-	}
-	if (HAS_CIR) {
-		u8 data;
-		struct i2c_msg msg[2] = {
-			{
-				.addr = client->addr,
-				.flags = I2C_M_RD,
-				.len = 1,
-				.buf = &data,
-			},
-			{
-				.addr = client->addr,
-				.flags = 0,
-				.len = 1,
-				.buf = &data,
-			},
-		};
+	cpld_reg0_client = client;
 
 	/* Clear UART CIR to enable cir operation. */
 		i2c_transfer(client->adapter, msg, 1);
 		data &= ~(DM646X_EVM_CIR_UART);
+		i2c_transfer(client->adapter, msg + 1, 1);
+
+	if (HAS_ATA && !HAS_PCI) {
+		/* Clear ATA_RSTn and ATA_PWD bits to enable ATA operation. */
+		i2c_transfer(client->adapter, msg, 1);
+		data &= ~(DM646X_EVM_ATA_RST | DM646X_EVM_ATA_PWD);
 		i2c_transfer(client->adapter, msg + 1, 1);
 	}
 
@@ -951,6 +929,7 @@ static __init void evm_init(void)
 	davinci_serial_init(&uart_config);
 	dm646x_init_mcasp0(&dm646x_evm_snd_data[0]);
 	dm646x_init_mcasp1(&dm646x_evm_snd_data[1]);
+	dm646x_init_cir_device();
 
 	if (HAS_PCI) {
 		if (HAS_ATA)
@@ -963,10 +942,9 @@ static __init void evm_init(void)
 					"\tDisable PCI for NAND support.\n");
 		dm646xevm_pci_setup();
 	} else {
+
 		if (HAS_ATA)
 			dm646x_init_ide();
-		if (HAS_CIR)
-			dm646x_init_cir_device();
 		if (HAS_NAND)
 			platform_device_register(&davinci_nand_device);
 	}
