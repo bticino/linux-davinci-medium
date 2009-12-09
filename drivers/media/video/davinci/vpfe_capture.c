@@ -80,8 +80,8 @@
 
 #include "ccdc_hw_device.h"
 
-#define PAL_IMAGE_SIZE		ALIGN((720 * 576 * 2), 4096)
-#define SECOND_IMAGE_SIZE_MAX	ALIGN((640 * 480 * 2), 4096)
+#define PAL_IMAGE_SIZE		(720 * 576 * 2)
+#define SECOND_IMAGE_SIZE_MAX	(640 * 480 * 2)
 
 static int debug;
 static u32 numbuffers = 3;
@@ -105,7 +105,7 @@ module_param(debug, bool, 0644);
  */
 MODULE_PARM_DESC(interface, "interface 0-1 (default:0)");
 MODULE_PARM_DESC(numbuffers, "buffer count (default:3)");
-MODULE_PARM_DESC(bufsize, "buffer size in bytes (default:720 x 576 x 2)");
+MODULE_PARM_DESC(bufsize, "buffer size in bytes, (default:1443840 bytes)");
 MODULE_PARM_DESC(debug, "Debug level 0-1");
 
 MODULE_DESCRIPTION("VPFE Video for Linux Capture Driver");
@@ -1814,10 +1814,10 @@ static int vpfe_videobuf_setup(struct videobuf_queue *vq,
 	 * than or equal to the maximum specified in the driver. Assume here the
 	 * user has called S_FMT and sizeimage has been calculated.
 	 */
+	*size = vpfe_dev->fmt.fmt.pix.sizeimage;
 	if (vpfe_dev->second_output)
 		*size += vpfe_dev->second_out_img_sz;
 
-	*size = ALIGN(vpfe_dev->fmt.fmt.pix.sizeimage, 4096);
 	if (vpfe_dev->memory == V4L2_MEMORY_MMAP) {
 		/* Limit maximum to what is configured */
 		if (*size > config_params.device_bufsize)
@@ -2032,12 +2032,9 @@ static void vpfe_calculate_offsets(struct vpfe_device *vpfe_dev)
 		if (vpfe_dev->second_output)
 			vpfe_dev->second_off = vpfe_dev->fmt.fmt.pix.sizeimage;
 	}
-	vpfe_dev->field_off = (vpfe_dev->field_off + 31) & ~0x1F;
-	/**
-	 * Adjust the second offset to page boundary since user_pages are
-	 * aligned to page boundary
-	 */
-	vpfe_dev->second_off = (vpfe_dev->second_off + 4095) & ~0xfff;
+	vpfe_dev->field_off = (vpfe_dev->field_off + 31) & ~0x1f;
+	/* Adjust the second offset to 32 byte boundary */
+	vpfe_dev->second_off = (vpfe_dev->second_off + 31) & ~0x1f;
 }
 
 /* vpfe_start_ccdc_capture: start streaming in ccdc/isif */
