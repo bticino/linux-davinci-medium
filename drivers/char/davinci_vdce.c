@@ -43,6 +43,8 @@ unsigned int vdce_counter = 0;
 unsigned int edma_counter = 0;
 #define	DRIVERNAME	"DavinciHD_vdce"
 #define VDCE_INTERRUPT	12
+#define VDCE_EDMA_TC	EVENTQ_0
+#define VDCE_EDMA_CHANNEL	EDMA_CHANNEL_ANY
 
 MODULE_LICENSE("GPL");
 DECLARE_TASKLET(short_tasklet, process_bottomhalf, 0);
@@ -502,8 +504,8 @@ static int edma3_memcpy(int acnt, int bcnt, int ccnt,
 
 	for (p = 0; p <= numtimes; p++) {
 		/* Allocate Any EDMA Channel*/
-		dma_ch = edma_alloc_channel(EDMA_CHANNEL_ANY, callback1, NULL,
-							EVENTQ_DEFAULT);
+		dma_ch = edma_alloc_channel(VDCE_EDMA_CHANNEL, callback1, NULL,
+							VDCE_EDMA_TC);
 		if (0 > dma_ch) {
 			dev_err(vdce_device, "Cannot Allocate Channel:%d\n",
 									dma_ch);
