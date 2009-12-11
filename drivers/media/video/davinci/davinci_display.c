@@ -261,11 +261,13 @@ static void davinci_display_isr(unsigned int event, void *dispObj)
 				/* Mark status of the curFrm to
 				 * done and unlock semaphore on it
 				 */
-				layer->curFrm->ts = timevalue;
-				layer->curFrm->state = VIDEOBUF_DONE;
-				wake_up_interruptible(&layer->curFrm->done);
-				/* Make curFrm pointing to nextFrm */
-				layer->curFrm = layer->nextFrm;
+				if (layer->curFrm != layer->nextFrm) {
+					layer->curFrm->ts = timevalue;
+					layer->curFrm->state = VIDEOBUF_DONE;
+					wake_up_interruptible(&layer->curFrm->done);
+					/* Make curFrm pointing to nextFrm */
+					layer->curFrm = layer->nextFrm;
+				}
 			}
 			/* Get the next buffer from buffer queue */
 			layer->nextFrm =
