@@ -686,6 +686,7 @@ static struct edma_soc_info dm646x_edma_info[] = {
 		.rsv_slots		= dm646x_dma_rsv_slots,
 		.queue_tc_mapping	= dm646x_queue_tc_mapping,
 		.queue_priority_mapping	= dm646x_queue_priority_mapping,
+		.default_queue		= EVENTQ_3,
 	},
 };
 
