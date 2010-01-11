@@ -865,6 +865,7 @@ static struct vpif_capture_config dm646x_vpif_capture_cfg = {
 	.setup_input_channel_mode = setup_vpif_input_channel_mode,
 	.subdev_info = vpif_capture_sdev_info,
 	.subdev_count = ARRAY_SIZE(vpif_capture_sdev_info),
+	.card_name	= "DM646x EVM",
 	.chan_config[0] = {
 		.inputs = dm6467_ch0_inputs,
 		.input_count = ARRAY_SIZE(dm6467_ch0_inputs),
