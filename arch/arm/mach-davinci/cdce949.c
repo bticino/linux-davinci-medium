@@ -20,6 +20,7 @@
 #include "mux.h"
 
 struct i2c_client *cdce_client;
+static DEFINE_MUTEX(cdce_mutex);
 
 /* Structure to hold the register values for different frequencies */
 
@@ -120,6 +121,7 @@ static int cdce_set_rate(struct clk *clk, unsigned long rate)
 	if (freq_val == NULL)
 		return -EINVAL;
 
+	mutex_lock(&cdce_mutex);
 	if (!(strcmp(clk->name, "cdce_vpif"))) {
 		if (rate == 148000) {
 			err |= i2c_smbus_write_byte_data(client,
@@ -251,7 +253,7 @@ static int cdce_set_rate(struct clk *clk, unsigned long rate)
 		err |= i2c_smbus_write_byte_data(client,
 					0x03 | 0x80, 0x01);
 	}
-
+	mutex_unlock(&cdce_mutex);
 
 	if (err)
 		return -EINVAL;

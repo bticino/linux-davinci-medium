@@ -126,22 +126,17 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 
 	if (clk == NULL || IS_ERR(clk))
 		return ret;
-/* NOTE: We need to relook into this as CDCE clock set rate
- * calls i2c_smbus_write which inturn sleeps
- * As sleep is not allowed in atomic context, this
- * creates a kernel crash. Needs to be reworked after
- * Sekhar's patch is accepted
- */
 
-/* spin_lock_irqsave(&clockfw_lock, flags); */
 	if (clk->set_rate)
 		ret = clk->set_rate(clk, rate);
+
+	spin_lock_irqsave(&clockfw_lock, flags);
 	if (ret == 0) {
 		if (clk->recalc)
 			clk->rate = clk->recalc(clk);
 		propagate_rate(clk);
 	}
-/* spin_unlock_irqrestore(&clockfw_lock, flags); */
+	spin_unlock_irqrestore(&clockfw_lock, flags);
 
 	return ret;
 }
@@ -368,6 +363,7 @@ int davinci_set_pllrate(struct pll_data *pll, unsigned int prediv,
 {
 	u32 ctrl;
 	unsigned int locktime;
+	unsigned long flags;
 
 	if (pll->base == NULL)
 		return -EINVAL;
@@ -387,6 +383,9 @@ int davinci_set_pllrate(struct pll_data *pll, unsigned int prediv,
 		postdiv = (postdiv - 1) | PLLDIV_EN;
 	if (mult)
 		mult = mult - 1;
+
+	/* Protect against simultaneous calls to PLL setting seqeunce */
+	spin_lock_irqsave(&clockfw_lock, flags);
 
 	ctrl = __raw_readl(pll->base + PLLCTL);
 
@@ -428,6 +427,8 @@ int davinci_set_pllrate(struct pll_data *pll, unsigned int prediv,
 	/* Remove PLL from bypass mode */
 	ctrl |= PLLCTL_PLLEN;
 	__raw_writel(ctrl, pll->base + PLLCTL);
+
+	spin_unlock_irqrestore(&clockfw_lock, flags);
 
 	return 0;
 }
