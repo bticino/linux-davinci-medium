@@ -1467,7 +1467,7 @@ static int vpfe_s_fmt_vid_cap(struct file *file, void *priv,
 
 	sdinfo = vpfe_dev->current_subdev;
 	if (sdinfo->is_camera) {
-		/**
+		/*
 		 * TODO. Current implementation of camera sub device calculates
 		 * sensor timing values based on S_FMT. So we need to
 		 * explicitely call S_FMT first and make sure it succeeds before
@@ -1486,16 +1486,20 @@ static int vpfe_s_fmt_vid_cap(struct file *file, void *priv,
 			goto s_fmt_out;
 	}
 
-
-	if (!ret)
-		vpfe_dev->fmt = *fmt;
+	vpfe_dev->fmt = *fmt;
 
 	if (!vpfe_dev->imp_chained) {
-		if (!ret)
-			/* set image capture parameters in the ccdc if */
-			ret = vpfe_config_ccdc_image_format(vpfe_dev);
+		/*
+		 * Set Crop size to frame size when only ccdc is involved.
+		 * Application needs to cal S_CROP to change it after S_FMT
+		 */
+		vpfe_dev->crop.width = fmt->fmt.pix.width;
+		vpfe_dev->crop.height = fmt->fmt.pix.height;
+
+		/* set image capture parameters in the ccdc if */
+		ret = vpfe_config_ccdc_image_format(vpfe_dev);
 	} else {
-		/**
+		/*
 		 * currently S_FMT does scaling at the sensor and input to
 		 * to CCDC is this scaled output for camera capture. So SoC
 		 * resizer can be used to zoom/scale up a rectangle of input

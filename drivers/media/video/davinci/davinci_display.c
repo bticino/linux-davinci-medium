@@ -103,6 +103,9 @@ static int davinci_buffer_prepare(struct videobuf_queue *q,
 				  struct videobuf_buffer *vb,
 				  enum v4l2_field field)
 {
+
+	struct davinci_fh *fh = q->priv_data;
+	struct display_obj *layer = fh->layer;
 	unsigned long addr;
 	int ret = 0;
 
@@ -110,9 +113,9 @@ static int davinci_buffer_prepare(struct videobuf_queue *q,
 
 	/* If buffer is not initialized, initialize it */
 	if (VIDEOBUF_NEEDS_INIT == vb->state) {
-		vb->width = davinci_dm.mode_info.xres;
-		vb->height = davinci_dm.mode_info.yres;
-		vb->size = vb->width * vb->height;
+		vb->width = layer->pix_fmt.width;
+		vb->height = layer->pix_fmt.height;
+		vb->size = layer->pix_fmt.sizeimage;
 		vb->field = field;
 
 		ret = videobuf_iolock(q, vb, NULL);
