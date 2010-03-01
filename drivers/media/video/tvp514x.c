@@ -199,6 +199,8 @@ static struct tvp514x_reg tvp514x_reg_list_default[] = {
 	{TOK_TERM, 0, 0},
 };
 
+static int tvp514x_s_stream(struct v4l2_subdev *sd, int enable);
+
 /**
  * List of image formats supported by TVP5146/47 decoder
  * Currently we are using 8 bit mode only, but can be
@@ -651,10 +653,19 @@ static int tvp514x_s_routing(struct v4l2_subdev *sd,
 		/* Index out of bound */
 		return -EINVAL;
 
-	/* Since this api is goint to detect the input, it is required
-	   to set the standard in the auto switch mode */
+	/*
+	 * For the sequence streamon -> streamoff and again s_input, most of
+	 * the time, it fails to lock the signal, since streamoff puts TVP514x
+	 * into power off state which leads to failure in sub-sequent s_input.
+	 */
+	tvp514x_s_stream(sd, 1);
+
+	/*
+	 * Since this api is goint to detect the input, it is required
+	 * to set the standard in the auto switch mode
+	 */
 	err = tvp514x_write_reg(sd, REG_VIDEO_STD,
-			VIDEO_STD_AUTO_SWITCH_BIT);
+		VIDEO_STD_AUTO_SWITCH_BIT);
 	if (err < 0)
 		return err;
 
