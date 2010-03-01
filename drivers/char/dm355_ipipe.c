@@ -536,20 +536,15 @@ static void ipipe_enable(unsigned char en, void *config)
 {
 	unsigned char val = 0;
 
-	printk(KERN_DEBUG "ipipe_enable - begin, en = %d\n", val);
 	if (en)
 		val = 1;
-	if (en) {
-		//regw_vpss(0x79, VPSS_CLK);
-		
+	if (en)
 		regw_ip(0xff, IRQ_EN);
-	} else
+	else
 		regw_ip(0x0, IRQ_EN);
 
 	if (oper_mode == IMP_MODE_CONTINUOUS) {
-		// TODO call vpss api here
 		vpss_enable_clock(VPSS_IPIPE_CLOCK, 1);
-		//while (regr_vpss(VPSS_PCR) & 4);
 		regw_if(val, IPIPEIF_ENABLE);
 		if (oper_state.shared_config_param->rsz_en[0])
 			rsz_enable(0, en);
@@ -563,7 +558,6 @@ static void ipipe_enable(unsigned char en, void *config)
 		while (regr_if(IPIPEIF_ENABLE));
 		regw_if(val, IPIPEIF_ENABLE);
 	}
-	printk(KERN_DEBUG "ipipe_enable-end, en = %d\n", val);
 }
 static int set_pf_params(struct device *dev, void *param, int len)
 {

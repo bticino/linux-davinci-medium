@@ -306,7 +306,6 @@ int ipipe_set_resizer_address(struct ipipe_params *params,
 	unsigned int utemp;
 	unsigned int rsz_start_add;
 
-	printk(KERN_DEBUG "ipipe_set_resizer_address %d\n", resize_no);
 	if (ISNULL(params)) {
 		printk(KERN_ERR "null ptr for params\n");
 		return -1;
@@ -332,14 +331,10 @@ int ipipe_set_resizer_address(struct ipipe_params *params,
 	regw_ip(params->ext_mem_param[resize_no].rsz_sdr_oft,
 		rsz_start_add + RSZ_SDR_OFT);
 
-	printk(KERN_DEBUG "ipipe_set_resizer_address = %x:%x\n", utemp,
-	       address);
 	regw_ip(utemp, rsz_start_add + RSZ_SDR_BAD_L);
 	regw_ip(utemp, rsz_start_add + RSZ_SDR_SAD_L);
 
 	utemp = (address & SET_HIGH_ADD) >> 16;
-	printk(KERN_DEBUG "ipipe_set_resizer_address = %x:%x\n", utemp,
-	       address);
 	regw_ip(utemp, rsz_start_add + RSZ_SDR_BAD_H);
 	regw_ip(utemp, rsz_start_add + RSZ_SDR_SAD_H);
 	return 0;
