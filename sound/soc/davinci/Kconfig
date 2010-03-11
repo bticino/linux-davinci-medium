@@ -25,6 +25,14 @@ config SND_DAVINCI_SOC_EVM
 	  Say Y if you want to add support for SoC audio on TI
 	  DaVinci DM6446 or DM355 EVM platforms.
 
+config SND_DM365_VOICE_CODEC
+	bool "Voice Codec - CQ93VC"
+	select MFD_DAVINCI_VOICECODEC
+	select SND_DAVINCI_SOC_VCIF
+	select SND_SOC_CQ0093VC
+	help
+	  Say Y if you want to add support for SoC On-chip voice codec
+
 config  SND_DM6467_SOC_EVM
 	tristate "SoC Audio support for DaVinci DM6467 EVM"
 	depends on SND_DAVINCI_SOC && MACH_DAVINCI_DM6467_EVM
