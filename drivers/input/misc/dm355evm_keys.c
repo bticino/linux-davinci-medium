@@ -47,11 +47,11 @@ static struct {
 	 * is to the right.  (That is, rotate the board counter-clockwise
 	 * by 90 degrees from the SW10/etc and "DM355 EVM" labels.)
 	 */
-	{ 0x00d8, KEY_OK, },		/* SW12 */
-	{ 0x00b8, KEY_UP, },		/* SW13 */
-	{ 0x00e8, KEY_DOWN, },		/* SW11 */
-	{ 0x0078, KEY_LEFT, },		/* SW14 */
-	{ 0x00f0, KEY_RIGHT, },		/* SW10 */
+	{ 0x302e, KEY_OK, },		/* SW12 */
+	{ 0x301c, KEY_UP, },		/* SW13 */
+	{ 0x301d, KEY_DOWN, },		/* SW11 */
+	{ 0x302c, KEY_LEFT, },		/* SW14 */
+	{ 0x302b, KEY_RIGHT, },		/* SW10 */
 
 	/*
 	 * IR buttons ... codes assigned to match the universal remote
@@ -80,13 +80,12 @@ static struct {
 	{ 0x30ec, KEY_MODE, },		/* "tv/vcr/..." */
 	{ 0x300f, KEY_SELECT, },	/* "info" */
 	{ 0x3020, KEY_CHANNELUP, },	/* "up" */
-	{ 0x302e, KEY_MENU, },		/* "in/out" */
+	{ 0x302e, KEY_OK, },		/* "in/out" */
 	{ 0x3011, KEY_VOLUMEDOWN, },	/* "left" */
 	{ 0x300d, KEY_MUTE, },		/* "ok" */
 	{ 0x3010, KEY_VOLUMEUP, },	/* "right" */
 	{ 0x301e, KEY_SUBTITLE, },	/* "cc" */
 	{ 0x3021, KEY_CHANNELDOWN, },	/* "down" */
-	{ 0x3022, KEY_PREVIOUS, },
 	{ 0x3026, KEY_SLEEP, },
 	{ 0x3172, KEY_REWIND, },	/* NOTE: docs wrongly say 0x30ca */
 	{ 0x3175, KEY_PLAY, },
