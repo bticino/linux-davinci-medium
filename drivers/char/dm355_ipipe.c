@@ -1618,7 +1618,15 @@ static void ipipe_config_resize_out_param(struct ipipe_params *param,
 			param->rsz_rsc_param[index].rsz_h_lpf =
 			    output->lpf_user_val;
 		}
-		param->ext_mem_param[index].rsz_sdr_oft = (output->width * 2);
+		if (!output->line_length)
+			param->ext_mem_param[index].rsz_sdr_oft =
+				(output->width * 2);
+		else
+			param->ext_mem_param[index].rsz_sdr_oft =
+					output->line_length;
+		/* adjust the line length to be a multiple of 32 */
+		param->ext_mem_param[index].rsz_sdr_oft =
+			((param->ext_mem_param[index].rsz_sdr_oft + 31) & ~0x1f);
 		param->ext_mem_param[index].rsz_sdr_ptr_s = output->vst;
 		param->ext_mem_param[index].rsz_sdr_ptr_e = output->height;
 	} else

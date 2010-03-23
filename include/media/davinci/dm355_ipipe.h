@@ -714,6 +714,12 @@ struct rsz_ss_output_spec {
 	unsigned int width;
 	/* height in lines */
 	unsigned int height;
+	/*
+	 * output image line length. Set this if you want to use a different
+	 * line length than that calculated based on image width. This should
+	 * a multiple of 32. Driver adjust this to the next 32 byte boundary
+	 */
+	unsigned int line_length;
 	/* line start offset. */
 	unsigned int vst;
 	/* pixel start offset.*/
