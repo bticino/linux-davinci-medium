@@ -60,6 +60,11 @@ static struct {
 	 * RC5 codes are 14 bits, with two start bits (0x3 prefix)
 	 * and a toggle bit (masked out below).
 	 */
+	{ 0x302e, KEY_OK, },
+	{ 0x301c, KEY_UP, },
+	{ 0x301d, KEY_DOWN, },
+	{ 0x302c, KEY_LEFT, },
+	{ 0x302b, KEY_RIGHT, },
 	{ 0x300c, KEY_POWER, },		/* NOTE: docs omit this */
 	{ 0x3000, KEY_NUMERIC_0, },
 	{ 0x3001, KEY_NUMERIC_1, },
@@ -75,13 +80,12 @@ static struct {
 	{ 0x30ec, KEY_MODE, },		/* "tv/vcr/..." */
 	{ 0x300f, KEY_SELECT, },	/* "info" */
 	{ 0x3020, KEY_CHANNELUP, },	/* "up" */
-	{ 0x302e, KEY_MENU, },		/* "in/out" */
+	{ 0x302e, KEY_OK, },		/* "in/out" */
 	{ 0x3011, KEY_VOLUMEDOWN, },	/* "left" */
 	{ 0x300d, KEY_MUTE, },		/* "ok" */
 	{ 0x3010, KEY_VOLUMEUP, },	/* "right" */
 	{ 0x301e, KEY_SUBTITLE, },	/* "cc" */
 	{ 0x3021, KEY_CHANNELDOWN, },	/* "down" */
-	{ 0x3022, KEY_PREVIOUS, },
 	{ 0x3026, KEY_SLEEP, },
 	{ 0x3172, KEY_REWIND, },
 	{ 0x3175, KEY_PLAY, },
