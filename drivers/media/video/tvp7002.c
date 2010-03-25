@@ -785,7 +785,7 @@ static void tvp7002_dump_register(struct v4l2_subdev *sd)
 
 	for (i = 0; i <= 0x5B; i++) {
 		val = tvp7002_read_reg(sd, i);
-		printk(KERN_NOTICE "reg %x, val = %x\n", i, val);
+		v4l2_dbg(1, debug, sd, "reg %x, val = %x\n", i, val);
 	}
 }
 
