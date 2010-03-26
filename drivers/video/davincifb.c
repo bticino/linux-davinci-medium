@@ -42,6 +42,17 @@
 #include <video/davincifb.h>
 #include <mach/cputype.h>
 
+struct davincifb_state {
+	bool invert_field;
+};
+
+static struct davincifb_state fb_state;
+static struct davincifb_state *fb = &fb_state;
+
+static struct davincifb_platform_data davincifb_pdata_default = {
+	.invert_field = false,
+};
+
 /* return non-zero if the info structure corresponds to OSD0 or OSD1 */
 static int is_osd_win(const struct fb_info *info)
 {
@@ -1610,13 +1621,11 @@ static int davincifb_set_par(struct fb_info *info)
 	   the image shaking problem in 1080I mode. The problem i.d. by the
 	   DM6446 Advisory 1.3.8 is not seen in 1080I mode, but the ping-pong
 	   buffer workaround created a shaking problem. */
-/* Sandeep */
-#if 0
 	if (win->layer == WIN_VID0 &&
-	    strcmp(mode.name, VID_ENC_STD_1080I_30) == 0 &&
-	    (cpu_is_davinci_dm644x_pg1x() || cpu_is_davinci_dm357()))
+			strcmp(mode.name, VID_ENC_STD_1080I_30) == 0 &&
+			fb->invert_field)
 		davinci_disp_set_field_inversion(0);
-#endif
+
 	/*
 	 * Update the var with the encoder timing info.  The window geometry
 	 * will be preserved.
@@ -2287,11 +2296,14 @@ module_param(options, charp, S_IRUGO);
 
 static int davincifb_probe(struct device *dev)
 {
-//	struct device *dev = &pdev->dev;
 	struct vpbe_dm_info *dm;
 	struct davinci_layer_config lconfig;
 	unsigned fb_size;
 	int err;
+	struct davincifb_platform_data *pdata = dev->platform_data;
+
+	if (!pdata)
+		pdata = &davincifb_pdata_default;
 
 	dm = kzalloc(sizeof(*dm), GFP_KERNEL);
 	if (!dm) {
@@ -2367,6 +2379,8 @@ static int davincifb_probe(struct device *dev)
 	dm->vsync_callback.handler = davincifb_vsync_callback;
 	dm->vsync_callback.arg = dm;
 	davinci_disp_register_callback(&dm->vsync_callback);
+
+	fb->invert_field = pdata->invert_field;
 
 	return 0;
 

@@ -711,7 +711,7 @@ static struct platform_device dm365_ipipeif_dev = {
 static u64 dm365_osd_dma_mask = DMA_BIT_MASK(32);
 
 static struct davinci_osd_platform_data dm365_osd_pdata = {
-	.type = DM365,
+	.invert_field = false,
 };
 
 static struct resource dm365_osd_resources[] = {
@@ -743,7 +743,7 @@ static u64 dm365_venc_dma_mask = DMA_BIT_MASK(32);
 
 
 static struct davinci_venc_platform_data dm365_venc_pdata = {
-	.soc = DM36x,
+	.invert_field = false,
 };
 
 

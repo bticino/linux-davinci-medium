@@ -12,14 +12,8 @@
 #ifndef _DAVINCI_OSD_H
 #define _DAVINCI_OSD_H
 
-enum soc_type {
-	DM6446 = 0,
-	DM355,
-	DM365,
-};
-
 struct davinci_osd_platform_data {
-	enum soc_type type;
+	unsigned char invert_field;
 };
 
 /**
@@ -855,15 +849,6 @@ void davinci_disp_get_cursor_config(struct davinci_cursor_config *cursor);
  * video windows.  It is only significant when the display is interlaced.
  */
 void davinci_disp_set_field_inversion(int enable);
-
-/**
- * davinci_disp_get_field_inversion
- * Returns: 1 if field signal inversion is enabled, or 0 otherwise
- *
- * Description:
- * Get the field signal inversion state.
- */
-int davinci_disp_get_field_inversion(void);
 
 /**
  * davinci_disp_register_callback

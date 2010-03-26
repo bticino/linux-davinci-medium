@@ -644,7 +644,7 @@ void dm644x_set_vpfe_config(struct vpfe_config *cfg)
 static u64 dm644x_osd_dma_mask = DMA_BIT_MASK(32);
 
 static struct davinci_osd_platform_data dm644x_osd_pdata = {
-	.type = DM6446,
+	.invert_field = true,
 };
 
 static struct resource dm644x_osd_resources[] = {
@@ -676,7 +676,7 @@ static u64 dm644x_venc_dma_mask = DMA_BIT_MASK(32);
 
 
 static struct davinci_venc_platform_data dm644x_venc_pdata = {
-	.soc = DM644x,
+	.invert_field = true,
 };
 
 
@@ -837,10 +837,14 @@ static int __init dm644x_init_devices(void)
 	platform_device_register(&dm644x_ccdc_dev);
 	platform_device_register(&vpfe_capture_dev);
 
+	if (cpu_is_davinci_dm644x_v21())
+		dm644x_osd_pdata.invert_field = false;
 	/* Register OSD device */
 	platform_device_register(&dm644x_osd_dev);
 
 	/* Register VENC device */
+	if (cpu_is_davinci_dm644x_v21())
+		dm644x_venc_pdata.invert_field = false;
 	platform_device_register(&dm644x_venc_dev);
 
 	return 0;

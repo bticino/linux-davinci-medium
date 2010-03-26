@@ -41,6 +41,7 @@
 
 #include <mach/dm644x.h>
 #include <mach/common.h>
+#include <mach/cputype.h>
 #include <mach/i2c.h>
 #include <mach/serial.h>
 #include <mach/mux.h>
@@ -48,6 +49,8 @@
 #include <mach/nand.h>
 #include <mach/mmc.h>
 #include <mach/emac.h>
+
+#include <video/davincifb.h>
 
 #define DM644X_EVM_PHY_MASK		(0x2)
 #define DM644X_EVM_MDIO_FREQUENCY	(2200000) /* PHY bus frequency */
@@ -185,6 +188,10 @@ static struct platform_device davinci_evm_nandflash_device = {
 	.resource	= davinci_evm_nandflash_resource,
 };
 
+static struct davincifb_platform_data davincifb_pdata = {
+	.invert_field = true,
+};
+
 static u64 davinci_fb_dma_mask = DMA_BIT_MASK(32);
 
 static struct platform_device davinci_fb_device = {
@@ -193,6 +200,7 @@ static struct platform_device davinci_fb_device = {
 	.dev = {
 		.dma_mask		= &davinci_fb_dma_mask,
 		.coherent_dma_mask      = DMA_BIT_MASK(32),
+		.platform_data		= &davincifb_pdata,
 	},
 	.num_resources = 0,
 };
@@ -733,6 +741,8 @@ static __init void davinci_evm_init(void)
 			platform_device_register(&davinci_evm_norflash_device);
 	}
 
+	if (cpu_is_davinci_dm644x_v21())
+		davincifb_pdata.invert_field = false;
 	platform_add_devices(davinci_evm_devices,
 			     ARRAY_SIZE(davinci_evm_devices));
 	evm_init_i2c();

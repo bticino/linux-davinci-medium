@@ -18,14 +18,8 @@
 #ifndef _DAVINCI_VPBE_H_
 #define _DAVINCI_VPBE_H_
 
-enum venc_soc_type {
-	DM644x = 0,
-	DM35x,
-	DM36x,
-};
-
 struct davinci_venc_platform_data {
-	enum venc_soc_type soc;
+	bool invert_field;
 };
 
 /* VPBE register base addresses */

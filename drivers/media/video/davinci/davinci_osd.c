@@ -53,6 +53,8 @@ struct davinci_cursor_state {
 	struct davinci_cursor_config config;
 };
 
+static bool field_inversion;
+
 struct davinci_osd_state {
 	spinlock_t lock;
 	struct device *dev;
@@ -64,7 +66,6 @@ struct davinci_osd_state {
 	struct davinci_disp_callback *callback;
 	int pingpong;		/* 1-->the isr will toggle the VID0 ping-pong buffer */
 	int interpolation_filter;
-	int field_inversion;
 	enum davinci_h_exp_ratio osd_h_exp;
 	enum davinci_v_exp_ratio osd_v_exp;
 	enum davinci_h_exp_ratio vid_h_exp;
@@ -282,18 +283,15 @@ EXPORT_SYMBOL(davinci_disp_register_callback);
  * Returns: 1 if the ping-pong buffers need to be toggled in the vsync isr, or
  *          0 otherwise
  */
-static int _davinci_disp_dm6446_vid0_pingpong(int field_inversion,
+static int _davinci_disp_dm6446_vid0_pingpong(int fld_inversion,
 					      unsigned long fb_base_phys,
 					      const struct davinci_layer_config
 					      *lconfig)
 {
-/* TODO */
-#if 0
-	if (!cpu_is_davinci_dm644x_pg1x())
+	if (!cpu_is_davinci_dm644x_v21())
 		return 0;
 
-
-	if (!field_inversion || !lconfig->interlaced) {
+	if (!fld_inversion || !lconfig->interlaced) {
 		osd_write(fb_base_phys & ~0x1F, OSD_VIDWIN0ADR);
 		osd_write(fb_base_phys & ~0x1F, OSD_PPVWIN0ADR);
 		osd_merge(OSD_MISCCTL_PPSW | OSD_MISCCTL_PPRV, 0, OSD_MISCCTL);
@@ -315,20 +313,15 @@ static int _davinci_disp_dm6446_vid0_pingpong(int field_inversion,
 
 		return 1;
 	}
-#endif
+
 	return 0;
 }
-
-int davinci_disp_get_field_inversion(void)
-{
-	return osd->field_inversion;
-}
-EXPORT_SYMBOL(davinci_disp_get_field_inversion);
 
 static void _davinci_disp_set_field_inversion(int enable)
 {
 	unsigned fsinv = 0;
 
+	field_inversion = (enable != 0);
 	if (enable)
 		fsinv = OSD_MODE_FSINV;
 
@@ -341,11 +334,10 @@ void davinci_disp_set_field_inversion(int enable)
 
 	spin_lock_irqsave(&osd->lock, flags);
 
-	osd->field_inversion = (enable != 0);
 	_davinci_disp_set_field_inversion(enable);
 
 	osd->pingpong =
-	    _davinci_disp_dm6446_vid0_pingpong(osd->field_inversion,
+	    _davinci_disp_dm6446_vid0_pingpong(field_inversion,
 					       osd->win[WIN_VID0].fb_base_phys,
 					       &osd->win[WIN_VID0].lconfig);
 
@@ -1582,7 +1574,7 @@ void davinci_disp_start_layer(enum davinci_disp_layer layer,
 
 	if (layer == WIN_VID0) {
 		osd->pingpong =
-		    _davinci_disp_dm6446_vid0_pingpong(osd->field_inversion,
+		    _davinci_disp_dm6446_vid0_pingpong(field_inversion,
 						       win->fb_base_phys,
 						       &win->lconfig);
 	}
@@ -2192,7 +2184,7 @@ int davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 
 	if (layer == WIN_VID0) {
 		osd->pingpong =
-		    _davinci_disp_dm6446_vid0_pingpong(osd->field_inversion,
+		    _davinci_disp_dm6446_vid0_pingpong(field_inversion,
 						       win->fb_base_phys,
 						       &win->lconfig);
 	}
@@ -2323,6 +2315,7 @@ static void _davinci_disp_init(void)
 
 static int davinci_osd_probe(struct platform_device *pdev)
 {
+	struct davinci_osd_platform_data *pdata = pdev->dev.platform_data;
 	struct resource *res;
 
 	osd->dev = &pdev->dev;
@@ -2371,7 +2364,8 @@ static int davinci_osd_probe(struct platform_device *pdev)
 		 */
 		osd->rom_clut = ROM_CLUT1;
 	}
-	_davinci_disp_set_field_inversion(osd->field_inversion);
+
+	_davinci_disp_set_field_inversion(pdata->invert_field);
 	_davinci_disp_set_rom_clut(osd->rom_clut);
 
 	davinci_disp_init_layer(WIN_OSD0);

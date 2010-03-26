@@ -21,6 +21,7 @@
 #define DAVINCIFB_H
 
 #include <video/davinci_osd.h>
+#include <linux/fb.h>
 #include <linux/poll.h>
 #include <linux/wait.h>
 
@@ -31,6 +32,10 @@
 #define OSD1_FBNAME "dm_osd1_fb"
 #define VID0_FBNAME "dm_vid0_fb"
 #define VID1_FBNAME "dm_vid1_fb"
+
+struct davincifb_platform_data {
+	bool invert_field;
+};
 
 /*  Structure for each window */
 struct vpbe_dm_win_info {
