@@ -657,11 +657,27 @@ int vdce_set_address(vdce_address_start_t * vdce_start,
 		    vdce_src_strt_add_ybot = vdce_conf_chan->
 		    register_config[0].vdce_res_strt_add_ybot;
 	}
-	src_address = vdce_start->buffers[0].offset +
-	    (vdce_conf_chan->get_params.common_params.src_vsp_luminance *
-	     src_pitch);
+	if (vdce_conf_chan->num_pass == VDCE_MULTIPASS) {
+		if (num_pass == 0) {
+			src_address = vdce_start->buffers[0].offset +
+				(vdce_conf_chan->get_params.common_params.src_vsp_luminance *
+				 src_pitch);
+		} else {
+			src_address = vdce_start->buffers[0].offset;
+		}
+	} else {
+		src_address = vdce_start->buffers[0].offset +
+			(vdce_conf_chan->get_params.common_params.src_vsp_luminance *
+			 src_pitch);
+	}
 	if (num_pass != 1) {
-		src_address = (src_address + ((no_of_lines * 2)));
+		if (vdce_conf_chan->image_type_in == VDCE_IMAGE_FMT_420) {
+			src_address = vdce_start->buffers[0].offset +
+				(no_of_lines * 2) + ((vdce_conf_chan->get_params.common_params.src_vsp_luminance/2) * src_pitch);
+		}
+		else {
+			src_address = (src_address + ((no_of_lines * 2)));
+		}
 	}
 	vdce_conf_chan->register_config[num_pass].vdce_src_strt_add_ctop =
 	    (src_address);
@@ -796,11 +812,26 @@ int vdce_set_address(vdce_address_start_t * vdce_start,
 		}
 	}
 	/* configure top field chroma addreess */
-	res_address = vdce_start->buffers[1].offset +
-	    (vdce_conf_chan->get_params.common_params.res_vsp_luminance *
-	     vdce_start->res_horz_pitch);
+	if (vdce_conf_chan->num_pass == VDCE_MULTIPASS) {
+		if (num_pass == 1) {
+			res_address = vdce_start->buffers[1].offset +
+				(vdce_conf_chan->get_params.common_params.res_vsp_luminance *
+				 vdce_start->res_horz_pitch);
+		} else {
+			res_address = vdce_start->buffers[1].offset;
+		}
+	} else {
+		res_address = vdce_start->buffers[1].offset +
+			(vdce_conf_chan->get_params.common_params.res_vsp_luminance *
+			 vdce_start->res_horz_pitch);
+	}
 	if (flag == 0) {
-		res_address = (res_address + (no_of_lines_output));
+		if (vdce_conf_chan->image_type_out == VDCE_IMAGE_FMT_420) {
+			res_address = vdce_start->buffers[1].offset +
+				no_of_lines_output + ((vdce_conf_chan->get_params.common_params.res_vsp_luminance/2) * vdce_start->res_horz_pitch);
+		} else {
+			res_address = (res_address + (no_of_lines_output));
+		}
 	}
 	vdce_conf_chan->register_config[num_pass].vdce_res_strt_add_ctop =
 	    (res_address);
@@ -837,6 +868,8 @@ int vdce_set_multipass_address(vdce_address_start_t * vdce_start,
 	int divider = 2;
 	int req_size = 0;
 	unsigned int address = 0, pitch = 0, res_size = 0;
+	unsigned int temp_vsp;
+
 	dev_dbg(vdce_device,
 		"<fn>vdce_set_multipass_address	Entering\n</fn>");
 	/* initially this first pass , so we have this flag as started */
@@ -856,9 +889,6 @@ int vdce_set_multipass_address(vdce_address_start_t * vdce_start,
 	} else {
 		pitch = vdce_start->res_horz_pitch;
 	}
-	temp_hsz_pitch = vdce_start->res_horz_pitch;
-	vdce_start->res_horz_pitch =
-	    (vdce_conf_chan->get_params.common_params.dst_hsz_luminance);
 	temp_size = vdce_start->buffers[1].size;
 	res_size = temp_size;
 
@@ -903,13 +933,10 @@ int vdce_set_multipass_address(vdce_address_start_t * vdce_start,
 	vdce_start->buffers[0].offset =
 	    virt_to_phys(((void *)device_config.inter_buffer));
 	/* configure input pitch */
-	vdce_start->src_horz_pitch =
-	    (vdce_conf_chan->get_params.common_params.dst_hsz_luminance);
 	vdce_start->buffers[0].size = ((device_config.inter_size * 2));
 	vdce_start->buffers[1].size = temp_size;
 	/*configure output pitch and address */
 	vdce_start->buffers[1].offset = temp_address;
-	vdce_start->res_horz_pitch = temp_hsz_pitch;
 
 	/* configure the addrress */
 	ret = vdce_set_address(vdce_start, vdce_conf_chan, 1,
@@ -1552,13 +1579,29 @@ int vdce_set_size_fmt(vdce_common_params_t * params,
 	    ((params->
 	      bmp_vsize / divider << SRC_BMP_VSZ_SHIFT) & (SRC_BMP_VSZ_MASK));
 
-	/* configuration for starting position */
 	vdce_conf_chan->register_config[num_pass].src_Y_strt_ps =
-	    params->src_hsp_luminance;
-	vdce_conf_chan->register_config[num_pass].src_C_strt_ps =
-	    params->src_hsp_luminance;
+		params->src_hsp_luminance;
 	vdce_conf_chan->register_config[num_pass].res_Y_strt_ps =
-	    params->res_hsp_luminance;
+		params->res_hsp_luminance;
+	/* configuration for starting position */
+	if (vdce_conf_chan->num_pass == VDCE_MULTIPASS) {
+		if (num_pass == 1) {
+			vdce_conf_chan->register_config[num_pass].src_C_strt_ps =
+				0;
+			vdce_conf_chan->register_config[num_pass].res_C_strt_ps =
+				params->res_hsp_luminance;
+		} else {
+			vdce_conf_chan->register_config[num_pass].src_C_strt_ps =
+				params->src_hsp_luminance;
+			vdce_conf_chan->register_config[num_pass].res_C_strt_ps =
+				0;
+		}
+	} else {
+		vdce_conf_chan->register_config[num_pass].src_C_strt_ps =
+			params->src_hsp_luminance;
+		vdce_conf_chan->register_config[num_pass].res_C_strt_ps =
+			params->res_hsp_luminance;
+	}
 
 	vdce_conf_chan->register_config[num_pass].src_bmp_strt_ps |=
 	    ((params->bmp_hsp_bitmap) & (SRC_BMP_STRT_HPS_MASK));
