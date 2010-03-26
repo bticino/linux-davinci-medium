@@ -47,16 +47,30 @@ IS_DAVINCI_CPU(dm365, DAVINCI_CPU_ID_DM365)
 IS_DAVINCI_CPU(da830, DAVINCI_CPU_ID_DA830)
 IS_DAVINCI_CPU(da850, DAVINCI_CPU_ID_DA850)
 
+#define IS_DAVINCI_CPU_VAR(type, id, var)				\
+static inline int is_davinci_ ##type(void)				\
+{									\
+	return ((davinci_soc_info.cpu_id == (id)) &&			\
+		(davinci_soc_info.variant == (var)));			\
+}
+
+IS_DAVINCI_CPU_VAR(dm644x_v21, DAVINCI_CPU_ID_DM6446, 1)
+IS_DAVINCI_CPU_VAR(dm646x_v30, DAVINCI_CPU_ID_DM6467, 1)
+
 #ifdef CONFIG_ARCH_DAVINCI_DM644x
 #define cpu_is_davinci_dm644x() is_davinci_dm644x()
+#define cpu_is_davinci_dm644x_v21() is_davinci_dm644x_v21()
 #else
 #define cpu_is_davinci_dm644x() 0
+#define cpu_is_davinci_dm644x_v21() 0
 #endif
 
 #ifdef CONFIG_ARCH_DAVINCI_DM646x
 #define cpu_is_davinci_dm646x() is_davinci_dm646x()
+#define cpu_is_davinci_dm646x_v30() is_davinci_dm646x_v30()
 #else
 #define cpu_is_davinci_dm646x() 0
+#define cpu_is_davinci_dm646x_v30() is_davinci_dm646x_v30()
 #endif
 
 #ifdef CONFIG_ARCH_DAVINCI_DM355

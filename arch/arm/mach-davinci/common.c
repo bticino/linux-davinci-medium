@@ -90,6 +90,7 @@ void __init davinci_common_init(struct davinci_soc_info *soc_info)
 	}
 
 	davinci_soc_info.cpu_id = dip->cpu_id;
+	davinci_soc_info.variant = dip->variant;
 	pr_info("DaVinci %s variant 0x%x\n", dip->name, dip->variant);
 
 	if (davinci_soc_info.cpu_clks) {
