@@ -601,6 +601,12 @@ static int vpif_check_format(struct channel_obj *ch,
 		hpitch = vpif_params->std_info.width;
 	}
 
+	/* required because VIDIOC_S_STD may not have been called */
+	if (hpitch <= 0) {
+		vpif_dbg(2, debug, "invalid hpitch\n");
+		goto exit;
+	}
+
 	if (V4L2_MEMORY_USERPTR == common->memory)
 		sizeimage = pixfmt->sizeimage;
 	else
