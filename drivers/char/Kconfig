@@ -1131,6 +1131,13 @@ config VDCE
         help
                 DaVinci VDCE Driver.
 
+config RESIZER
+	tristate "DaVinci Resizer Driver"
+	default n
+	depends on ARCH_DAVINCI_DM644x
+	help
+	   DaVinci Resizer Driver.
+
 config DM355_IPIPE
 	depends on ARCH_DAVINCI && ARCH_DAVINCI_DM355
 	tristate "DM355 IPIPE"
