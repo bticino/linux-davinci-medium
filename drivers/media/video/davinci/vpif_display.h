@@ -162,6 +162,7 @@ struct vpif_config_params {
 	u32 channel_bufsize[VPIF_DISPLAY_NUM_CHANNELS];
 	u8 numbuffers[VPIF_DISPLAY_NUM_CHANNELS];
 	u8 min_numbuffers;
+	u32 video_limit[VPIF_DISPLAY_NUM_CHANNELS];
 };
 
 /* Struct which keeps track of the line numbers for the sliced vbi service */
