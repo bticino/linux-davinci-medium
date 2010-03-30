@@ -53,18 +53,24 @@ static u32 ch0_numbuffers = 3;
 static u32 ch1_numbuffers = 3;
 static u32 ch0_bufsize = 1920 * 1080 * 2;
 static u32 ch1_bufsize = 720 * 576 * 2;
+static u32 cont_bufoffset;
+static u32 cont_bufsize;
 
 module_param(debug, int, 0644);
 module_param(ch0_numbuffers, uint, S_IRUGO);
 module_param(ch1_numbuffers, uint, S_IRUGO);
 module_param(ch0_bufsize, uint, S_IRUGO);
 module_param(ch1_bufsize, uint, S_IRUGO);
+module_param(cont_bufoffset, uint, S_IRUGO);
+module_param(cont_bufsize, uint, S_IRUGO);
 
 MODULE_PARM_DESC(debug, "Debug level 0-1");
 MODULE_PARM_DESC(ch2_numbuffers, "Channel0 buffer count (default:3)");
 MODULE_PARM_DESC(ch3_numbuffers, "Channel1 buffer count (default:3)");
 MODULE_PARM_DESC(ch2_bufsize, "Channel0 buffer size (default:1920 x 1080 x 2)");
 MODULE_PARM_DESC(ch3_bufsize, "Channel1 buffer size (default:720 x 576 x 2)");
+MODULE_PARM_DESC(cont_bufoffset, "Capture buffer offset (default 0)");
+MODULE_PARM_DESC(cont_bufsize, "Capture buffer size (default 0)");
 
 static struct vpif_config_params config_params = {
 	.min_numbuffers = 3,
@@ -188,8 +194,24 @@ static int vpif_buffer_setup(struct videobuf_queue *q, unsigned int *count,
 	/* Calculate the size of the buffer */
 	*size = config_params.channel_bufsize[ch->channel_id];
 
+	/* Checking if the buffer size exceeds the available buffer */
+	/* ycmux_mode = 0 means 1 channel mode HD and
+	 * ycmuxmode = 1 means 2 channels mode SD
+	 */
+	if (ch->vpifparams.std_info.ycmux_mode == 0) {
+		if (config_params.video_limit[ch->channel_id])
+			while (*size * *count > (config_params.video_limit[0]
+						+ config_params.video_limit[1]))
+				(*count)--;
+	} else {
+		if (config_params.video_limit[ch->channel_id])
+			while (*size * *count > config_params.video_limit[ch->channel_id])
+				(*count)--;
+	}
+
 	if (*count < config_params.min_numbuffers)
 		*count = config_params.min_numbuffers;
+
 	return 0;
 }
 
@@ -1892,6 +1914,8 @@ static __init int vpif_probe(struct platform_device *pdev)
 	struct video_device *vfd;
 	struct resource *res;
 	int subdev_count;
+	unsigned long phys_end_kernel;
+	size_t size;
 
 	vpif_dev = &pdev->dev;
 
@@ -1940,6 +1964,39 @@ static __init int vpif_probe(struct platform_device *pdev)
 			 (VPIF_CAPTURE_VERSION_CODE) & 0xff);
 		/* Set video_dev to the video device */
 		ch->video_dev = vfd;
+	}
+
+	/*
+	 * Initialising the memory from the bootargs for contiguous memory
+	 * buffers and avoid defragmentation
+	 */
+	if (cont_bufsize) {
+		/* attempt to determine the end of Linux kernel memory */
+		phys_end_kernel = virt_to_phys((void *)PAGE_OFFSET) +
+			(num_physpages << PAGE_SHIFT);
+		size = cont_bufsize;
+		phys_end_kernel += cont_bufoffset;
+		err = dma_declare_coherent_memory(&pdev->dev, phys_end_kernel,
+				phys_end_kernel, size,
+				DMA_MEMORY_MAP | DMA_MEMORY_EXCLUSIVE);
+		if (!err) {
+			dev_err(&pdev->dev, "Unable to declare MMAP memory.\n");
+			err = -ENOMEM;
+			goto vpif_dev_alloc_err;
+		}
+
+		/* The resources are divided into two equal memory and when we
+		 * have HD output we can add them together
+		 */
+		for (j = 0; j < VPIF_CAPTURE_MAX_DEVICES; j++) {
+			ch = vpif_obj.dev[j];
+			ch->channel_id = j;
+			/* only enabled if second resource exists */
+			config_params.video_limit[ch->channel_id] = 0;
+			if (cont_bufsize)
+				config_params.video_limit[ch->channel_id] =
+									size/2;
+		}
 	}
 
 	for (j = 0; j < VPIF_CAPTURE_MAX_DEVICES; j++) {
