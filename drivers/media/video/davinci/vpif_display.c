@@ -151,7 +151,8 @@ static int vpif_buffer_prepare(struct videobuf_queue *q,
 	if (VIDEOBUF_NEEDS_INIT == vb->state) {
 		vb->width	= common->width;
 		vb->height	= common->height;
-		vb->size	= vb->width * vb->height;
+		/* Updating the size based on the application requirement */
+		vb->size        = common->fmt.fmt.pix.sizeimage;
 		vb->field	= field;
 
 		ret = videobuf_iolock(q, vb, NULL);
@@ -441,10 +442,7 @@ static void vpif_calculate_offsets(struct channel_obj *ch)
 		vid_ch->buf_field = common->fmt.fmt.pix.field;
 	}
 
-	if (V4L2_MEMORY_USERPTR == common->memory)
-		sizeimage = common->fmt.fmt.pix.sizeimage;
-	else
-		sizeimage = config_params.channel_bufsize[ch->channel_id];
+	sizeimage = common->fmt.fmt.pix.sizeimage;
 
 	hpitch = common->fmt.fmt.pix.bytesperline;
 	vpitch = sizeimage / (hpitch * 2);
@@ -521,10 +519,11 @@ static int vpif_check_format(struct channel_obj *ch,
 	if (pixfmt->bytesperline <= 0)
 		goto invalid_pitch_exit;
 
-	if (V4L2_MEMORY_USERPTR == common->memory)
-		sizeimage = pixfmt->sizeimage;
-	else
-		sizeimage = config_params.channel_bufsize[ch->channel_id];
+	/*
+	 * sizeimage is same for both MMAP and user allocated buffers,
+	 * the size is updated for mmap buffers
+	 */
+	sizeimage = pixfmt->sizeimage;
 
 	if (vpif_get_std_info(ch)) {
 		vpif_err("Error getting the standard info\n");
@@ -1067,10 +1066,7 @@ static int vpif_streamon(struct file *file, void *priv,
 		goto streamon_exit;
 	}
 
-	if (common->memory == V4L2_MEMORY_MMAP)
-		sizeimage = config_params.channel_bufsize[ch->channel_id];
-	else
-		sizeimage = common->fmt.fmt.pix.sizeimage;
+	sizeimage = common->fmt.fmt.pix.sizeimage;
 
 	if ((ch->vpifparams.std_info.width *
 		ch->vpifparams.std_info.height * 2) >
