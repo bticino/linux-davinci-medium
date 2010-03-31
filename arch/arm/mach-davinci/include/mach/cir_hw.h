@@ -105,7 +105,6 @@
 #define XOFF1                   (USE_LCR_BF + 0x18)
 #define XOFF2                   (USE_LCR_BF + 0x1c)
 
-#define BIT(n)       (1<<n)
 #endif /* __KERNEL__ */
 
 #endif /* _CIR_H__ */
