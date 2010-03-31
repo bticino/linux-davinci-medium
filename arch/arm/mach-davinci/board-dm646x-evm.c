@@ -747,11 +747,13 @@ static int setup_vpif_input_channel_mode(int mux_mode)
 	return 0;
 }
 
+#ifndef CONFIG_VIDEO_TVP7002
 static struct tvp514x_platform_data tvp5146_pdata = {
 	.clk_polarity = 0,
 	.hs_polarity = 1,
 	.vs_polarity = 1
 };
+#endif
 
 struct tvp7002_platform_data tvp7002_pdata = {
        .clk_polarity = 1,
