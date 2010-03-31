@@ -1051,6 +1051,11 @@ void dm646x_setup_vpif(struct vpif_display_config *display_config,
 	davinci_cfg_reg(DM646X_PTSOMUX_DISABLE);
 	davinci_cfg_reg(DM646X_PTSIMUX_DISABLE);
 
+	if (cpu_is_davinci_dm646x_v30()) {
+		display_config->ch2_clip_en = true;
+		display_config->ch3_clip_en = true;
+	}
+
 	vpif_display_dev.dev.platform_data = display_config;
 	vpif_capture_dev.dev.platform_data = capture_config;
 	platform_device_register(&vpif_dev);
