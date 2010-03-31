@@ -490,7 +490,6 @@ EXPORT_SYMBOL_GPL(davinci_i2s_dai);
 
 static int davinci_i2s_probe(struct platform_device *pdev)
 {
-	struct snd_platform_data *pdata = pdev->dev.platform_data;
 	struct davinci_mcbsp_dev *dev;
 	struct resource *mem, *ioarea, *res;
 	int ret;
