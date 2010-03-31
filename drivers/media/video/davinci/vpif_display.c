@@ -128,46 +128,6 @@ static const struct vpif_channel_config_params ch_params[] = {
 };
 
 /*
- * vpif_uservirt_to_phys: This function is used to convert user
- * space virtual address to physical address.
- */
-static u32 vpif_uservirt_to_phys(u32 virtp)
-{
-	struct mm_struct *mm = current->mm;
-	unsigned long physp = 0;
-	struct vm_area_struct *vma;
-
-	vma = find_vma(mm, virtp);
-
-	/* For kernel direct-mapped memory, take the easy way */
-	if (virtp >= PAGE_OFFSET) {
-		physp = virt_to_phys((void *)virtp);
-	} else if (vma && (vma->vm_flags & VM_IO) && (vma->vm_pgoff)) {
-		/* this will catch, kernel-allocated, mmaped-to-usermode addr */
-		physp = (vma->vm_pgoff << PAGE_SHIFT) + (virtp - vma->vm_start);
-	} else {
-		/* otherwise, use get_user_pages() for general userland pages */
-		int res, nr_pages = 1;
-		struct page *pages;
-		down_read(&current->mm->mmap_sem);
-
-		res = get_user_pages(current, current->mm,
-				     virtp, nr_pages, 1, 0, &pages, NULL);
-		up_read(&current->mm->mmap_sem);
-
-		if (res == nr_pages) {
-			physp = __pa(page_address(&pages[0]) +
-							(virtp & ~PAGE_MASK));
-		} else {
-			vpif_err("get_user_pages failed\n");
-			return 0;
-		}
-	}
-
-	return physp;
-}
-
-/*
  * buffer_prepare: This is the callback function called from videobuf_qbuf()
  * function the buffer is prepared and user space virtual address is converted
  * into physical address
