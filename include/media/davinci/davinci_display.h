@@ -171,6 +171,7 @@ struct buf_config_params {
 	u8 numbuffers[DAVINCI_DISPLAY_MAX_DEVICES];
 	u32 min_bufsize[DAVINCI_DISPLAY_MAX_DEVICES];
 	u32 layer_bufsize[DAVINCI_DISPLAY_MAX_DEVICES];
+	u32 video_limit[DAVINCI_DISPLAY_MAX_DEVICES];
 };
 
 #endif				/* End of __KERNEL__ */
