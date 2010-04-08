@@ -87,11 +87,15 @@ static int debug;
 static u32 numbuffers = 3;
 static u32 bufsize = PAL_IMAGE_SIZE + SECOND_IMAGE_SIZE_MAX;
 static int interface;
+static u32 cont_bufoffset;
+static u32 cont_bufsize;
 
 module_param(interface, bool, S_IRUGO);
 module_param(numbuffers, uint, S_IRUGO);
 module_param(bufsize, uint, S_IRUGO);
 module_param(debug, bool, 0644);
+module_param(cont_bufoffset, uint, S_IRUGO);
+module_param(cont_bufsize, uint, S_IRUGO);
 
 /**
  * VPFE capture can be used for capturing video such as from TVP5146 or TVP7002
@@ -107,6 +111,8 @@ MODULE_PARM_DESC(interface, "interface 0-1 (default:0)");
 MODULE_PARM_DESC(numbuffers, "buffer count (default:3)");
 MODULE_PARM_DESC(bufsize, "buffer size in bytes, (default:1443840 bytes)");
 MODULE_PARM_DESC(debug, "Debug level 0-1");
+MODULE_PARM_DESC(cont_bufoffset, "Capture buffer offset (default 0)");
+MODULE_PARM_DESC(cont_bufsize, "Capture buffer size (default 0)");
 
 MODULE_DESCRIPTION("VPFE Video for Linux Capture Driver");
 MODULE_LICENSE("GPL");
@@ -1828,6 +1834,11 @@ static int vpfe_videobuf_setup(struct videobuf_queue *vq,
 			*size = config_params.device_bufsize;
 	}
 
+	if (config_params.video_limit) {
+		while (*size * *count > config_params.video_limit)
+			(*count)--;
+	}
+
 	if (*count < config_params.min_numbuffers)
 		*count = config_params.min_numbuffers;
 
@@ -2608,8 +2619,10 @@ static __init int vpfe_probe(struct platform_device *pdev)
 	struct vpfe_device *vpfe_dev;
 	struct i2c_adapter *i2c_adap;
 	struct video_device *vfd;
-	int ret = -ENOMEM, i, j;
+	int ret = -ENOMEM, i, j, err;
 	int num_subdevs = 0;
+	unsigned long phys_end_kernel;
+	size_t size;
 
 	/* Get the pointer to the device object */
 	vpfe_dev = vpfe_initialize();
@@ -2621,6 +2634,23 @@ static __init int vpfe_probe(struct platform_device *pdev)
 	}
 
 	vpfe_dev->pdev = &pdev->dev;
+
+	if (cont_bufsize) {
+		/* attempt to determine the end of Linux kernel memory */
+		phys_end_kernel = virt_to_phys((void *)PAGE_OFFSET) +
+			(num_physpages << PAGE_SHIFT);
+		size = cont_bufsize;
+		phys_end_kernel += cont_bufoffset;
+		err = dma_declare_coherent_memory(&pdev->dev, phys_end_kernel,
+				phys_end_kernel, size,
+				DMA_MEMORY_MAP | DMA_MEMORY_EXCLUSIVE);
+		if (!err) {
+			dev_err(&pdev->dev, "Unable to declare MMAP memory.\n");
+			ret = -ENOENT;
+			goto probe_free_dev_mem;
+		}
+		config_params.video_limit = size;
+	}
 
 	if (NULL == pdev->dev.platform_data) {
 		v4l2_err(pdev->dev.driver, "Unable to get vpfe config\n");

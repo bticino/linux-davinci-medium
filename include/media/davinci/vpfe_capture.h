@@ -228,6 +228,7 @@ struct vpfe_config_params {
 	u8 numbuffers;
 	u32 min_bufsize;
 	u32 device_bufsize;
+	u32 video_limit;
 };
 
 #endif				/* End of __KERNEL__ */
