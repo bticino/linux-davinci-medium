@@ -80,12 +80,13 @@
 
 #include "ccdc_hw_device.h"
 
+#define HD_IMAGE_SIZE		(1920 * 1080 * 2)
 #define PAL_IMAGE_SIZE		(720 * 576 * 2)
 #define SECOND_IMAGE_SIZE_MAX	(640 * 480 * 2)
 
 static int debug;
 static u32 numbuffers = 3;
-static u32 bufsize = PAL_IMAGE_SIZE + SECOND_IMAGE_SIZE_MAX;
+static u32 bufsize = HD_IMAGE_SIZE + SECOND_IMAGE_SIZE_MAX;
 static int interface;
 static u32 cont_bufoffset;
 static u32 cont_bufsize;
@@ -109,7 +110,7 @@ module_param(cont_bufsize, uint, S_IRUGO);
  */
 MODULE_PARM_DESC(interface, "interface 0-1 (default:0)");
 MODULE_PARM_DESC(numbuffers, "buffer count (default:3)");
-MODULE_PARM_DESC(bufsize, "buffer size in bytes, (default:1443840 bytes)");
+MODULE_PARM_DESC(bufsize, "buffer size in bytes, (default:4147200 bytes)");
 MODULE_PARM_DESC(debug, "Debug level 0-1");
 MODULE_PARM_DESC(cont_bufoffset, "Capture buffer offset (default 0)");
 MODULE_PARM_DESC(cont_bufsize, "Capture buffer size (default 0)");
@@ -141,8 +142,8 @@ struct ccdc_config {
 static struct vpfe_config_params config_params = {
 	.min_numbuffers = 3,
 	.numbuffers = 3,
-	.min_bufsize = 720 * 480 * 2,
-	.device_bufsize = 720 * 576 * 2,
+	.min_bufsize = 1280 * 720 * 2,
+	.device_bufsize = 1920 * 1080 * 2,
 };
 
 /* ccdc device registered */
