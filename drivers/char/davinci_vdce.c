@@ -457,7 +457,6 @@ static int edma3_memcpy(int acnt, int bcnt, int ccnt,
 			vdce_address_start_t * vdce_start)
 {
 	int result = 0;
-	unsigned int slot_num = 0;
 	int i, p = 0;
 	unsigned int Istestpassed = 0u;
 	unsigned int numenabled = 0;
@@ -545,13 +544,11 @@ static int edma3_memcpy(int acnt, int bcnt, int ccnt,
 			if (irqraised1 < 0) {
 				/* Some error occured, break from the FOR loop. */
 				edma_stop(dma_ch);
-				edma_free_slot(slot_num);
 				result = -EAGAIN;
 				break;
 			}
 		}
 		Istestpassed = 1;
-		edma_free_slot(slot_num);
 
 		src_inc = vdce_start->buffers[0].size / 4;
 		dst_inc = vdce_start->buffers[1].size / 4;
