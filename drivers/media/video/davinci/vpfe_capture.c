@@ -1765,8 +1765,8 @@ static int vpfe_s_std(struct file *file, void *priv, v4l2_std_id *std_id)
 
 	/* Set filter value in ths7353 for TVP7002 input path */
 	if (sdinfo->grp_id == VPFE_SUBDEV_TVP7002) {
-		ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev, 1, video,
-						 s_std_output, *std_id);
+		ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
+				sdinfo->grp_id, video, s_std_output, *std_id);
 		if (ret < 0) {
 			v4l2_err(&vpfe_dev->v4l2_dev, "Failed to set filter for THS7353\n");
 			goto unlock_out;

@@ -483,6 +483,7 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 	},
 	{
 		.module_name = "ths7353",
+		.grp_id = VPFE_SUBDEV_TVP7002,
 		.board_info = {
 			I2C_BOARD_INFO("ths7353", 0x2e),
 		},
