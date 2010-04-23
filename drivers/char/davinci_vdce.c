@@ -859,13 +859,12 @@ int vdce_set_multipass_address(vdce_address_start_t * vdce_start,
 			       channel_config_t * vdce_conf_chan)
 {
 
-	static unsigned int temp_address, temp_hsz_pitch;
+	static unsigned int temp_address;
 	int ret = 0;
 	int temp_size;
 	int divider = 2;
 	int req_size = 0;
 	unsigned int address = 0, pitch = 0, res_size = 0;
-	unsigned int temp_vsp;
 
 	dev_dbg(vdce_device,
 		"<fn>vdce_set_multipass_address	Entering\n</fn>");
@@ -2739,7 +2738,7 @@ static int __init vdce_init(void)
 	dma_ch = edma_alloc_channel(EDMA_CHANNEL_ANY, callback1, NULL,
 						EVENTQ_DEFAULT);
 	if (0 > dma_ch) {
-		printk(KERN_ERR, "Cannot Allocate Channel:%d\n", dma_ch);
+		printk(KERN_ERR "Cannot Allocate Channel:%d\n", dma_ch);
 		goto label6;
 	}
 
