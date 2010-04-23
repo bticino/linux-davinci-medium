@@ -62,6 +62,8 @@ module_param(inter_bufsize, uint, S_IRUGO);
 
 channel_config_t *vdce_current_chan = NULL;
 
+static int dma_ch;
+
 /* default values for various modes */
 #define COMMON_DEFAULT_PARAMS {VDCE_PROGRESSIVE, VDCE_FRAME_MODE, \
 VDCE_FRAME_MODE, VDCE_FRAME_MODE, VDCE_LUMA_CHROMA_ENABLE, \
@@ -455,7 +457,7 @@ static int edma3_memcpy(int acnt, int bcnt, int ccnt,
 			vdce_address_start_t * vdce_start)
 {
 	int result = 0;
-	unsigned int dma_ch = 0, slot_num = 0;
+	unsigned int slot_num = 0;
 	int i, p = 0;
 	unsigned int Istestpassed = 0u;
 	unsigned int numenabled = 0;
@@ -501,15 +503,6 @@ static int edma3_memcpy(int acnt, int bcnt, int ccnt,
 	dst_inc = 0;
 
 	for (p = 0; p <= numtimes; p++) {
-		/* Allocate Any EDMA Channel*/
-		dma_ch = edma_alloc_channel(EDMA_CHANNEL_ANY, callback1, NULL,
-							EVENTQ_DEFAULT);
-		if (0 > dma_ch) {
-			dev_err(vdce_device, "Cannot Allocate Channel:%d\n",
-									dma_ch);
-			return dma_ch;
-		}
-
 		/* Set the Source EDMA Params */
 		edma_set_src(dma_ch, (unsigned long)(vdce_start->
 				buffers[0].offset + src_inc), INCR, W8BIT);
@@ -553,14 +546,12 @@ static int edma3_memcpy(int acnt, int bcnt, int ccnt,
 				/* Some error occured, break from the FOR loop. */
 				edma_stop(dma_ch);
 				edma_free_slot(slot_num);
-				edma_free_channel(dma_ch);
 				result = -EAGAIN;
 				break;
 			}
 		}
 		Istestpassed = 1;
 		edma_free_slot(slot_num);
-		edma_free_channel(dma_ch);
 
 		src_inc = vdce_start->buffers[0].size / 4;
 		dst_inc = vdce_start->buffers[1].size / 4;
@@ -2702,10 +2693,18 @@ static int __init vdce_init(void)
 		result = -EINVAL;
 		goto label6;
 
-	} else {
-		result = 0;
-		goto done;
 	}
+
+	/* Allocate Any EDMA Channel*/
+	dma_ch = edma_alloc_channel(EDMA_CHANNEL_ANY, callback1, NULL,
+						EVENTQ_DEFAULT);
+	if (0 > dma_ch) {
+		printk(KERN_ERR, "Cannot Allocate Channel:%d\n", dma_ch);
+		goto label6;
+	}
+
+	return 0;
+
 label6:
 	device_destroy(vdce_class, dev);
 label5:
@@ -2720,7 +2719,6 @@ label2:
 label1:
 	unregister_chrdev_region(dev, 1);
 
-done:
 	return result;
 }
 
@@ -2747,6 +2745,8 @@ void __exit vdce_cleanup(void)
 	unregister_chrdev(MAJOR(dev), DRIVER_NAME);
 
 	cdev_del(&c_dev);
+
+	edma_free_channel(dma_ch);
 
 	unregister_chrdev_region(dev, 1);
 
