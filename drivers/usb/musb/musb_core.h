@@ -572,7 +572,7 @@ extern irqreturn_t davinci_interrupt(int irq, void *__hci);
 
 struct proc_dir_entry;
 
-#if (CONFIG_USB_MUSB_DEBUG > 0) && defined(MUSB_CONFIG_PROC_FS)
+#if defined(CONFIG_USB_MUSB_DEBUG) && defined(MUSB_CONFIG_PROC_FS)
 extern struct proc_dir_entry *musb_debug_create(char *name, struct musb *data);
 extern void musb_debug_delete(char *name, struct musb *data);
 

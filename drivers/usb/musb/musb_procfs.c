@@ -707,7 +707,7 @@ static int musb_proc_write(struct file *file, const char __user *buffer,
 		}
 		break;
 
-#if (CONFIG_USB_MUSB_DEBUG > 0)
+#if defined(CONFIG_USB_MUSB_DEBUG)
 		/* set/read debug level */
 	case 'D':{
 			if (count > 1) {

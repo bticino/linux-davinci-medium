@@ -110,5 +110,7 @@
 
 #ifdef CONFIG_MACH_DAVINCI_DM6467_EVM
 extern void usb_vbus_control(u8 on);
+#elif defined(CONFIG_MACH_DAVINCI_EVM)
+#define usb_vbus_control(x)	do {} while (0)
 #endif
 #endif	/* __MUSB_HDRDF_H__ */

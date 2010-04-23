@@ -45,12 +45,6 @@
 #define GPIO_nVBUS_DRV		160
 #endif
 
-#ifndef CONFIG_MACH_DAVINCI_DM6467_EVM
-static void usb_vbus_control(u8 on)
-{
-}
-#endif
-
 #include "davinci.h"
 #include "cppi_dma.h"
 
