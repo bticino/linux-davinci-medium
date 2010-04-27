@@ -132,7 +132,7 @@ static int davinci_pcm_dma_request(struct snd_pcm_substream *substream)
 	/* Request master DMA channel */
 	ret = edma_alloc_channel(prtd->params->channel,
 				  davinci_pcm_dma_irq, substream,
-				  EVENTQ_0);
+				  prtd->params->eventq_no);
 	if (ret < 0)
 		return ret;
 	prtd->master_lch = ret;
