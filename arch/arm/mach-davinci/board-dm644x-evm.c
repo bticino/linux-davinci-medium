@@ -49,6 +49,7 @@
 #include <mach/nand.h>
 #include <mach/mmc.h>
 #include <mach/emac.h>
+#include <mach/aemif.h>
 
 #include <video/davincifb.h>
 
@@ -159,11 +160,22 @@ struct mtd_partition davinci_evm_nandflash_partition[] = {
 	 */
 };
 
+static struct davinci_aemif_timing davinci_evm_nandflash_timing = {
+	.wsetup		= 20,
+	.wstrobe	= 40,
+	.whold		= 20,
+	.rsetup		= 10,
+	.rstrobe	= 40,
+	.rhold		= 10,
+	.ta		= 40,
+};
+
 static struct davinci_nand_pdata davinci_evm_nandflash_data = {
 	.parts		= davinci_evm_nandflash_partition,
 	.nr_parts	= ARRAY_SIZE(davinci_evm_nandflash_partition),
 	.ecc_mode	= NAND_ECC_HW,
 	.options	= NAND_USE_FLASH_BBT,
+	.timing		= &davinci_evm_nandflash_timing,
 };
 
 static struct resource davinci_evm_nandflash_resource[] = {
