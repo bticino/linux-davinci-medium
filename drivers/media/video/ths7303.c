@@ -47,7 +47,7 @@ static struct i2c_client *ths7303_client = NULL;
 /* following function is used to set ths7303 */
 int ths7303_setval(enum ths7303_filter_mode mode)
 {
-	u8 val = 0, input_bias_luma = 2, input_bias_chroma = 2, temp;
+	u8 val = 0, input_bias_luma = 3, input_bias_chroma = 3, temp;
 	int err = 0, disable = 0;
 
 	if (ths7303_client == NULL)
@@ -103,7 +103,7 @@ EXPORT_SYMBOL(ths7303_setval);
 static int ths7303_setvalue(struct v4l2_subdev *sd,
 			    enum ths7303_filter_mode mode)
 {
-	u8 val = 0, input_bias_luma = 2, input_bias_chroma = 2, temp;
+	u8 val = 0, input_bias_luma = 3, input_bias_chroma = 3, temp;
 	struct i2c_client *client;
 	int err = 0, disable = 0;
 
