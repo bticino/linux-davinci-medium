@@ -157,6 +157,8 @@ static int ths8200_setstd(struct v4l2_subdev *sd, v4l2_std_id std)
 			value = ths8200_read(sd, THS8200_DATA_CNTL);
 			value &= (~THS8200_DATA_CNTL_INTF_MASK);
 			value |=  mode_info[i].input_intf;
+			/* Use 3.01K resistor (FSADJ1) for 700mv swing */
+			value |= (1 << 6);
 			err |= ths8200_write(sd, THS8200_DATA_CNTL, value);
 
 			value = ths8200_read(sd, THS8200_DTG1_MODE);
