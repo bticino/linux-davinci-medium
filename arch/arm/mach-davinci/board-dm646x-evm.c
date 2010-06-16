@@ -58,6 +58,7 @@
 #include <mach/nand.h>
 #include <mach/mmc.h>
 #include <mach/emac.h>
+#include <mach/aemif.h>
 
 #include <mach/clock.h>
 #include "clock.h"
@@ -171,6 +172,16 @@ static struct mtd_partition davinci_nand_partitions[] = {
 	}
 };
 
+static struct davinci_aemif_timing evm_nandflash_timing = {
+	.wsetup		= 29,
+	.wstrobe	= 24,
+	.whold		= 14,
+	.rsetup		= 19,
+	.rstrobe	= 33,
+	.rhold		= 0,
+	.ta		= 29,
+};
+
 static struct davinci_nand_pdata davinci_nand_data = {
 	.mask_cle 		= 0x80000,
 	.mask_ale 		= 0x40000,
@@ -178,6 +189,7 @@ static struct davinci_nand_pdata davinci_nand_data = {
 	.nr_parts		= ARRAY_SIZE(davinci_nand_partitions),
 	.ecc_mode		= NAND_ECC_HW,
 	.options		= 0,
+	.timing			= &evm_nandflash_timing,
 };
 
 static struct resource davinci_nand_resources[] = {
