@@ -865,6 +865,7 @@ int vdce_set_multipass_address(vdce_address_start_t * vdce_start,
 	int divider = 2;
 	int req_size = 0;
 	unsigned int address = 0, pitch = 0, res_size = 0;
+	unsigned int temp_pitch;
 
 	dev_dbg(vdce_device,
 		"<fn>vdce_set_multipass_address	Entering\n</fn>");
@@ -935,8 +936,12 @@ int vdce_set_multipass_address(vdce_address_start_t * vdce_start,
 	vdce_start->buffers[1].offset = temp_address;
 
 	/* configure the addrress */
+	temp_pitch = vdce_start->src_horz_pitch;
+	vdce_start->src_horz_pitch = vdce_start->res_horz_pitch;
 	ret = vdce_set_address(vdce_start, vdce_conf_chan, 1,
 			       res_size, address, pitch);
+	vdce_start->src_horz_pitch = temp_pitch;
+
 	/* configure input and output size */
 	vdce_conf_chan->register_config[1].src_Y_sz &= ~(SRC_Y_VSZ_MASK);
 	if (vdce_conf_chan->get_params.common_params.src_processing_mode ==
