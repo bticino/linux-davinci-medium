@@ -677,6 +677,7 @@ static void davinci_enc_set_525p(struct vid_enc_mode_info *mode_info)
 	osd_write_upper_margin(mode_info->upper_margin);
 
 	if (cpu_is_davinci_dm365()) {
+		dispc_reg_out(VENC_CLKCTL, 0x01);
 		ths7303_setval(THS7303_FILTER_MODE_480P_576P);
 		msleep(40);
 		__raw_writel(0x081141EF, IO_ADDRESS(DM3XX_VDAC_CONFIG));
@@ -717,6 +718,7 @@ static void davinci_enc_set_625p(struct vid_enc_mode_info *mode_info)
 	osd_write_upper_margin(mode_info->upper_margin);
 
 	if (cpu_is_davinci_dm365()) {
+		dispc_reg_out(VENC_CLKCTL, 0x01);
 		ths7303_setval(THS7303_FILTER_MODE_480P_576P);
 		msleep(40);
 		__raw_writel(0x081141EF, IO_ADDRESS(DM3XX_VDAC_CONFIG));
@@ -1137,6 +1139,16 @@ void davinci_enc_priv_setmode(struct vid_enc_device_mgr *mgr)
 		 * THS8200
 		 */
 		if (cpu_is_davinci_dm365()) {
+			dispc_reg_out(VENC_CLKCTL, 0x01);
+			enableDigitalOutput(0);
+			dispc_reg_out(VENC_OSDCLK0, 0);
+			dispc_reg_out(VENC_OSDCLK1, 1);
+			dispc_reg_merge(VENC_VMOD,
+					VENC_VMOD_VDMD_YCBCR8 <<
+					VENC_VMOD_VDMD_SHIFT, VENC_VMOD_VDMD);
+			dispc_reg_out(VENC_YCCCTL, 0x1);
+			dispc_reg_merge(VENC_VMOD, VENC_VMOD_VENC,
+					VENC_VMOD_VENC);
 			davinci_enc_set_internal_hd(&mgr->current_mode);
 			/* changed for 720P demo */
 			davinci_enc_set_basep(0, 0xf0, 10);
