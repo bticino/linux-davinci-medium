@@ -22,6 +22,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/attribute_container.h>
+#include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <mach/hardware.h>
 #include <mach/mux.h>
@@ -52,6 +53,8 @@
 #define DM365_TVP5146_SEL	(0x5)
 #define DM365_VIDEO_MUX_MASK	(0x7)
 #define DM644X_DDR2_CNTL_BASE	(0x20000000)
+#define VENC_27MHZ		(27000000)
+#define VENC_74_25MHZ		(74250000)
 
 struct davinci_venc_state {
 	spinlock_t lock;
@@ -415,14 +418,32 @@ static void remove_sysfs_files(struct system_device *dev)
 
 /**
  * function davinci_enc_select_venc_clk
- * @clk_source: clock source defined by davinci_enc_clk_source_type
+ * @clk: Desired input clock for VENC
  * Returns: Zero if successful, or non-zero otherwise
  *
  * Description:
- *  Select the venc input clock based on the clk_source_type.
+ *  Select the venc input clock based on the clk value.
  */
 int davinci_enc_select_venc_clock(int clk)
 {
+	struct clk *pll1_venc_clk, *pll2_venc_clk;
+	unsigned int pll1_venc_clk_rate, pll2_venc_clk_rate;
+
+	pll1_venc_clk = clk_get(NULL, "pll1_sysclk6");
+	pll1_venc_clk_rate = clk_get_rate(pll1_venc_clk);
+
+	pll2_venc_clk = clk_get(NULL, "pll2_sysclk5");
+	pll2_venc_clk_rate = clk_get_rate(pll2_venc_clk);
+
+	if (clk == pll1_venc_clk_rate)
+		__raw_writel(0x18, IO_ADDRESS(SYS_VPSS_CLKCTL));
+	else if (clk == pll2_venc_clk_rate)
+		__raw_writel(0x38, IO_ADDRESS(SYS_VPSS_CLKCTL));
+	else {
+		dev_err(venc->vdev, "Desired VENC clock not available\n");
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
@@ -526,7 +547,9 @@ static void enableDigitalOutput(int bEnable)
 
 	} else {
 		/* Initialize the VPSS Clock Control register */
-		__raw_writel(0x18, IO_ADDRESS(SYS_VPSS_CLKCTL));
+		if (davinci_enc_select_venc_clock(VENC_27MHZ) < 0)
+			dev_err(venc->vdev, "PLL's doesnot yield required\
+					VENC clk\n");
 		if (cpu_is_davinci_dm644x())
 			__raw_writel(0, IO_ADDRESS(DM644X_VPBE_REG_BASE + VPBE_PCR));
 
@@ -668,9 +691,11 @@ static void davinci_enc_set_ntsc_pal_rgb(struct vid_enc_mode_info *mode_info)
 static void davinci_enc_set_525p(struct vid_enc_mode_info *mode_info)
 {
 	enableDigitalOutput(0);
-	if (cpu_is_davinci_dm365())
-		__raw_writel(0x18, IO_ADDRESS(SYS_VPSS_CLKCTL));
-	else
+	if (cpu_is_davinci_dm365()) {
+		if (davinci_enc_select_venc_clock(VENC_27MHZ) < 0)
+			dev_err(venc->vdev, "PLL's doesnot yield required\
+					VENC clk\n");
+	} else
 		__raw_writel(0x19, IO_ADDRESS(SYS_VPSS_CLKCTL));
 
 	osd_write_left_margin(mode_info->left_margin);
@@ -709,9 +734,11 @@ static void davinci_enc_set_525p(struct vid_enc_mode_info *mode_info)
 static void davinci_enc_set_625p(struct vid_enc_mode_info *mode_info)
 {
 	enableDigitalOutput(0);
-	if (cpu_is_davinci_dm365())
-		__raw_writel(0x18, IO_ADDRESS(SYS_VPSS_CLKCTL));
-	else
+	if (cpu_is_davinci_dm365()) {
+		if (davinci_enc_select_venc_clock(VENC_27MHZ) < 0)
+			dev_err(venc->vdev, "PLL's doesnot yield required\
+					VENC clk\n");
+	} else
 		__raw_writel(0x19, IO_ADDRESS(SYS_VPSS_CLKCTL));
 
 	osd_write_left_margin(mode_info->left_margin);
@@ -825,7 +852,8 @@ static void davinci_enc_set_prgb(struct vid_enc_mode_info *mode_info)
 
 	dispc_reg_out(VENC_VIDCTL, 0x141);
 	/* set VPSS clock */
-	__raw_writel(0x18, IO_ADDRESS(SYS_VPSS_CLKCTL));
+	if (davinci_enc_select_venc_clock(VENC_27MHZ) < 0)
+		dev_err(venc->vdev, "PLL's doesnot yield required VENC clk\n");
 
 	dispc_reg_out(VENC_DCLKCTL, 0);
 	dispc_reg_out(VENC_DCLKPTN0, 0);
@@ -1072,8 +1100,8 @@ static void davinci_enc_set_1080i(struct vid_enc_mode_info *mode_info)
 
 static void davinci_enc_set_internal_hd(struct vid_enc_mode_info *mode_info)
 {
-	/* set sysclk4 to output 74.25 MHz from pll1 */
-	__raw_writel(0x38, IO_ADDRESS(SYS_VPSS_CLKCTL));
+	if (davinci_enc_select_venc_clock(VENC_74_25MHZ) < 0)
+		dev_err(venc->vdev, "PLL's doesnot yield required VENC clk\n");
 
 	ths7303_setval(THS7303_FILTER_MODE_720P_1080I);
 	msleep(50);
