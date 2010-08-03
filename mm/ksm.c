@@ -34,6 +34,7 @@
 #include <linux/ksm.h>
 
 #include <asm/tlbflush.h>
+#include "internal.h"
 
 /*
  * A few notes about the KSM scanning process,
@@ -183,11 +184,6 @@ static DEFINE_SPINLOCK(ksm_mmlist_lock);
 #define KSM_KMEM_CACHE(__struct, __flags) kmem_cache_create("ksm_"#__struct,\
 		sizeof(struct __struct), __alignof__(struct __struct),\
 		(__flags), NULL)
-
-static void __init ksm_init_max_kernel_pages(void)
-{
-	ksm_max_kernel_pages = nr_free_buffer_pages() / 4;
-}
 
 static int __init ksm_slab_init(void)
 {
@@ -772,15 +768,14 @@ static int try_to_merge_one_page(struct vm_area_struct *vma,
 	 * ptes are necessarily already write-protected.  But in either
 	 * case, we need to lock and check page_count is not raised.
 	 */
-	if (write_protect_page(vma, oldpage, &orig_pte)) {
-		unlock_page(oldpage);
-		goto out_putpage;
-	}
-	unlock_page(oldpage);
-
-	if (pages_identical(oldpage, newpage))
+	if (write_protect_page(vma, oldpage, &orig_pte) == 0 &&
+	    pages_identical(oldpage, newpage))
 		err = replace_page(vma, oldpage, newpage, orig_pte);
 
+	if ((vma->vm_flags & VM_LOCKED) && !err)
+		munlock_vma_page(oldpage);
+
+	unlock_page(oldpage);
 out_putpage:
 	put_page(oldpage);
 	put_page(newpage);
@@ -1017,6 +1012,7 @@ static struct rmap_item *unstable_tree_search_insert(struct page *page,
 		struct rmap_item *tree_rmap_item;
 		int ret;
 
+		cond_resched();
 		tree_rmap_item = rb_entry(*new, struct rmap_item, node);
 		page2[0] = get_mergeable_page(tree_rmap_item);
 		if (!page2[0])
@@ -1673,7 +1669,7 @@ static int __init ksm_init(void)
 	struct task_struct *ksm_thread;
 	int err;
 
-	ksm_init_max_kernel_pages();
+	ksm_max_kernel_pages = totalram_pages / 4;
 
 	err = ksm_slab_init();
 	if (err)
@@ -1697,6 +1693,9 @@ static int __init ksm_init(void)
 		kthread_stop(ksm_thread);
 		goto out_free2;
 	}
+#else
+	ksm_run = KSM_RUN_MERGE;	/* no way for user to start it */
+
 #endif /* CONFIG_SYSFS */
 
 	return 0;

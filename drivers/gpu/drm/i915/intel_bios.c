@@ -241,10 +241,6 @@ parse_general_definitions(struct drm_i915_private *dev_priv,
 		GPIOF,
 	};
 
-	/* Set sensible defaults in case we can't find the general block
-	   or it is the wrong chipset */
-	dev_priv->crt_ddc_bus = -1;
-
 	general = find_section(bdb, BDB_GENERAL_DEFINITIONS);
 	if (general) {
 		u16 block_size = get_blocksize(general);
@@ -351,20 +347,18 @@ parse_driver_features(struct drm_i915_private *dev_priv,
 	struct drm_device *dev = dev_priv->dev;
 	struct bdb_driver_features *driver;
 
-	/* set default for chips without eDP */
-	if (!SUPPORTS_EDP(dev)) {
-		dev_priv->edp_support = 0;
-		return;
-	}
-
 	driver = find_section(bdb, BDB_DRIVER_FEATURES);
 	if (!driver)
 		return;
 
-	if (driver->lvds_config == BDB_DRIVER_FEATURE_EDP)
+	if (driver && SUPPORTS_EDP(dev) &&
+	    driver->lvds_config == BDB_DRIVER_FEATURE_EDP) {
 		dev_priv->edp_support = 1;
+	} else {
+		dev_priv->edp_support = 0;
+	}
 
-	if (driver->dual_frequency)
+	if (driver && driver->dual_frequency)
 		dev_priv->render_reclock_avail = true;
 }
 

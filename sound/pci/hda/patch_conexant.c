@@ -110,6 +110,7 @@ struct conexant_spec {
 
 	unsigned int dell_automute;
 	unsigned int port_d_mode;
+	unsigned char ext_mic_bias;
 };
 
 static int conexant_playback_pcm_open(struct hda_pcm_stream *hinfo,
@@ -682,11 +683,13 @@ static struct hda_input_mux cxt5045_capture_source = {
 };
 
 static struct hda_input_mux cxt5045_capture_source_benq = {
-	.num_items = 3,
+	.num_items = 5,
 	.items = {
 		{ "IntMic", 0x1 },
 		{ "ExtMic", 0x2 },
 		{ "LineIn", 0x3 },
+		{ "CD",     0x4 },
+		{ "Mixer",  0x0 },
 	}
 };
 
@@ -811,10 +814,18 @@ static struct snd_kcontrol_new cxt5045_mixers[] = {
 };
 
 static struct snd_kcontrol_new cxt5045_benq_mixers[] = {
+	HDA_CODEC_VOLUME("CD Capture Volume", 0x1a, 0x04, HDA_INPUT),
+	HDA_CODEC_MUTE("CD Capture Switch", 0x1a, 0x04, HDA_INPUT),
+	HDA_CODEC_VOLUME("CD Playback Volume", 0x17, 0x4, HDA_INPUT),
+	HDA_CODEC_MUTE("CD Playback Switch", 0x17, 0x4, HDA_INPUT),
+
 	HDA_CODEC_VOLUME("Line In Capture Volume", 0x1a, 0x03, HDA_INPUT),
 	HDA_CODEC_MUTE("Line In Capture Switch", 0x1a, 0x03, HDA_INPUT),
 	HDA_CODEC_VOLUME("Line In Playback Volume", 0x17, 0x3, HDA_INPUT),
 	HDA_CODEC_MUTE("Line In Playback Switch", 0x17, 0x3, HDA_INPUT),
+
+	HDA_CODEC_VOLUME("Mixer Capture Volume", 0x1a, 0x0, HDA_INPUT),
+	HDA_CODEC_MUTE("Mixer Capture Switch", 0x1a, 0x0, HDA_INPUT),
 
 	{}
 };
@@ -1164,9 +1175,12 @@ static int patch_cxt5045(struct hda_codec *codec)
 
 	switch (codec->subsystem_id >> 16) {
 	case 0x103c:
-		/* HP laptop has a really bad sound over 0dB on NID 0x17.
-		 * Fix max PCM level to 0 dB
-		 * (originall it has 0x2b steps with 0dB offset 0x14)
+	case 0x1631:
+	case 0x1734:
+	case 0x17aa:
+		/* HP, Packard Bell, Fujitsu-Siemens & Lenovo laptops have
+		 * really bad sound over 0dB on NID 0x17. Fix max PCM level to
+		 * 0 dB (originally it has 0x2b steps with 0dB offset 0x14)
 		 */
 		snd_hda_override_amp_caps(codec, 0x17, HDA_INPUT,
 					  (0x14 << AC_AMPCAP_OFFSET_SHIFT) |
@@ -1570,6 +1584,21 @@ static int patch_cxt5047(struct hda_codec *codec)
 #endif	
 	}
 	spec->vmaster_nid = 0x13;
+
+	switch (codec->subsystem_id >> 16) {
+	case 0x103c:
+		/* HP laptops have really bad sound over 0 dB on NID 0x10.
+		 * Fix max PCM level to 0 dB (originally it has 0x1e steps
+		 * with 0 dB offset 0x17)
+		 */
+		snd_hda_override_amp_caps(codec, 0x10, HDA_INPUT,
+					  (0x17 << AC_AMPCAP_OFFSET_SHIFT) |
+					  (0x17 << AC_AMPCAP_NUM_STEPS_SHIFT) |
+					  (0x05 << AC_AMPCAP_STEP_SIZE_SHIFT) |
+					  (1 << AC_AMPCAP_MUTE_SHIFT));
+		break;
+	}
+
 	return 0;
 }
 
@@ -1917,6 +1946,11 @@ static hda_nid_t cxt5066_adc_nids[3] = { 0x14, 0x15, 0x16 };
 static hda_nid_t cxt5066_capsrc_nids[1] = { 0x17 };
 #define CXT5066_SPDIF_OUT	0x21
 
+/* OLPC's microphone port is DC coupled for use with external sensors,
+ * therefore we use a 50% mic bias in order to center the input signal with
+ * the DC input range of the codec. */
+#define CXT5066_OLPC_EXT_MIC_BIAS PIN_VREF50
+
 static struct hda_channel_mode cxt5066_modes[1] = {
 	{ 2, NULL },
 };
@@ -1970,9 +2004,10 @@ static int cxt5066_hp_master_sw_put(struct snd_kcontrol *kcontrol,
 /* toggle input of built-in and mic jack appropriately */
 static void cxt5066_automic(struct hda_codec *codec)
 {
-	static struct hda_verb ext_mic_present[] = {
+	struct conexant_spec *spec = codec->spec;
+	struct hda_verb ext_mic_present[] = {
 		/* enable external mic, port B */
-		{0x1a, AC_VERB_SET_PIN_WIDGET_CONTROL, PIN_VREF80},
+		{0x1a, AC_VERB_SET_PIN_WIDGET_CONTROL, spec->ext_mic_bias},
 
 		/* switch to external mic input */
 		{0x17, AC_VERB_SET_CONNECT_SEL, 0},
@@ -2225,7 +2260,7 @@ static struct hda_verb cxt5066_init_verbs_olpc[] = {
 	{0x19, AC_VERB_SET_CONNECT_SEL, 0x00}, /* DAC1 */
 
 	/* Port B: external microphone */
-	{0x1a, AC_VERB_SET_PIN_WIDGET_CONTROL, PIN_VREF80},
+	{0x1a, AC_VERB_SET_PIN_WIDGET_CONTROL, CXT5066_OLPC_EXT_MIC_BIAS},
 
 	/* Port C: internal microphone */
 	{0x1b, AC_VERB_SET_PIN_WIDGET_CONTROL, PIN_VREF80},
@@ -2315,6 +2350,9 @@ static struct snd_pci_quirk cxt5066_cfg_tbl[] = {
 		      CXT5066_LAPTOP),
 	SND_PCI_QUIRK(0x1028, 0x02f5, "Dell",
 		      CXT5066_DELL_LAPTOP),
+	SND_PCI_QUIRK(0x152d, 0x0833, "OLPC XO-1.5", CXT5066_OLPC_XO_1_5),
+	SND_PCI_QUIRK(0x1179, 0xff50, "Toshiba Satellite P500-PSPGSC-01800T", CXT5066_OLPC_XO_1_5),
+	SND_PCI_QUIRK(0x1179, 0xffe0, "Toshiba Satellite Pro T130-15F", CXT5066_OLPC_XO_1_5),
 	{}
 };
 
@@ -2342,6 +2380,7 @@ static int patch_cxt5066(struct hda_codec *codec)
 	spec->input_mux = &cxt5066_capture_source;
 
 	spec->port_d_mode = PIN_HP;
+	spec->ext_mic_bias = PIN_VREF80;
 
 	spec->num_init_verbs = 1;
 	spec->init_verbs[0] = cxt5066_init_verbs;
@@ -2373,6 +2412,7 @@ static int patch_cxt5066(struct hda_codec *codec)
 		spec->mixers[spec->num_mixers++] = cxt5066_mixer_master_olpc;
 		spec->mixers[spec->num_mixers++] = cxt5066_mixers;
 		spec->port_d_mode = 0;
+		spec->ext_mic_bias = CXT5066_OLPC_EXT_MIC_BIAS;
 
 		/* no S/PDIF out */
 		spec->multiout.dig_out_nid = 0;

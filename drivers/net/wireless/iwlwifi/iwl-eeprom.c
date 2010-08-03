@@ -337,7 +337,7 @@ static int iwl_init_otp_access(struct iwl_priv *priv)
 	return ret;
 }
 
-static int iwl_read_otp_word(struct iwl_priv *priv, u16 addr, u16 *eeprom_data)
+static int iwl_read_otp_word(struct iwl_priv *priv, u16 addr, __le16 *eeprom_data)
 {
 	int ret = 0;
 	u32 r;
@@ -370,7 +370,7 @@ static int iwl_read_otp_word(struct iwl_priv *priv, u16 addr, u16 *eeprom_data)
 				CSR_OTP_GP_REG_ECC_CORR_STATUS_MSK);
 		IWL_ERR(priv, "Correctable OTP ECC error, continue read\n");
 	}
-	*eeprom_data = le16_to_cpu((__force __le16)(r >> 16));
+	*eeprom_data = cpu_to_le16(r >> 16);
 	return 0;
 }
 
@@ -379,7 +379,8 @@ static int iwl_read_otp_word(struct iwl_priv *priv, u16 addr, u16 *eeprom_data)
  */
 static bool iwl_is_otp_empty(struct iwl_priv *priv)
 {
-	u16 next_link_addr = 0, link_value;
+	u16 next_link_addr = 0;
+	__le16 link_value;
 	bool is_empty = false;
 
 	/* locate the beginning of OTP link list */
@@ -409,8 +410,8 @@ static bool iwl_is_otp_empty(struct iwl_priv *priv)
 static int iwl_find_otp_image(struct iwl_priv *priv,
 					u16 *validblockaddr)
 {
-	u16 next_link_addr = 0, link_value = 0, valid_addr;
-	int ret = 0;
+	u16 next_link_addr = 0, valid_addr;
+	__le16 link_value = 0;
 	int usedblocks = 0;
 
 	/* set addressing mode to absolute to traverse the link list */
@@ -430,29 +431,29 @@ static int iwl_find_otp_image(struct iwl_priv *priv,
 		 * check for more block on the link list
 		 */
 		valid_addr = next_link_addr;
-		next_link_addr = link_value;
+		next_link_addr = le16_to_cpu(link_value) * sizeof(u16);
 		IWL_DEBUG_INFO(priv, "OTP blocks %d addr 0x%x\n",
 			       usedblocks, next_link_addr);
 		if (iwl_read_otp_word(priv, next_link_addr, &link_value))
 			return -EINVAL;
 		if (!link_value) {
 			/*
-			 * reach the end of link list,
+			 * reach the end of link list, return success and
 			 * set address point to the starting address
 			 * of the image
 			 */
-			goto done;
+			*validblockaddr = valid_addr;
+			/* skip first 2 bytes (link list pointer) */
+			*validblockaddr += 2;
+			return 0;
 		}
 		/* more in the link list, continue */
 		usedblocks++;
-	} while (usedblocks < priv->cfg->max_ll_items);
-	/* OTP full, use last block */
-	IWL_DEBUG_INFO(priv, "OTP is full, use last block\n");
-done:
-	*validblockaddr = valid_addr;
-	/* skip first 2 bytes (link list pointer) */
-	*validblockaddr += 2;
-	return ret;
+	} while (usedblocks <= priv->cfg->max_ll_items);
+
+	/* OTP has no valid blocks */
+	IWL_DEBUG_INFO(priv, "OTP has no valid blocks\n");
+	return -EINVAL;
 }
 
 /**
@@ -464,7 +465,7 @@ done:
  */
 int iwl_eeprom_init(struct iwl_priv *priv)
 {
-	u16 *e;
+	__le16 *e;
 	u32 gp = iwl_read32(priv, CSR_EEPROM_GP);
 	int sz;
 	int ret;
@@ -483,7 +484,7 @@ int iwl_eeprom_init(struct iwl_priv *priv)
 		ret = -ENOMEM;
 		goto alloc_err;
 	}
-	e = (u16 *)priv->eeprom;
+	e = (__le16 *)priv->eeprom;
 
 	ret = priv->cfg->ops->lib->eeprom_ops.verify_signature(priv);
 	if (ret < 0) {
@@ -522,7 +523,7 @@ int iwl_eeprom_init(struct iwl_priv *priv)
 		}
 		for (addr = validblockaddr; addr < validblockaddr + sz;
 		     addr += sizeof(u16)) {
-			u16 eeprom_data;
+			__le16 eeprom_data;
 
 			ret = iwl_read_otp_word(priv, addr, &eeprom_data);
 			if (ret)
@@ -546,7 +547,7 @@ int iwl_eeprom_init(struct iwl_priv *priv)
 				goto done;
 			}
 			r = _iwl_read_direct32(priv, CSR_EEPROM_REG);
-			e[addr / 2] = le16_to_cpu((__force __le16)(r >> 16));
+			e[addr / 2] = cpu_to_le16(r >> 16);
 		}
 	}
 	ret = 0;
@@ -710,7 +711,8 @@ static int iwl_mod_ht40_chan_info(struct iwl_priv *priv,
 	ch_info->ht40_min_power = 0;
 	ch_info->ht40_scan_power = eeprom_ch->max_power_avg;
 	ch_info->ht40_flags = eeprom_ch->flags;
-	ch_info->ht40_extension_channel &= ~clear_ht40_extension_channel;
+	if (eeprom_ch->flags & EEPROM_CHANNEL_VALID)
+		ch_info->ht40_extension_channel &= ~clear_ht40_extension_channel;
 
 	return 0;
 }

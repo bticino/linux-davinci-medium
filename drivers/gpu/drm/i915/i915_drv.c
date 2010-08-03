@@ -89,7 +89,8 @@ static int i915_suspend(struct drm_device *dev, pm_message_t state)
 		pci_set_power_state(dev->pdev, PCI_D3hot);
 	}
 
-	dev_priv->suspended = 1;
+	/* Modeset on resume, not lid events */
+	dev_priv->modeset_on_lid = 0;
 
 	return 0;
 }
@@ -124,7 +125,7 @@ static int i915_resume(struct drm_device *dev)
 		drm_helper_resume_force_mode(dev);
 	}
 
-	dev_priv->suspended = 0;
+	dev_priv->modeset_on_lid = 0;
 
 	return ret;
 }
@@ -191,6 +192,7 @@ int i965_reset(struct drm_device *dev, u8 flags)
 		}
 	} else {
 		DRM_ERROR("Error occurred. Don't know how to reset this chip.\n");
+		mutex_unlock(&dev->struct_mutex);
 		return -ENODEV;
 	}
 

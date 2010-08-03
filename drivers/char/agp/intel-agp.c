@@ -8,6 +8,7 @@
 #include <linux/kernel.h>
 #include <linux/pagemap.h>
 #include <linux/agp_backend.h>
+#include <asm/smp.h>
 #include "agp.h"
 
 /*
@@ -62,6 +63,7 @@
 #define PCI_DEVICE_ID_INTEL_IGDNG_D_IG	    0x0042
 #define PCI_DEVICE_ID_INTEL_IGDNG_M_HB	    0x0044
 #define PCI_DEVICE_ID_INTEL_IGDNG_MA_HB	    0x0062
+#define PCI_DEVICE_ID_INTEL_IGDNG_MC2_HB    0x006a
 #define PCI_DEVICE_ID_INTEL_IGDNG_M_IG	    0x0046
 
 /* cover 915 and 945 variants */
@@ -96,7 +98,8 @@
 		agp_bridge->dev->device == PCI_DEVICE_ID_INTEL_B43_HB || \
 		agp_bridge->dev->device == PCI_DEVICE_ID_INTEL_IGDNG_D_HB || \
 		agp_bridge->dev->device == PCI_DEVICE_ID_INTEL_IGDNG_M_HB || \
-		agp_bridge->dev->device == PCI_DEVICE_ID_INTEL_IGDNG_MA_HB)
+		agp_bridge->dev->device == PCI_DEVICE_ID_INTEL_IGDNG_MA_HB || \
+		agp_bridge->dev->device == PCI_DEVICE_ID_INTEL_IGDNG_MC2_HB)
 
 extern int agp_memory_reserved;
 
@@ -176,6 +179,7 @@ static struct _intel_private {
 	 * popup and for the GTT.
 	 */
 	int gtt_entries;			/* i830+ */
+	int gtt_total_size;
 	union {
 		void __iomem *i9xx_flush_page;
 		void *i8xx_flush_page;
@@ -812,12 +816,6 @@ static void intel_i830_setup_flush(void)
 		intel_i830_fini_flush();
 }
 
-static void
-do_wbinvd(void *null)
-{
-	wbinvd();
-}
-
 /* The chipset_flush interface needs to get data that has already been
  * flushed out of the CPU all the way out to main memory, because the GPU
  * doesn't snoop those buffers.
@@ -834,12 +832,10 @@ static void intel_i830_chipset_flush(struct agp_bridge_data *bridge)
 
 	memset(pg, 0, 1024);
 
-	if (cpu_has_clflush) {
+	if (cpu_has_clflush)
 		clflush_cache_range(pg, 1024);
-	} else {
-		if (on_each_cpu(do_wbinvd, NULL, 1) != 0)
-			printk(KERN_ERR "Timed out waiting for cache flush.\n");
-	}
+	else if (wbinvd_on_all_cpus() != 0)
+		printk(KERN_ERR "Timed out waiting for cache flush.\n");
 }
 
 /* The intel i830 automatically initializes the agp aperture during POST.
@@ -1151,7 +1147,7 @@ static int intel_i915_configure(void)
 	readl(intel_private.registers+I810_PGETBL_CTL);	/* PCI Posting. */
 
 	if (agp_bridge->driver->needs_scratch_page) {
-		for (i = intel_private.gtt_entries; i < current_size->num_entries; i++) {
+		for (i = intel_private.gtt_entries; i < intel_private.gtt_total_size; i++) {
 			writel(agp_bridge->scratch_page, intel_private.gtt+i);
 		}
 		readl(intel_private.gtt+i-1);	/* PCI Posting. */
@@ -1160,12 +1156,6 @@ static int intel_i915_configure(void)
 	global_cache_flush();
 
 	intel_i9xx_setup_flush();
-
-#ifdef USE_PCI_DMA_API 
-	if (pci_set_dma_mask(intel_private.pcidev, DMA_BIT_MASK(36)))
-		dev_err(&intel_private.pcidev->dev,
-			"set gfx device dma mask 36bit failed!\n");
-#endif
 
 	return 0;
 }
@@ -1312,6 +1302,8 @@ static int intel_i915_create_gatt_table(struct agp_bridge_data *bridge)
 	if (!intel_private.gtt)
 		return -ENOMEM;
 
+	intel_private.gtt_total_size = gtt_map_size / 4;
+
 	temp &= 0xfff80000;
 
 	intel_private.registers = ioremap(temp, 128 * 4096);
@@ -1364,6 +1356,7 @@ static void intel_i965_get_gtt_range(int *gtt_offset, int *gtt_size)
 	case PCI_DEVICE_ID_INTEL_IGDNG_D_HB:
 	case PCI_DEVICE_ID_INTEL_IGDNG_M_HB:
 	case PCI_DEVICE_ID_INTEL_IGDNG_MA_HB:
+	case PCI_DEVICE_ID_INTEL_IGDNG_MC2_HB:
 		*gtt_offset = *gtt_size = MB(2);
 		break;
 	default:
@@ -1397,6 +1390,8 @@ static int intel_i965_create_gatt_table(struct agp_bridge_data *bridge)
 
 	if (!intel_private.gtt)
 		return -ENOMEM;
+
+	intel_private.gtt_total_size = gtt_size / 4;
 
 	intel_private.registers = ioremap(temp, 128 * 4096);
 	if (!intel_private.registers) {
@@ -2365,6 +2360,8 @@ static const struct intel_driver_description {
 	    "IGDNG/M", NULL, &intel_i965_driver },
 	{ PCI_DEVICE_ID_INTEL_IGDNG_MA_HB, PCI_DEVICE_ID_INTEL_IGDNG_M_IG, 0,
 	    "IGDNG/MA", NULL, &intel_i965_driver },
+	{ PCI_DEVICE_ID_INTEL_IGDNG_MC2_HB, PCI_DEVICE_ID_INTEL_IGDNG_M_IG, 0,
+	    "IGDNG/MC2", NULL, &intel_i965_driver },
 	{ 0, 0, 0, NULL, NULL, NULL }
 };
 
@@ -2455,6 +2452,11 @@ static int __devinit agp_intel_probe(struct pci_dev *pdev,
 				bridge->capndx+PCI_AGP_STATUS,
 				&bridge->mode);
 	}
+
+	if (bridge->driver->mask_memory == intel_i965_mask_memory)
+		if (pci_set_dma_mask(intel_private.pcidev, DMA_BIT_MASK(36)))
+			dev_err(&intel_private.pcidev->dev,
+				"set gfx device dma mask 36bit failed!\n");
 
 	pci_set_drvdata(pdev, bridge);
 	return agp_add_bridge(bridge);
@@ -2561,6 +2563,7 @@ static struct pci_device_id agp_intel_pci_table[] = {
 	ID(PCI_DEVICE_ID_INTEL_IGDNG_D_HB),
 	ID(PCI_DEVICE_ID_INTEL_IGDNG_M_HB),
 	ID(PCI_DEVICE_ID_INTEL_IGDNG_MA_HB),
+	ID(PCI_DEVICE_ID_INTEL_IGDNG_MC2_HB),
 	{ }
 };
 

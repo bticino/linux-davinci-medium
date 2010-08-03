@@ -310,6 +310,7 @@ err_cleanup:
 				usb_free_urb(priv->write_urb_pool[j]);
 			}
 		}
+		kfree(priv);
 		usb_set_serial_port_data(serial->port[i], NULL);
 	}
 	return -ENOMEM;
@@ -951,7 +952,7 @@ static void klsi_105_unthrottle(struct tty_struct *tty)
 	dbg("%s - port %d", __func__, port->number);
 
 	port->read_urb->dev = port->serial->dev;
-	result = usb_submit_urb(port->read_urb, GFP_ATOMIC);
+	result = usb_submit_urb(port->read_urb, GFP_KERNEL);
 	if (result)
 		dev_err(&port->dev,
 			"%s - failed submitting read urb, error %d\n",

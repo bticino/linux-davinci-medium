@@ -1258,7 +1258,7 @@ static int cppi_channel_abort(struct dma_channel *channel)
 		/* re-enable interrupt */
 		if (enabled)
 			musb_writel(tibase, DAVINCI_TXCPPI_INTENAB_REG,
-				    (1 << cppi_ch->index));
+					(1 << cppi_ch->index));
 
 		cppi_dump_tx(5, cppi_ch, " (done teardown)");
 

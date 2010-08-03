@@ -88,9 +88,9 @@ dasd_eckd_probe (struct ccw_device *cdev)
 	/* set ECKD specific ccw-device options */
 	ret = ccw_device_set_options(cdev, CCWDEV_ALLOW_FORCE);
 	if (ret) {
-		DBF_EVENT(DBF_WARNING,
-		       "dasd_eckd_probe: could not set ccw-device options "
-		       "for %s\n", dev_name(&cdev->dev));
+		DBF_EVENT_DEVID(DBF_WARNING, cdev, "%s",
+				"dasd_eckd_probe: could not set "
+				"ccw-device options");
 		return ret;
 	}
 	ret = dasd_generic_probe(cdev, &dasd_eckd_discipline);
@@ -885,16 +885,15 @@ static int dasd_eckd_read_conf(struct dasd_device *device)
 			rc = dasd_eckd_read_conf_lpm(device, &conf_data,
 						     &conf_len, lpm);
 			if (rc && rc != -EOPNOTSUPP) {	/* -EOPNOTSUPP is ok */
-				DBF_EVENT(DBF_WARNING,
+				DBF_EVENT_DEVID(DBF_WARNING, device->cdev,
 					  "Read configuration data returned "
-					  "error %d for device: %s", rc,
-					  dev_name(&device->cdev->dev));
+					  "error %d", rc);
 				return rc;
 			}
 			if (conf_data == NULL) {
-				DBF_EVENT(DBF_WARNING, "No configuration "
-					  "data retrieved for device: %s",
-					  dev_name(&device->cdev->dev));
+				DBF_EVENT_DEVID(DBF_WARNING, device->cdev, "%s",
+						"No configuration data "
+						"retrieved");
 				continue;	/* no error */
 			}
 			/* save first valid configuration data */
@@ -941,9 +940,8 @@ static int dasd_eckd_read_features(struct dasd_device *device)
 				    sizeof(struct dasd_rssd_features)),
 				   device);
 	if (IS_ERR(cqr)) {
-		DBF_EVENT(DBF_WARNING, "Could not allocate initialization "
-			  "request for device: %s",
-			  dev_name(&device->cdev->dev));
+		DBF_EVENT_DEVID(DBF_WARNING, device->cdev, "%s", "Could not "
+				"allocate initialization request");
 		return PTR_ERR(cqr);
 	}
 	cqr->startdev = device;
@@ -1071,10 +1069,8 @@ static int dasd_eckd_validate_server(struct dasd_device *device)
 	/* may be requested feature is not available on server,
 	 * therefore just report error and go ahead */
 	private = (struct dasd_eckd_private *) device->private;
-	DBF_EVENT(DBF_WARNING, "PSF-SSC on storage subsystem %s.%s.%04x "
-		  "returned rc=%d for device: %s",
-		  private->uid.vendor, private->uid.serial,
-		  private->uid.ssid, rc, dev_name(&device->cdev->dev));
+	DBF_EVENT_DEVID(DBF_WARNING, device->cdev, "PSF-SSC for SSID %04x "
+			"returned rc=%d", private->uid.ssid, rc);
 	/* RE-Read Configuration Data */
 	return dasd_eckd_read_conf(device);
 }
@@ -1123,9 +1119,9 @@ dasd_eckd_check_characteristics(struct dasd_device *device)
 	if (private->uid.type == UA_BASE_DEVICE) {
 		block = dasd_alloc_block();
 		if (IS_ERR(block)) {
-			DBF_EVENT(DBF_WARNING, "could not allocate dasd "
-				  "block structure for device: %s",
-				  dev_name(&device->cdev->dev));
+			DBF_EVENT_DEVID(DBF_WARNING, device->cdev, "%s",
+					"could not allocate dasd "
+					"block structure");
 			rc = PTR_ERR(block);
 			goto out_err1;
 		}
@@ -1153,9 +1149,8 @@ dasd_eckd_check_characteristics(struct dasd_device *device)
 	rc = dasd_generic_read_dev_chars(device, DASD_ECKD_MAGIC,
 					 &private->rdc_data, 64);
 	if (rc) {
-		DBF_EVENT(DBF_WARNING,
-			  "Read device characteristics failed, rc=%d for "
-			  "device: %s", rc, dev_name(&device->cdev->dev));
+		DBF_EVENT_DEVID(DBF_WARNING, device->cdev,
+				"Read device characteristic failed, rc=%d", rc);
 		goto out_err3;
 	}
 	/* find the vaild cylinder size */
@@ -2338,6 +2333,8 @@ static struct dasd_ccw_req *dasd_eckd_build_cp(struct dasd_device *startdev,
 	/* Calculate number of blocks/records per track. */
 	blksize = block->bp_block;
 	blk_per_trk = recs_per_track(&private->rdc_data, 0, blksize);
+	if (blk_per_trk == 0)
+		return ERR_PTR(-EINVAL);
 	/* Calculate record id of first and last block. */
 	first_rec = first_trk = blk_rq_pos(req) >> block->s2b_shift;
 	first_offs = sector_div(first_trk, blk_per_trk);
@@ -2978,7 +2975,7 @@ static void dasd_eckd_dump_sense_ccw(struct dasd_device *device,
 	len += sprintf(page + len, KERN_ERR PRINTK_HEADER
 		       " in req: %p CS: 0x%02X DS: 0x%02X CC: 0x%02X RC: %d\n",
 		       req, scsw_cstat(&irb->scsw), scsw_dstat(&irb->scsw),
-		       scsw_cc(&irb->scsw), req->intrc);
+		       scsw_cc(&irb->scsw), req ? req->intrc : 0);
 	len += sprintf(page + len, KERN_ERR PRINTK_HEADER
 		       " device %s: Failing CCW: %p\n",
 		       dev_name(&device->cdev->dev),
@@ -3211,8 +3208,10 @@ int dasd_eckd_pm_freeze(struct dasd_device *device)
 int dasd_eckd_restore_device(struct dasd_device *device)
 {
 	struct dasd_eckd_private *private;
+	struct dasd_eckd_characteristics temp_rdc_data;
 	int is_known, rc;
 	struct dasd_uid temp_uid;
+	unsigned long flags;
 
 	private = (struct dasd_eckd_private *) device->private;
 
@@ -3225,7 +3224,8 @@ int dasd_eckd_restore_device(struct dasd_device *device)
 	rc = dasd_eckd_generate_uid(device, &private->uid);
 	dasd_get_uid(device->cdev, &temp_uid);
 	if (memcmp(&private->uid, &temp_uid, sizeof(struct dasd_uid)) != 0)
-		dev_err(&device->cdev->dev, "The UID of the DASD has changed\n");
+		dev_err(&device->cdev->dev, "The UID of the DASD has "
+			"changed\n");
 	if (rc)
 		goto out_err;
 	dasd_set_uid(device->cdev, &private->uid);
@@ -3245,15 +3245,16 @@ int dasd_eckd_restore_device(struct dasd_device *device)
 	dasd_eckd_read_features(device);
 
 	/* Read Device Characteristics */
-	memset(&private->rdc_data, 0, sizeof(private->rdc_data));
 	rc = dasd_generic_read_dev_chars(device, DASD_ECKD_MAGIC,
-					 &private->rdc_data, 64);
+					 &temp_rdc_data, 64);
 	if (rc) {
-		DBF_EVENT(DBF_WARNING,
-			  "Read device characteristics failed, rc=%d for "
-			  "device: %s", rc, dev_name(&device->cdev->dev));
+		DBF_EVENT_DEVID(DBF_WARNING, device->cdev,
+				"Read device characteristic failed, rc=%d", rc);
 		goto out_err;
 	}
+	spin_lock_irqsave(get_ccwdev_lock(device->cdev), flags);
+	memcpy(&private->rdc_data, &temp_rdc_data, sizeof(temp_rdc_data));
+	spin_unlock_irqrestore(get_ccwdev_lock(device->cdev), flags);
 
 	/* add device to alias management */
 	dasd_alias_add_device(device);

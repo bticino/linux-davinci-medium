@@ -39,7 +39,7 @@
 #define USBTMC_SIZE_IOBUFFER	2048
 
 /* Default USB timeout (in milliseconds) */
-#define USBTMC_TIMEOUT		10
+#define USBTMC_TIMEOUT		5000
 
 /*
  * Maximum number of read cycles to empty bulk in endpoint during CLEAR and
@@ -562,10 +562,16 @@ static ssize_t usbtmc_write(struct file *filp, const char __user *buf,
 		n_bytes = roundup(12 + this_part, 4);
 		memset(buffer + 12 + this_part, 0, n_bytes - (12 + this_part));
 
-		retval = usb_bulk_msg(data->usb_dev,
-				      usb_sndbulkpipe(data->usb_dev,
-						      data->bulk_out),
-				      buffer, n_bytes, &actual, USBTMC_TIMEOUT);
+		do {
+			retval = usb_bulk_msg(data->usb_dev,
+					      usb_sndbulkpipe(data->usb_dev,
+							      data->bulk_out),
+					      buffer, n_bytes,
+					      &actual, USBTMC_TIMEOUT);
+			if (retval != 0)
+				break;
+			n_bytes -= actual;
+		} while (n_bytes);
 
 		data->bTag_last_write = data->bTag;
 		data->bTag++;
@@ -993,7 +999,7 @@ skip_io_on_zombie:
 	return retval;
 }
 
-static struct file_operations fops = {
+static const struct file_operations fops = {
 	.owner		= THIS_MODULE,
 	.read		= usbtmc_read,
 	.write		= usbtmc_write,

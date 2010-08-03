@@ -119,6 +119,7 @@
 #define	DB_DEBUG					0x9830
 #define		PREZ_MUST_WAIT_FOR_POSTZ_DONE			(1 << 31)
 #define	DB_DEPTH_BASE					0x2800C
+#define	DB_HTILE_DATA_BASE				0x28014
 #define	DB_WATERMARKS					0x9838
 #define		DEPTH_FREE(x)					((x) << 0)
 #define		DEPTH_FLUSH(x)					((x) << 5)
@@ -171,6 +172,14 @@
 #define SQ_STACK_RESOURCE_MGMT_2                          0x8c14
 #       define NUM_GS_STACK_ENTRIES(x)                    ((x) << 0)
 #       define NUM_ES_STACK_ENTRIES(x)                    ((x) << 16)
+#define SQ_ESGS_RING_BASE                               0x8c40
+#define SQ_GSVS_RING_BASE                               0x8c48
+#define SQ_ESTMP_RING_BASE                              0x8c50
+#define SQ_GSTMP_RING_BASE                              0x8c58
+#define SQ_VSTMP_RING_BASE                              0x8c60
+#define SQ_PSTMP_RING_BASE                              0x8c68
+#define SQ_FBUF_RING_BASE                               0x8c70
+#define SQ_REDUC_RING_BASE                              0x8c78
 
 #define GRBM_CNTL                                       0x8000
 #       define GRBM_READ_TIMEOUT(x)                     ((x) << 0)
@@ -271,6 +280,10 @@
 #define	PCIE_PORT_INDEX					0x0038
 #define	PCIE_PORT_DATA					0x003C
 
+#define CHMAP						0x2004
+#define		NOOFCHAN_SHIFT					12
+#define		NOOFCHAN_MASK					0x00003000
+
 #define RAMCFG						0x2408
 #define		NOOFBANK_SHIFT					0
 #define		NOOFBANK_MASK					0x00000001
@@ -352,6 +365,7 @@
 
 
 #define	SX_MISC						0x28350
+#define	SX_MEMORY_EXPORT_BASE				0x9010
 #define	SX_DEBUG_1					0x9054
 #define		SMX_EVENT_RELEASE				(1 << 0)
 #define		ENABLE_NEW_SMX_ADDRESS				(1 << 16)
@@ -643,6 +657,7 @@
 #define		G_000E50_MCDW_BUSY(x)			(((x) >> 13) & 1)
 #define		G_000E50_SEM_BUSY(x)			(((x) >> 14) & 1)
 #define		G_000E50_RLC_BUSY(x)			(((x) >> 15) & 1)
+#define		G_000E50_BIF_BUSY(x)			(((x) >> 29) & 1)
 #define	R_000E60_SRBM_SOFT_RESET			0x0E60
 #define		S_000E60_SOFT_RESET_BIF(x)		(((x) & 1) << 1)
 #define		S_000E60_SOFT_RESET_CG(x)		(((x) & 1) << 2)
@@ -658,5 +673,31 @@
 #define		S_000E60_SOFT_RESET_SEM(x)		(((x) & 1) << 15)
 #define		S_000E60_SOFT_RESET_TSC(x)		(((x) & 1) << 16)
 #define		S_000E60_SOFT_RESET_VMC(x)		(((x) & 1) << 17)
+
+#define R_005480_HDP_MEM_COHERENCY_FLUSH_CNTL		0x5480
+
+#define R_0280E0_CB_COLOR0_FRAG                      0x0280E0
+#define   S_0280E0_BASE_256B(x)                        (((x) & 0xFFFFFFFF) << 0)
+#define   G_0280E0_BASE_256B(x)                        (((x) >> 0) & 0xFFFFFFFF)
+#define   C_0280E0_BASE_256B                           0x00000000
+#define R_0280E4_CB_COLOR1_FRAG                      0x0280E4
+#define R_0280E8_CB_COLOR2_FRAG                      0x0280E8
+#define R_0280EC_CB_COLOR3_FRAG                      0x0280EC
+#define R_0280F0_CB_COLOR4_FRAG                      0x0280F0
+#define R_0280F4_CB_COLOR5_FRAG                      0x0280F4
+#define R_0280F8_CB_COLOR6_FRAG                      0x0280F8
+#define R_0280FC_CB_COLOR7_FRAG                      0x0280FC
+#define R_0280C0_CB_COLOR0_TILE                      0x0280C0
+#define   S_0280C0_BASE_256B(x)                        (((x) & 0xFFFFFFFF) << 0)
+#define   G_0280C0_BASE_256B(x)                        (((x) >> 0) & 0xFFFFFFFF)
+#define   C_0280C0_BASE_256B                           0x00000000
+#define R_0280C4_CB_COLOR1_TILE                      0x0280C4
+#define R_0280C8_CB_COLOR2_TILE                      0x0280C8
+#define R_0280CC_CB_COLOR3_TILE                      0x0280CC
+#define R_0280D0_CB_COLOR4_TILE                      0x0280D0
+#define R_0280D4_CB_COLOR5_TILE                      0x0280D4
+#define R_0280D8_CB_COLOR6_TILE                      0x0280D8
+#define R_0280DC_CB_COLOR7_TILE                      0x0280DC
+
 
 #endif

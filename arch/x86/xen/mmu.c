@@ -185,7 +185,7 @@ static inline unsigned p2m_index(unsigned long pfn)
 }
 
 /* Build the parallel p2m_top_mfn structures */
-static void __init xen_build_mfn_list_list(void)
+void xen_build_mfn_list_list(void)
 {
 	unsigned pfn, idx;
 
@@ -1432,13 +1432,14 @@ static void *xen_kmap_atomic_pte(struct page *page, enum km_type type)
 {
 	pgprot_t prot = PAGE_KERNEL;
 
+	/*
+	 * We disable highmem allocations for page tables so we should never
+	 * see any calls to kmap_atomic_pte on a highmem page.
+	 */
+	BUG_ON(PageHighMem(page));
+
 	if (PagePinned(page))
 		prot = PAGE_KERNEL_RO;
-
-	if (0 && PageHighMem(page))
-		printk("mapping highpte %lx type %d prot %s\n",
-		       page_to_pfn(page), type,
-		       (unsigned long)pgprot_val(prot) & _PAGE_RW ? "WRITE" : "READ");
 
 	return kmap_atomic_prot(page, type, prot);
 }

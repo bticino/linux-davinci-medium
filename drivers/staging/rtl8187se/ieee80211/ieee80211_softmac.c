@@ -689,7 +689,7 @@ void ieee80211_stop_scan(struct ieee80211_device *ieee)
 }
 
 /* called with ieee->lock held */
-void ieee80211_start_scan(struct ieee80211_device *ieee)
+void ieee80211_rtl_start_scan(struct ieee80211_device *ieee)
 {
 	if(IS_DOT11D_ENABLE(ieee) )
 	{
@@ -1196,7 +1196,7 @@ void ieee80211_associate_step1(struct ieee80211_device *ieee)
 	}
 }
 
-void ieee80211_auth_challenge(struct ieee80211_device *ieee, u8 *challenge, int chlen)
+void ieee80211_rtl_auth_challenge(struct ieee80211_device *ieee, u8 *challenge, int chlen)
 {
 	u8 *c;
 	struct sk_buff *skb;
@@ -1898,7 +1898,7 @@ associate_complete:
 
 								ieee80211_associate_step2(ieee);
 							}else{
-								ieee80211_auth_challenge(ieee, challenge, chlen);
+								ieee80211_rtl_auth_challenge(ieee, challenge, chlen);
 							}
 						}else{
 							ieee->softmac_stats.rx_auth_rs_err++;
@@ -2047,7 +2047,7 @@ void ieee80211_reset_queue(struct ieee80211_device *ieee)
 
 }
 
-void ieee80211_wake_queue(struct ieee80211_device *ieee)
+void ieee80211_rtl_wake_queue(struct ieee80211_device *ieee)
 {
 
 	unsigned long flags;
@@ -2089,7 +2089,7 @@ exit :
 }
 
 
-void ieee80211_stop_queue(struct ieee80211_device *ieee)
+void ieee80211_rtl_stop_queue(struct ieee80211_device *ieee)
 {
 	//unsigned long flags;
 	//spin_lock_irqsave(&ieee->lock,flags);
@@ -2301,7 +2301,7 @@ void ieee80211_start_bss(struct ieee80211_device *ieee)
 //#else
 	if (ieee->state == IEEE80211_NOLINK){
 		ieee->actscanning = true;
-		ieee80211_start_scan(ieee);
+		ieee80211_rtl_start_scan(ieee);
 	}
 //#endif
 	spin_unlock_irqrestore(&ieee->lock, flags);
@@ -2357,7 +2357,7 @@ void ieee80211_associate_retry_wq(struct work_struct *work)
 	if(ieee->state == IEEE80211_NOLINK){
 		ieee->beinretry = false;
 		ieee->actscanning = true;
-		ieee80211_start_scan(ieee);
+		ieee80211_rtl_start_scan(ieee);
 	}
 	//YJ,add,080828, notify os here
 	if(ieee->state == IEEE80211_NOLINK)
@@ -2839,16 +2839,12 @@ static int ieee80211_wpa_set_encryption(struct ieee80211_device *ieee,
 		goto skip_host_crypt;
 
 	ops = ieee80211_get_crypto_ops(param->u.crypt.alg);
-	if (ops == NULL && strcmp(param->u.crypt.alg, "WEP") == 0) {
-		request_module("ieee80211_crypt_wep");
+	if (ops == NULL && strcmp(param->u.crypt.alg, "WEP") == 0)
 		ops = ieee80211_get_crypto_ops(param->u.crypt.alg);
-	} else if (ops == NULL && strcmp(param->u.crypt.alg, "TKIP") == 0) {
-		request_module("ieee80211_crypt_tkip");
+	else if (ops == NULL && strcmp(param->u.crypt.alg, "TKIP") == 0)
 		ops = ieee80211_get_crypto_ops(param->u.crypt.alg);
-	} else if (ops == NULL && strcmp(param->u.crypt.alg, "CCMP") == 0) {
-		request_module("ieee80211_crypt_ccmp");
+	else if (ops == NULL && strcmp(param->u.crypt.alg, "CCMP") == 0)
 		ops = ieee80211_get_crypto_ops(param->u.crypt.alg);
-	}
 	if (ops == NULL) {
 		printk("unknown crypto alg '%s'\n", param->u.crypt.alg);
 		param->u.crypt.err = IEEE_CRYPT_ERR_UNKNOWN_ALG;
@@ -2869,7 +2865,7 @@ static int ieee80211_wpa_set_encryption(struct ieee80211_device *ieee,
 		}
 		memset(new_crypt, 0, sizeof(struct ieee80211_crypt_data));
 		new_crypt->ops = ops;
-		if (new_crypt->ops && try_module_get(new_crypt->ops->owner))
+		if (new_crypt->ops)
 			new_crypt->priv =
 				new_crypt->ops->init(param->u.crypt.idx);
 

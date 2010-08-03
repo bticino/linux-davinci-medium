@@ -354,8 +354,16 @@ static inline int ipv6_prefix_equal(const struct in6_addr *a1,
 
 struct inet_frag_queue;
 
+enum ip6_defrag_users {
+	IP6_DEFRAG_LOCAL_DELIVER,
+	IP6_DEFRAG_CONNTRACK_IN,
+	IP6_DEFRAG_CONNTRACK_OUT,
+	IP6_DEFRAG_CONNTRACK_BRIDGE_IN,
+};
+
 struct ip6_create_arg {
 	__be32 id;
+	u32 user;
 	struct in6_addr *src;
 	struct in6_addr *dst;
 };
@@ -550,7 +558,7 @@ extern int ipv6_find_tlv(struct sk_buff *skb, int offset, int type);
 extern int			ipv6_setsockopt(struct sock *sk, int level, 
 						int optname,
 						char __user *optval, 
-						int optlen);
+						unsigned int optlen);
 extern int			ipv6_getsockopt(struct sock *sk, int level, 
 						int optname,
 						char __user *optval, 
@@ -559,7 +567,7 @@ extern int			compat_ipv6_setsockopt(struct sock *sk,
 						int level,
 						int optname,
 						char __user *optval,
-						int optlen);
+						unsigned int optlen);
 extern int			compat_ipv6_getsockopt(struct sock *sk,
 						int level,
 						int optname,

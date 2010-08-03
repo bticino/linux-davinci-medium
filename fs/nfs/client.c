@@ -965,6 +965,8 @@ out_error:
 static void nfs_server_copy_userdata(struct nfs_server *target, struct nfs_server *source)
 {
 	target->flags = source->flags;
+	target->rsize = source->rsize;
+	target->wsize = source->wsize;
 	target->acregmin = source->acregmin;
 	target->acregmax = source->acregmax;
 	target->acdirmin = source->acdirmin;
@@ -1180,7 +1182,7 @@ static int nfs4_init_client(struct nfs_client *clp,
 				      1, flags & NFS_MOUNT_NORESVPORT);
 	if (error < 0)
 		goto error;
-	memcpy(clp->cl_ipaddr, ip_addr, sizeof(clp->cl_ipaddr));
+	strlcpy(clp->cl_ipaddr, ip_addr, sizeof(clp->cl_ipaddr));
 
 	error = nfs_idmap_new(clp);
 	if (error < 0) {
@@ -1283,7 +1285,8 @@ static int nfs4_init_server(struct nfs_server *server,
 
 	/* Initialise the client representation from the mount data */
 	server->flags = data->flags;
-	server->caps |= NFS_CAP_ATOMIC_OPEN|NFS_CAP_CHANGE_ATTR;
+	server->caps |= NFS_CAP_ATOMIC_OPEN|NFS_CAP_CHANGE_ATTR|
+		NFS_CAP_POSIX_LOCK;
 	server->options = data->options;
 
 	/* Get a client record */

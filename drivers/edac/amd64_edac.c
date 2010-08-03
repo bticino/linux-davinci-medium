@@ -13,10 +13,12 @@ module_param(report_gart_errors, int, 0644);
 static int ecc_enable_override;
 module_param(ecc_enable_override, int, 0644);
 
+static struct msr *msrs;
+
 /* Lookup table for all possible MC control instances */
 struct amd64_pvt;
-static struct mem_ctl_info *mci_lookup[MAX_NUMNODES];
-static struct amd64_pvt *pvt_lookup[MAX_NUMNODES];
+static struct mem_ctl_info *mci_lookup[EDAC_MAX_NUMNODES];
+static struct amd64_pvt *pvt_lookup[EDAC_MAX_NUMNODES];
 
 /*
  * See F2x80 for K8 and F2x[1,0]80 for Fam10 and later. The table below is only
@@ -189,7 +191,10 @@ static int amd64_get_scrub_rate(struct mem_ctl_info *mci, u32 *bw)
 /* Map from a CSROW entry to the mask entry that operates on it */
 static inline u32 amd64_map_to_dcs_mask(struct amd64_pvt *pvt, int csrow)
 {
-	return csrow >> (pvt->num_dcsm >> 3);
+	if (boot_cpu_data.x86 == 0xf && pvt->ext_model < OPTERON_CPU_REV_F)
+		return csrow;
+	else
+		return csrow >> 1;
 }
 
 /* return the 'base' address the i'th CS entry of the 'dct' DRAM controller */
@@ -279,29 +284,26 @@ static struct mem_ctl_info *find_mc_by_sys_addr(struct mem_ctl_info *mci,
 	intlv_en = pvt->dram_IntlvEn[0];
 
 	if (intlv_en == 0) {
-		for (node_id = 0; ; ) {
+		for (node_id = 0; node_id < DRAM_REG_COUNT; node_id++) {
 			if (amd64_base_limit_match(pvt, sys_addr, node_id))
-				break;
-
-			if (++node_id >= DRAM_REG_COUNT)
-				goto err_no_match;
+				goto found;
 		}
-		goto found;
+		goto err_no_match;
 	}
 
-	if (unlikely((intlv_en != (0x01 << 8)) &&
-		     (intlv_en != (0x03 << 8)) &&
-		     (intlv_en != (0x07 << 8)))) {
+	if (unlikely((intlv_en != 0x01) &&
+		     (intlv_en != 0x03) &&
+		     (intlv_en != 0x07))) {
 		amd64_printk(KERN_WARNING, "junk value of 0x%x extracted from "
 			     "IntlvEn field of DRAM Base Register for node 0: "
-			     "This probably indicates a BIOS bug.\n", intlv_en);
+			     "this probably indicates a BIOS bug.\n", intlv_en);
 		return NULL;
 	}
 
 	bits = (((u32) sys_addr) >> 12) & intlv_en;
 
 	for (node_id = 0; ; ) {
-		if ((pvt->dram_limit[node_id] & intlv_en) == bits)
+		if ((pvt->dram_IntlvSel[node_id] & intlv_en) == bits)
 			break;	/* intlv_sel field matches */
 
 		if (++node_id >= DRAM_REG_COUNT)
@@ -311,10 +313,10 @@ static struct mem_ctl_info *find_mc_by_sys_addr(struct mem_ctl_info *mci,
 	/* sanity test for sys_addr */
 	if (unlikely(!amd64_base_limit_match(pvt, sys_addr, node_id))) {
 		amd64_printk(KERN_WARNING,
-			  "%s(): sys_addr 0x%lx falls outside base/limit "
-			  "address range for node %d with node interleaving "
-			  "enabled.\n", __func__, (unsigned long)sys_addr,
-			  node_id);
+			     "%s(): sys_addr 0x%llx falls outside base/limit "
+			     "address range for node %d with node interleaving "
+			     "enabled.\n",
+			     __func__, sys_addr, node_id);
 		return NULL;
 	}
 
@@ -377,7 +379,7 @@ static int input_addr_to_csrow(struct mem_ctl_info *mci, u64 input_addr)
 	 * base/mask register pair, test the condition shown near the start of
 	 * section 3.5.4 (p. 84, BKDG #26094, K8, revA-E).
 	 */
-	for (csrow = 0; csrow < CHIPSELECT_COUNT; csrow++) {
+	for (csrow = 0; csrow < pvt->cs_count; csrow++) {
 
 		/* This DRAM chip select is disabled on this node */
 		if ((pvt->dcsb0[csrow] & K8_DCSB_CS_ENABLE) == 0)
@@ -734,7 +736,7 @@ static void find_csrow_limits(struct mem_ctl_info *mci, int csrow,
 	u64 base, mask;
 
 	pvt = mci->pvt_info;
-	BUG_ON((csrow < 0) || (csrow >= CHIPSELECT_COUNT));
+	BUG_ON((csrow < 0) || (csrow >= pvt->cs_count));
 
 	base = base_from_dct_base(pvt, csrow);
 	mask = mask_from_dct_mask(pvt, csrow);
@@ -962,35 +964,27 @@ err_reg:
  */
 static void amd64_set_dct_base_and_mask(struct amd64_pvt *pvt)
 {
-	if (pvt->ext_model >= OPTERON_CPU_REV_F) {
+
+	if (boot_cpu_data.x86 == 0xf && pvt->ext_model < OPTERON_CPU_REV_F) {
+		pvt->dcsb_base		= REV_E_DCSB_BASE_BITS;
+		pvt->dcsm_mask		= REV_E_DCSM_MASK_BITS;
+		pvt->dcs_mask_notused	= REV_E_DCS_NOTUSED_BITS;
+		pvt->dcs_shift		= REV_E_DCS_SHIFT;
+		pvt->cs_count		= 8;
+		pvt->num_dcsm		= 8;
+	} else {
 		pvt->dcsb_base		= REV_F_F1Xh_DCSB_BASE_BITS;
 		pvt->dcsm_mask		= REV_F_F1Xh_DCSM_MASK_BITS;
 		pvt->dcs_mask_notused	= REV_F_F1Xh_DCS_NOTUSED_BITS;
 		pvt->dcs_shift		= REV_F_F1Xh_DCS_SHIFT;
 
-		switch (boot_cpu_data.x86) {
-		case 0xf:
-			pvt->num_dcsm = REV_F_DCSM_COUNT;
-			break;
-
-		case 0x10:
-			pvt->num_dcsm = F10_DCSM_COUNT;
-			break;
-
-		case 0x11:
-			pvt->num_dcsm = F11_DCSM_COUNT;
-			break;
-
-		default:
-			amd64_printk(KERN_ERR, "Unsupported family!\n");
-			break;
+		if (boot_cpu_data.x86 == 0x11) {
+			pvt->cs_count = 4;
+			pvt->num_dcsm = 2;
+		} else {
+			pvt->cs_count = 8;
+			pvt->num_dcsm = 4;
 		}
-	} else {
-		pvt->dcsb_base		= REV_E_DCSB_BASE_BITS;
-		pvt->dcsm_mask		= REV_E_DCSM_MASK_BITS;
-		pvt->dcs_mask_notused	= REV_E_DCS_NOTUSED_BITS;
-		pvt->dcs_shift		= REV_E_DCS_SHIFT;
-		pvt->num_dcsm		= REV_E_DCSM_COUNT;
 	}
 }
 
@@ -1003,7 +997,7 @@ static void amd64_read_dct_base_mask(struct amd64_pvt *pvt)
 
 	amd64_set_dct_base_and_mask(pvt);
 
-	for (cs = 0; cs < CHIPSELECT_COUNT; cs++) {
+	for (cs = 0; cs < pvt->cs_count; cs++) {
 		reg = K8_DCSB0 + (cs * 4);
 		err = pci_read_config_dword(pvt->dram_f2_ctl, reg,
 						&pvt->dcsb0[cs]);
@@ -1193,7 +1187,7 @@ static void k8_map_sysaddr_to_csrow(struct mem_ctl_info *mci,
 	 * different from the node that detected the error.
 	 */
 	src_mci = find_mc_by_sys_addr(mci, SystemAddress);
-	if (src_mci) {
+	if (!src_mci) {
 		amd64_mc_printk(mci, KERN_ERR,
 			     "failed to map error address 0x%lx to a node\n",
 			     (unsigned long)SystemAddress);
@@ -1376,8 +1370,8 @@ static void f10_read_dram_base_limit(struct amd64_pvt *pvt, int dram)
 
 	pvt->dram_IntlvEn[dram] = (low_base >> 8) & 0x7;
 
-	pvt->dram_base[dram] = (((((u64) high_base & 0x000000FF) << 32) |
-				((u64) low_base & 0xFFFF0000))) << 8;
+	pvt->dram_base[dram] = (((u64)high_base & 0x000000FF) << 40) |
+			       (((u64)low_base  & 0xFFFF0000) << 8);
 
 	low_offset = K8_DRAM_LIMIT_LOW + (dram << 3);
 	high_offset = F10_DRAM_LIMIT_HIGH + (dram << 3);
@@ -1398,9 +1392,9 @@ static void f10_read_dram_base_limit(struct amd64_pvt *pvt, int dram)
 	 * Extract address values and form a LIMIT address. Limit is the HIGHEST
 	 * memory location of the region, so low 24 bits need to be all ones.
 	 */
-	low_limit |= 0x0000FFFF;
-	pvt->dram_limit[dram] =
-		((((u64) high_limit << 32) + (u64) low_limit) << 8) | (0xFF);
+	pvt->dram_limit[dram] = (((u64)high_limit & 0x000000FF) << 40) |
+				(((u64) low_limit & 0xFFFF0000) << 8) |
+				0x00FFFFFF;
 }
 
 static void f10_read_dram_ctl_register(struct amd64_pvt *pvt)
@@ -1566,7 +1560,7 @@ static int f10_lookup_addr_in_dct(u32 in_addr, u32 nid, u32 cs)
 
 	debugf1("InputAddr=0x%x  channelselect=%d\n", in_addr, cs);
 
-	for (csrow = 0; csrow < CHIPSELECT_COUNT; csrow++) {
+	for (csrow = 0; csrow < pvt->cs_count; csrow++) {
 
 		cs_base = amd64_get_dct_base(pvt, cs, csrow);
 		if (!(cs_base & K8_DCSB_CS_ENABLE))
@@ -2262,7 +2256,7 @@ static inline void __amd64_decode_bus_error(struct mem_ctl_info *mci,
 {
 	u32 ec  = ERROR_CODE(info->nbsl);
 	u32 xec = EXT_ERROR_CODE(info->nbsl);
-	int ecc_type = info->nbsh & (0x3 << 13);
+	int ecc_type = (info->nbsh >> 13) & 0x3;
 
 	/* Bail early out if this was an 'observed' error */
 	if (PP(ec) == K8_NBSL_PP_OBS)
@@ -2497,7 +2491,7 @@ err_reg:
  * NOTE: CPU Revision Dependent code
  *
  * Input:
- *	@csrow_nr ChipSelect Row Number (0..CHIPSELECT_COUNT-1)
+ *	@csrow_nr ChipSelect Row Number (0..pvt->cs_count-1)
  *	k8 private pointer to -->
  *			DRAM Bank Address mapping register
  *			node_id
@@ -2577,7 +2571,7 @@ static int amd64_init_csrows(struct mem_ctl_info *mci)
 		(pvt->nbcfg & K8_NBCFG_ECC_ENABLE) ? "Enabled" : "Disabled"
 		);
 
-	for (i = 0; i < CHIPSELECT_COUNT; i++) {
+	for (i = 0; i < pvt->cs_count; i++) {
 		csrow = &mci->csrows[i];
 
 		if ((pvt->dcsb0[i] & K8_DCSB_CS_ENABLE) == 0) {
@@ -2626,6 +2620,90 @@ static int amd64_init_csrows(struct mem_ctl_info *mci)
 	return empty;
 }
 
+/* get all cores on this DCT */
+static void get_cpus_on_this_dct_cpumask(struct cpumask *mask, int nid)
+{
+	int cpu;
+
+	for_each_online_cpu(cpu)
+		if (amd_get_nb_id(cpu) == nid)
+			cpumask_set_cpu(cpu, mask);
+}
+
+/* check MCG_CTL on all the cpus on this node */
+static bool amd64_nb_mce_bank_enabled_on_node(int nid)
+{
+	cpumask_var_t mask;
+	int cpu, nbe;
+	bool ret = false;
+
+	if (!zalloc_cpumask_var(&mask, GFP_KERNEL)) {
+		amd64_printk(KERN_WARNING, "%s: error allocating mask\n",
+			     __func__);
+		return false;
+	}
+
+	get_cpus_on_this_dct_cpumask(mask, nid);
+
+	rdmsr_on_cpus(mask, MSR_IA32_MCG_CTL, msrs);
+
+	for_each_cpu(cpu, mask) {
+		struct msr *reg = per_cpu_ptr(msrs, cpu);
+		nbe = reg->l & K8_MSR_MCGCTL_NBE;
+
+		debugf0("core: %u, MCG_CTL: 0x%llx, NB MSR is %s\n",
+			cpu, reg->q,
+			(nbe ? "enabled" : "disabled"));
+
+		if (!nbe)
+			goto out;
+	}
+	ret = true;
+
+out:
+	free_cpumask_var(mask);
+	return ret;
+}
+
+static int amd64_toggle_ecc_err_reporting(struct amd64_pvt *pvt, bool on)
+{
+	cpumask_var_t cmask;
+	int cpu;
+
+	if (!zalloc_cpumask_var(&cmask, GFP_KERNEL)) {
+		amd64_printk(KERN_WARNING, "%s: error allocating mask\n",
+			     __func__);
+		return false;
+	}
+
+	get_cpus_on_this_dct_cpumask(cmask, pvt->mc_node_id);
+
+	rdmsr_on_cpus(cmask, MSR_IA32_MCG_CTL, msrs);
+
+	for_each_cpu(cpu, cmask) {
+
+		struct msr *reg = per_cpu_ptr(msrs, cpu);
+
+		if (on) {
+			if (reg->l & K8_MSR_MCGCTL_NBE)
+				pvt->flags.ecc_report = 1;
+
+			reg->l |= K8_MSR_MCGCTL_NBE;
+		} else {
+			/*
+			 * Turn off ECC reporting only when it was off before
+			 */
+			if (!pvt->flags.ecc_report)
+				reg->l &= ~K8_MSR_MCGCTL_NBE;
+		}
+	}
+	wrmsr_on_cpus(cmask, MSR_IA32_MCG_CTL, msrs);
+
+	free_cpumask_var(cmask);
+
+	return 0;
+}
+
 /*
  * Only if 'ecc_enable_override' is set AND BIOS had ECC disabled, do "we"
  * enable it.
@@ -2633,16 +2711,11 @@ static int amd64_init_csrows(struct mem_ctl_info *mci)
 static void amd64_enable_ecc_error_reporting(struct mem_ctl_info *mci)
 {
 	struct amd64_pvt *pvt = mci->pvt_info;
-	const cpumask_t *cpumask = cpumask_of_node(pvt->mc_node_id);
-	int cpu, idx = 0, err = 0;
-	struct msr msrs[cpumask_weight(cpumask)];
-	u32 value;
-	u32 mask = K8_NBCTL_CECCEn | K8_NBCTL_UECCEn;
+	int err = 0;
+	u32 value, mask = K8_NBCTL_CECCEn | K8_NBCTL_UECCEn;
 
 	if (!ecc_enable_override)
 		return;
-
-	memset(msrs, 0, sizeof(msrs));
 
 	amd64_printk(KERN_WARNING,
 		"'ecc_enable_override' parameter is active, "
@@ -2659,16 +2732,9 @@ static void amd64_enable_ecc_error_reporting(struct mem_ctl_info *mci)
 	value |= mask;
 	pci_write_config_dword(pvt->misc_f3_ctl, K8_NBCTL, value);
 
-	rdmsr_on_cpus(cpumask, K8_MSR_MCGCTL, msrs);
-
-	for_each_cpu(cpu, cpumask) {
-		if (msrs[idx].l & K8_MSR_MCGCTL_NBE)
-			set_bit(idx, &pvt->old_mcgctl);
-
-		msrs[idx].l |= K8_MSR_MCGCTL_NBE;
-		idx++;
-	}
-	wrmsr_on_cpus(cpumask, K8_MSR_MCGCTL, msrs);
+	if (amd64_toggle_ecc_err_reporting(pvt, ON))
+		amd64_printk(KERN_WARNING, "Error enabling ECC reporting over "
+					   "MCGCTL!\n");
 
 	err = pci_read_config_dword(pvt->misc_f3_ctl, K8_NBCFG, &value);
 	if (err)
@@ -2709,16 +2775,11 @@ static void amd64_enable_ecc_error_reporting(struct mem_ctl_info *mci)
 
 static void amd64_restore_ecc_error_reporting(struct amd64_pvt *pvt)
 {
-	const cpumask_t *cpumask = cpumask_of_node(pvt->mc_node_id);
-	int cpu, idx = 0, err = 0;
-	struct msr msrs[cpumask_weight(cpumask)];
-	u32 value;
-	u32 mask = K8_NBCTL_CECCEn | K8_NBCTL_UECCEn;
+	int err = 0;
+	u32 value, mask = K8_NBCTL_CECCEn | K8_NBCTL_UECCEn;
 
 	if (!pvt->nbctl_mcgctl_saved)
 		return;
-
-	memset(msrs, 0, sizeof(msrs));
 
 	err = pci_read_config_dword(pvt->misc_f3_ctl, K8_NBCTL, &value);
 	if (err)
@@ -2729,66 +2790,9 @@ static void amd64_restore_ecc_error_reporting(struct amd64_pvt *pvt)
 	/* restore the NB Enable MCGCTL bit */
 	pci_write_config_dword(pvt->misc_f3_ctl, K8_NBCTL, value);
 
-	rdmsr_on_cpus(cpumask, K8_MSR_MCGCTL, msrs);
-
-	for_each_cpu(cpu, cpumask) {
-		msrs[idx].l &= ~K8_MSR_MCGCTL_NBE;
-		msrs[idx].l |=
-			test_bit(idx, &pvt->old_mcgctl) << K8_MSR_MCGCTL_NBE;
-		idx++;
-	}
-
-	wrmsr_on_cpus(cpumask, K8_MSR_MCGCTL, msrs);
-}
-
-/* get all cores on this DCT */
-static void get_cpus_on_this_dct_cpumask(cpumask_t *mask, int nid)
-{
-	int cpu;
-
-	for_each_online_cpu(cpu)
-		if (amd_get_nb_id(cpu) == nid)
-			cpumask_set_cpu(cpu, mask);
-}
-
-/* check MCG_CTL on all the cpus on this node */
-static bool amd64_nb_mce_bank_enabled_on_node(int nid)
-{
-	cpumask_t mask;
-	struct msr *msrs;
-	int cpu, nbe, idx = 0;
-	bool ret = false;
-
-	cpumask_clear(&mask);
-
-	get_cpus_on_this_dct_cpumask(&mask, nid);
-
-	msrs = kzalloc(sizeof(struct msr) * cpumask_weight(&mask), GFP_KERNEL);
-	if (!msrs) {
-		amd64_printk(KERN_WARNING, "%s: error allocating msrs\n",
-			      __func__);
-		 return false;
-	}
-
-	rdmsr_on_cpus(&mask, MSR_IA32_MCG_CTL, msrs);
-
-	for_each_cpu(cpu, &mask) {
-		nbe = msrs[idx].l & K8_MSR_MCGCTL_NBE;
-
-		debugf0("core: %u, MCG_CTL: 0x%llx, NB MSR is %s\n",
-			cpu, msrs[idx].q,
-			(nbe ? "enabled" : "disabled"));
-
-		if (!nbe)
-			goto out;
-
-		idx++;
-	}
-	ret = true;
-
-out:
-	kfree(msrs);
-	return ret;
+	if (amd64_toggle_ecc_err_reporting(pvt, OFF))
+		amd64_printk(KERN_WARNING, "Error restoring ECC reporting over "
+					   "MCGCTL!\n");
 }
 
 /*
@@ -2797,10 +2801,11 @@ out:
  * the memory system completely. A command line option allows to force-enable
  * hardware ECC later in amd64_enable_ecc_error_reporting().
  */
-static const char *ecc_warning =
-	"WARNING: ECC is disabled by BIOS. Module will NOT be loaded.\n"
-	" Either Enable ECC in the BIOS, or set 'ecc_enable_override'.\n"
-	" Also, use of the override can cause unknown side effects.\n";
+static const char *ecc_msg =
+	"ECC disabled in the BIOS or no ECC capability, module will not load.\n"
+	" Either enable ECC checking or force module loading by setting "
+	"'ecc_enable_override'.\n"
+	" (Note that use of the override may cause unknown side effects.)\n";
 
 static int amd64_check_ecc_enabled(struct amd64_pvt *pvt)
 {
@@ -2815,7 +2820,7 @@ static int amd64_check_ecc_enabled(struct amd64_pvt *pvt)
 
 	ecc_enabled = !!(value & K8_NBCFG_ECC_ENABLE);
 	if (!ecc_enabled)
-		amd64_printk(KERN_WARNING, "This node reports that Memory ECC "
+		amd64_printk(KERN_NOTICE, "This node reports that Memory ECC "
 			     "is currently disabled, set F3x%x[22] (%s).\n",
 			     K8_NBCFG, pci_name(pvt->misc_f3_ctl));
 	else
@@ -2823,18 +2828,17 @@ static int amd64_check_ecc_enabled(struct amd64_pvt *pvt)
 
 	nb_mce_en = amd64_nb_mce_bank_enabled_on_node(pvt->mc_node_id);
 	if (!nb_mce_en)
-		amd64_printk(KERN_WARNING, "NB MCE bank disabled, set MSR "
+		amd64_printk(KERN_NOTICE, "NB MCE bank disabled, set MSR "
 			     "0x%08x[4] on node %d to enable.\n",
 			     MSR_IA32_MCG_CTL, pvt->mc_node_id);
 
 	if (!ecc_enabled || !nb_mce_en) {
 		if (!ecc_enable_override) {
-			amd64_printk(KERN_WARNING, "%s", ecc_warning);
+			amd64_printk(KERN_NOTICE, "%s", ecc_msg);
 			return -ENODEV;
 		}
-	} else
-		/* CLEAR the override, since BIOS controlled it */
 		ecc_enable_override = 0;
+	}
 
 	return 0;
 }
@@ -2917,7 +2921,6 @@ static int amd64_probe_one_instance(struct pci_dev *dram_f2_ctl,
 	pvt->ext_model		= boot_cpu_data.x86_model >> 4;
 	pvt->mc_type_index	= mc_type_index;
 	pvt->ops		= family_ops(mc_type_index);
-	pvt->old_mcgctl		= 0;
 
 	/*
 	 * We have the dram_f2_ctl device as an argument, now go reserve its
@@ -2988,7 +2991,7 @@ static int amd64_init_2nd_stage(struct amd64_pvt *pvt)
 		goto err_exit;
 
 	ret = -ENOMEM;
-	mci = edac_mc_alloc(0, CHIPSELECT_COUNT, pvt->channel_count, node_id);
+	mci = edac_mc_alloc(0, pvt->cs_count, pvt->channel_count, node_id);
 	if (!mci)
 		goto err_exit;
 
@@ -3079,16 +3082,15 @@ static void __devexit amd64_remove_one_instance(struct pci_dev *pdev)
 
 	amd64_free_mc_sibling_devices(pvt);
 
-	kfree(pvt);
-	mci->pvt_info = NULL;
-
-	mci_lookup[pvt->mc_node_id] = NULL;
-
 	/* unregister from EDAC MCE */
 	amd_report_gart_errors(false);
 	amd_unregister_ecc_decoder(amd64_decode_bus_error);
 
 	/* Free the EDAC CORE resources */
+	mci->pvt_info = NULL;
+	mci_lookup[pvt->mc_node_id] = NULL;
+
+	kfree(pvt);
 	edac_mc_free(mci);
 }
 
@@ -3165,23 +3167,29 @@ static void amd64_setup_pci_device(void)
 static int __init amd64_edac_init(void)
 {
 	int nb, err = -ENODEV;
+	bool load_ok = false;
 
 	edac_printk(KERN_INFO, EDAC_MOD_STR, EDAC_AMD64_VERSION "\n");
 
 	opstate_init();
 
 	if (cache_k8_northbridges() < 0)
-		goto err_exit;
+		goto err_ret;
+
+	msrs = msrs_alloc();
+	if (!msrs)
+		goto err_ret;
 
 	err = pci_register_driver(&amd64_pci_driver);
 	if (err)
-		return err;
+		goto err_pci;
 
 	/*
 	 * At this point, the array 'pvt_lookup[]' contains pointers to alloc'd
 	 * amd64_pvt structs. These will be used in the 2nd stage init function
 	 * to finish initialization of the MC instances.
 	 */
+	err = -ENODEV;
 	for (nb = 0; nb < num_k8_northbridges; nb++) {
 		if (!pvt_lookup[nb])
 			continue;
@@ -3189,18 +3197,21 @@ static int __init amd64_edac_init(void)
 		err = amd64_init_2nd_stage(pvt_lookup[nb]);
 		if (err)
 			goto err_2nd_stage;
+
+		load_ok = true;
 	}
 
-	amd64_setup_pci_device();
-
-	return 0;
+	if (load_ok) {
+		amd64_setup_pci_device();
+		return 0;
+	}
 
 err_2nd_stage:
-	debugf0("2nd stage failed\n");
-
-err_exit:
 	pci_unregister_driver(&amd64_pci_driver);
-
+err_pci:
+	msrs_free(msrs);
+	msrs = NULL;
+err_ret:
 	return err;
 }
 
@@ -3210,6 +3221,9 @@ static void __exit amd64_edac_exit(void)
 		edac_pci_release_generic_ctl(amd64_ctl_pci);
 
 	pci_unregister_driver(&amd64_pci_driver);
+
+	msrs_free(msrs);
+	msrs = NULL;
 }
 
 module_init(amd64_edac_init);

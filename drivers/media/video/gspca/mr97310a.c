@@ -483,7 +483,7 @@ static int start_cif_cam(struct gspca_dev *gspca_dev)
 		data[3] = 0x2c;			   /* reg 2, H size/8 */
 		data[4] = 0x48;			   /* reg 3, V size/4 */
 		data[6] = 0x06;			   /* reg 5, H start  */
-		data[8] = 0x06 + sd->sensor_type;  /* reg 7, V start  */
+		data[8] = 0x06 - sd->sensor_type;  /* reg 7, V start  */
 		break;
 	}
 	err_code = mr_write(gspca_dev, 11);
@@ -530,6 +530,12 @@ static int start_cif_cam(struct gspca_dev *gspca_dev)
 			{0x13, 0x00, {0x01}, 1},
 			{0, 0, {0}, 0}
 		};
+		/* Without this command the cam won't work with USB-UHCI */
+		gspca_dev->usb_buf[0] = 0x0a;
+		gspca_dev->usb_buf[1] = 0x00;
+		err_code = mr_write(gspca_dev, 2);
+		if (err_code < 0)
+			return err_code;
 		err_code = sensor_write_regs(gspca_dev, cif_sensor1_init_data,
 					 ARRAY_SIZE(cif_sensor1_init_data));
 	}

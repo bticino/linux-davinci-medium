@@ -640,7 +640,7 @@ static int suspend_prepare(struct regulator_dev *rdev, suspend_state_t state)
 static void print_constraints(struct regulator_dev *rdev)
 {
 	struct regulation_constraints *constraints = rdev->constraints;
-	char buf[80];
+	char buf[80] = "";
 	int count;
 
 	if (rdev->desc->type == REGULATOR_VOLTAGE) {
@@ -1283,7 +1283,8 @@ static int _regulator_disable(struct regulator_dev *rdev)
 		return -EIO;
 
 	/* are we the last user and permitted to disable ? */
-	if (rdev->use_count == 1 && !rdev->constraints->always_on) {
+	if (rdev->use_count == 1 &&
+	    (rdev->constraints && !rdev->constraints->always_on)) {
 
 		/* we are last user */
 		if (_regulator_can_change_status(rdev) &&

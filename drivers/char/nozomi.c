@@ -48,6 +48,7 @@
 #include <linux/tty.h>
 #include <linux/tty_driver.h>
 #include <linux/tty_flip.h>
+#include <linux/sched.h>
 #include <linux/serial.h>
 #include <linux/interrupt.h>
 #include <linux/kmod.h>
@@ -1628,10 +1629,10 @@ static void ntty_close(struct tty_struct *tty, struct file *file)
 
 	dc->open_ttys--;
 	port->count--;
-	tty_port_tty_set(port, NULL);
 
 	if (port->count == 0) {
 		DBG1("close: %d", nport->token_dl);
+		tty_port_tty_set(port, NULL);
 		spin_lock_irqsave(&dc->spin_mutex, flags);
 		dc->last_ier &= ~(nport->token_dl);
 		writew(dc->last_ier, dc->reg_ier);

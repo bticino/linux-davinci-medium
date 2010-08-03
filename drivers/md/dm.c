@@ -47,6 +47,7 @@ struct dm_io {
 	atomic_t io_count;
 	struct bio *bio;
 	unsigned long start_time;
+	spinlock_t endio_lock;
 };
 
 /*
@@ -578,8 +579,12 @@ static void dec_pending(struct dm_io *io, int error)
 	struct mapped_device *md = io->md;
 
 	/* Push-back supersedes any I/O errors */
-	if (error && !(io->error > 0 && __noflush_suspending(md)))
-		io->error = error;
+	if (unlikely(error)) {
+		spin_lock_irqsave(&io->endio_lock, flags);
+		if (!(io->error > 0 && __noflush_suspending(md)))
+			io->error = error;
+		spin_unlock_irqrestore(&io->endio_lock, flags);
+	}
 
 	if (atomic_dec_and_test(&io->io_count)) {
 		if (io->error == DM_ENDIO_REQUEUE) {
@@ -609,8 +614,10 @@ static void dec_pending(struct dm_io *io, int error)
 			if (!md->barrier_error && io_error != -EOPNOTSUPP)
 				md->barrier_error = io_error;
 			end_io_acct(io);
+			free_io(md, io);
 		} else {
 			end_io_acct(io);
+			free_io(md, io);
 
 			if (io_error != DM_ENDIO_REQUEUE) {
 				trace_block_bio_complete(md->queue, bio);
@@ -618,8 +625,6 @@ static void dec_pending(struct dm_io *io, int error)
 				bio_endio(bio, io_error);
 			}
 		}
-
-		free_io(md, io);
 	}
 }
 
@@ -1226,6 +1231,7 @@ static void __split_and_process_bio(struct mapped_device *md, struct bio *bio)
 	atomic_set(&ci.io->io_count, 1);
 	ci.io->bio = bio;
 	ci.io->md = md;
+	spin_lock_init(&ci.io->endio_lock);
 	ci.sector = bio->bi_sector;
 	ci.sector_count = bio_sectors(bio);
 	if (unlikely(bio_empty_barrier(bio)))
@@ -1481,10 +1487,15 @@ static int dm_prep_fn(struct request_queue *q, struct request *rq)
 	return BLKPREP_OK;
 }
 
-static void map_request(struct dm_target *ti, struct request *rq,
-			struct mapped_device *md)
+/*
+ * Returns:
+ * 0  : the request has been processed (not requeued)
+ * !0 : the request has been requeued
+ */
+static int map_request(struct dm_target *ti, struct request *rq,
+		       struct mapped_device *md)
 {
-	int r;
+	int r, requeued = 0;
 	struct request *clone = rq->special;
 	struct dm_rq_target_io *tio = clone->end_io_data;
 
@@ -1510,6 +1521,7 @@ static void map_request(struct dm_target *ti, struct request *rq,
 	case DM_MAPIO_REQUEUE:
 		/* The target wants to requeue the I/O */
 		dm_requeue_unmapped_request(clone);
+		requeued = 1;
 		break;
 	default:
 		if (r > 0) {
@@ -1521,6 +1533,8 @@ static void map_request(struct dm_target *ti, struct request *rq,
 		dm_kill_unmapped_request(clone, r);
 		break;
 	}
+
+	return requeued;
 }
 
 /*
@@ -1562,11 +1576,16 @@ static void dm_request_fn(struct request_queue *q)
 
 		blk_start_request(rq);
 		spin_unlock(q->queue_lock);
-		map_request(ti, rq, md);
+		if (map_request(ti, rq, md))
+			goto requeued;
+
 		spin_lock_irq(q->queue_lock);
 	}
 
 	goto out;
+
+requeued:
+	spin_lock_irq(q->queue_lock);
 
 plug_and_out:
 	if (!elv_queue_empty(q))
@@ -1822,6 +1841,7 @@ static struct mapped_device *alloc_dev(int minor)
 bad_bdev:
 	destroy_workqueue(md->wq);
 bad_thread:
+	del_gendisk(md->disk);
 	put_disk(md->disk);
 bad_disk:
 	blk_cleanup_queue(md->queue);

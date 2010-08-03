@@ -398,7 +398,6 @@ static void ath9k_hw_init_config(struct ath_hw *ah)
 	ah->config.pcie_clock_req = 0;
 	ah->config.pcie_waen = 0;
 	ah->config.analog_shiftreg = 1;
-	ah->config.ht_enable = 1;
 	ah->config.ofdm_trig_low = 200;
 	ah->config.ofdm_trig_high = 500;
 	ah->config.cck_trig_high = 200;
@@ -411,6 +410,11 @@ static void ath9k_hw_init_config(struct ath_hw *ah)
 		ah->config.spurchans[i][0] = AR_NO_SPUR;
 		ah->config.spurchans[i][1] = AR_NO_SPUR;
 	}
+
+	if (ah->hw_version.devid != AR2427_DEVID_PCIE)
+		ah->config.ht_enable = 1;
+	else
+		ah->config.ht_enable = 0;
 
 	ah->config.intr_mitigation = true;
 
@@ -617,6 +621,7 @@ static bool ath9k_hw_devid_supported(u16 devid)
 	case AR9285_DEVID_PCIE:
 	case AR5416_DEVID_AR9287_PCI:
 	case AR5416_DEVID_AR9287_PCIE:
+	case AR2427_DEVID_PCIE:
 		return true;
 	default:
 		break;
@@ -880,12 +885,11 @@ static void ath9k_hw_init_mode_gain_regs(struct ath_hw *ah)
 	}
 }
 
-static void ath9k_hw_init_11a_eeprom_fix(struct ath_hw *ah)
+static void ath9k_hw_init_eeprom_fix(struct ath_hw *ah)
 {
 	u32 i, j;
 
-	if ((ah->hw_version.devid == AR9280_DEVID_PCI) &&
-	    test_bit(ATH9K_MODE_11A, ah->caps.wireless_modes)) {
+	if (ah->hw_version.devid == AR9280_DEVID_PCI) {
 
 		/* EEPROM Fixup */
 		for (i = 0; i < ah->iniModes.ia_rows; i++) {
@@ -937,6 +941,11 @@ int ath9k_hw_init(struct ath_hw *ah)
 	DPRINTF(ah->ah_sc, ATH_DBG_RESET, "serialize_regmode is %d\n",
 		ah->config.serialize_regmode);
 
+	if (AR_SREV_9285(ah) || AR_SREV_9271(ah))
+		ah->config.max_txtrig_level = MAX_TX_FIFO_THRESHOLD >> 1;
+	else
+		ah->config.max_txtrig_level = MAX_TX_FIFO_THRESHOLD;
+
 	if (!ath9k_hw_macversion_supported(ah->hw_version.macVersion)) {
 		DPRINTF(ah->ah_sc, ATH_DBG_FATAL,
 			"Mac Chip Rev 0x%02x.%x is not supported by "
@@ -975,7 +984,7 @@ int ath9k_hw_init(struct ath_hw *ah)
 
 	ath9k_hw_init_mode_gain_regs(ah);
 	ath9k_hw_fill_cap_info(ah);
-	ath9k_hw_init_11a_eeprom_fix(ah);
+	ath9k_hw_init_eeprom_fix(ah);
 
 	r = ath9k_hw_init_macaddr(ah);
 	if (r) {
@@ -1291,6 +1300,16 @@ static void ath9k_hw_override_ini(struct ath_hw *ah,
 	 * Necessary to avoid issues on AR5416 2.0
 	 */
 	REG_WRITE(ah, 0x9800 + (651 << 2), 0x11);
+
+	/*
+	 * Disable RIFS search on some chips to avoid baseband
+	 * hang issues.
+	 */
+	if (AR_SREV_9100(ah) || AR_SREV_9160(ah)) {
+		val = REG_READ(ah, AR_PHY_HEAVY_CLIP_FACTOR_RIFS);
+		val &= ~AR_PHY_RIFS_INIT_DELAY;
+		REG_WRITE(ah, AR_PHY_HEAVY_CLIP_FACTOR_RIFS, val);
+	}
 }
 
 static u32 ath9k_hw_def_ini_fixup(struct ath_hw *ah,
@@ -3670,7 +3689,11 @@ void ath9k_hw_fill_cap_info(struct ath_hw *ah)
 		pCap->keycache_size = AR_KEYTABLE_SIZE;
 
 	pCap->hw_caps |= ATH9K_HW_CAP_FASTCC;
-	pCap->tx_triglevel_max = MAX_TX_FIFO_THRESHOLD;
+
+	if (AR_SREV_9285(ah) || AR_SREV_9271(ah))
+		pCap->tx_triglevel_max = MAX_TX_FIFO_THRESHOLD >> 1;
+	else
+		pCap->tx_triglevel_max = MAX_TX_FIFO_THRESHOLD;
 
 	if (AR_SREV_9285_10_OR_LATER(ah))
 		pCap->num_gpio_pins = AR9285_NUM_GPIO;

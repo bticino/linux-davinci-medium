@@ -556,20 +556,23 @@ retry:
 	if (unlikely(!idr_pre_get(&group->inotify_data.idr, GFP_KERNEL)))
 		goto out_err;
 
+	/* we are putting the mark on the idr, take a reference */
+	fsnotify_get_mark(&tmp_ientry->fsn_entry);
+
 	spin_lock(&group->inotify_data.idr_lock);
 	ret = idr_get_new_above(&group->inotify_data.idr, &tmp_ientry->fsn_entry,
-				group->inotify_data.last_wd,
+				group->inotify_data.last_wd+1,
 				&tmp_ientry->wd);
 	spin_unlock(&group->inotify_data.idr_lock);
 	if (ret) {
+		/* we didn't get on the idr, drop the idr reference */
+		fsnotify_put_mark(&tmp_ientry->fsn_entry);
+
 		/* idr was out of memory allocate and try again */
 		if (ret == -EAGAIN)
 			goto retry;
 		goto out_err;
 	}
-
-	/* we put the mark on the idr, take a reference */
-	fsnotify_get_mark(&tmp_ientry->fsn_entry);
 
 	/* we are on the idr, now get on the inode */
 	ret = fsnotify_add_mark(&tmp_ientry->fsn_entry, group, inode);
@@ -638,7 +641,7 @@ static struct fsnotify_group *inotify_new_group(struct user_struct *user, unsign
 
 	spin_lock_init(&group->inotify_data.idr_lock);
 	idr_init(&group->inotify_data.idr);
-	group->inotify_data.last_wd = 1;
+	group->inotify_data.last_wd = 0;
 	group->inotify_data.user = user;
 	group->inotify_data.fa = NULL;
 

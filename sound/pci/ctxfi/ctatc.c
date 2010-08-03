@@ -166,18 +166,7 @@ static void ct_unmap_audio_buffer(struct ct_atc *atc, struct ct_atc_pcm *apcm)
 
 static unsigned long atc_get_ptp_phys(struct ct_atc *atc, int index)
 {
-	struct ct_vm *vm;
-	void *kvirt_addr;
-	unsigned long phys_addr;
-
-	vm = atc->vm;
-	kvirt_addr = vm->get_ptp_virt(vm, index);
-	if (kvirt_addr == NULL)
-		phys_addr = (~0UL);
-	else
-		phys_addr = virt_to_phys(kvirt_addr);
-
-	return phys_addr;
+	return atc->vm->get_ptp_phys(atc->vm, index);
 }
 
 static unsigned int convert_format(snd_pcm_format_t snd_format)
@@ -1037,7 +1026,7 @@ static int atc_line_front_unmute(struct ct_atc *atc, unsigned char state)
 
 static int atc_line_surround_unmute(struct ct_atc *atc, unsigned char state)
 {
-	return atc_daio_unmute(atc, state, LINEO4);
+	return atc_daio_unmute(atc, state, LINEO2);
 }
 
 static int atc_line_clfe_unmute(struct ct_atc *atc, unsigned char state)
@@ -1047,7 +1036,7 @@ static int atc_line_clfe_unmute(struct ct_atc *atc, unsigned char state)
 
 static int atc_line_rear_unmute(struct ct_atc *atc, unsigned char state)
 {
-	return atc_daio_unmute(atc, state, LINEO2);
+	return atc_daio_unmute(atc, state, LINEO4);
 }
 
 static int atc_line_in_unmute(struct ct_atc *atc, unsigned char state)
@@ -1669,7 +1658,7 @@ int __devinit ct_atc_create(struct snd_card *card, struct pci_dev *pci,
 	}
 
 	/* Set up device virtual memory management object */
-	err = ct_vm_create(&atc->vm);
+	err = ct_vm_create(&atc->vm, pci);
 	if (err < 0)
 		goto error1;
 

@@ -132,6 +132,8 @@
 #define EDAC_AMD64_VERSION		" Ver: 3.2.0 " __DATE__
 #define EDAC_MOD_STR			"amd64_edac"
 
+#define EDAC_MAX_NUMNODES		8
+
 /* Extended Model from CPUID, for CPU Revision numbers */
 #define OPTERON_CPU_LE_REV_C		0
 #define OPTERON_CPU_REV_D		1
@@ -142,9 +144,11 @@
 #define OPTERON_CPU_REV_FA		5
 
 /* Hardware limit on ChipSelect rows per MC and processors per system */
-#define CHIPSELECT_COUNT		8
+#define MAX_CS_COUNT			8
 #define DRAM_REG_COUNT			8
 
+#define ON true
+#define OFF false
 
 /*
  * PCI-defined configuration space registers
@@ -193,7 +197,6 @@
  */
 #define REV_E_DCSB_BASE_BITS		(0xFFE0FE00ULL)
 #define REV_E_DCS_SHIFT			4
-#define REV_E_DCSM_COUNT		8
 
 #define REV_F_F1Xh_DCSB_BASE_BITS	(0x1FF83FE0ULL)
 #define REV_F_F1Xh_DCS_SHIFT		8
@@ -204,9 +207,6 @@
  */
 #define REV_F_DCSB_BASE_BITS		(0x1FF83FE0ULL)
 #define REV_F_DCS_SHIFT			8
-#define REV_F_DCSM_COUNT		4
-#define F10_DCSM_COUNT			4
-#define F11_DCSM_COUNT			2
 
 /* DRAM CS Mask Registers */
 #define K8_DCSM0			0x60
@@ -374,13 +374,11 @@ enum {
 
 #define SET_NB_DRAM_INJECTION_WRITE(word, bits)  \
 					(BIT(((word) & 0xF) + 20) | \
-					BIT(17) |  \
-					((bits) & 0xF))
+					BIT(17) | bits)
 
 #define SET_NB_DRAM_INJECTION_READ(word, bits)  \
 					(BIT(((word) & 0xF) + 20) | \
-					BIT(16) |  \
-					((bits) & 0xF))
+					BIT(16) |  bits)
 
 #define K8_NBCAP			0xE8
 #define K8_NBCAP_CORES			(BIT(12)|BIT(13))
@@ -390,10 +388,7 @@ enum {
 #define K8_NBCAP_DUAL_NODE		BIT(1)
 #define K8_NBCAP_DCT_DUAL		BIT(0)
 
-/*
- * MSR Regs
- */
-#define K8_MSR_MCGCTL			0x017b
+/* MSRs */
 #define K8_MSR_MCGCTL_NBE		BIT(4)
 
 #define K8_MSR_MC4CTL			0x0410
@@ -445,12 +440,12 @@ struct amd64_pvt {
 	u32 dbam1;		/* DRAM Base Address Mapping reg for DCT1 */
 
 	/* DRAM CS Base Address Registers F2x[1,0][5C:40] */
-	u32 dcsb0[CHIPSELECT_COUNT];
-	u32 dcsb1[CHIPSELECT_COUNT];
+	u32 dcsb0[MAX_CS_COUNT];
+	u32 dcsb1[MAX_CS_COUNT];
 
 	/* DRAM CS Mask Registers F2x[1,0][6C:60] */
-	u32 dcsm0[CHIPSELECT_COUNT];
-	u32 dcsm1[CHIPSELECT_COUNT];
+	u32 dcsm0[MAX_CS_COUNT];
+	u32 dcsm1[MAX_CS_COUNT];
 
 	/*
 	 * Decoded parts of DRAM BASE and LIMIT Registers
@@ -470,6 +465,7 @@ struct amd64_pvt {
 	 */
 	u32 dcsb_base;		/* DCSB base bits */
 	u32 dcsm_mask;		/* DCSM mask bits */
+	u32 cs_count;		/* num chip selects (== num DCSB registers) */
 	u32 num_dcsm;		/* Number of DCSM registers */
 	u32 dcs_mask_notused;	/* DCSM notused mask bits */
 	u32 dcs_shift;		/* DCSB and DCSM shift value */
@@ -490,7 +486,6 @@ struct amd64_pvt {
 	/* Save old hw registers' values before we modified them */
 	u32 nbctl_mcgctl_saved;		/* When true, following 2 are valid */
 	u32 old_nbctl;
-	unsigned long old_mcgctl;	/* per core on this node */
 
 	/* MC Type Index value: socket F vs Family 10h */
 	u32 mc_type_index;
@@ -498,6 +493,7 @@ struct amd64_pvt {
 	/* misc settings */
 	struct flags {
 		unsigned long cf8_extcfg:1;
+		unsigned long ecc_report:1;
 	} flags;
 };
 

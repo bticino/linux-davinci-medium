@@ -380,7 +380,7 @@ static bool intel_lvds_mode_fixup(struct drm_encoder *encoder,
 				adjusted_mode->crtc_vblank_start + vsync_pos;
 		/* keep the vsync width constant */
 		adjusted_mode->crtc_vsync_end =
-				adjusted_mode->crtc_vblank_start + vsync_width;
+				adjusted_mode->crtc_vsync_start + vsync_width;
 		border = 1;
 		break;
 	case DRM_MODE_SCALE_ASPECT:
@@ -526,6 +526,14 @@ out:
 	lvds_priv->pfit_control = pfit_control;
 	lvds_priv->pfit_pgm_ratios = pfit_pgm_ratios;
 	/*
+	 * When there exists the border, it means that the LVDS_BORDR
+	 * should be enabled.
+	 */
+	if (border)
+		dev_priv->lvds_border_bits |= LVDS_BORDER_ENABLE;
+	else
+		dev_priv->lvds_border_bits &= ~(LVDS_BORDER_ENABLE);
+	/*
 	 * XXX: It would be nice to support lower refresh rates on the
 	 * panels to reduce power consumption, and perhaps match the
 	 * user's requested refresh rate.
@@ -594,10 +602,38 @@ static void intel_lvds_mode_set(struct drm_encoder *encoder,
 /* Some lid devices report incorrect lid status, assume they're connected */
 static const struct dmi_system_id bad_lid_status[] = {
 	{
+		.ident = "Compaq nx9020",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Hewlett-Packard"),
+			DMI_MATCH(DMI_BOARD_NAME, "3084"),
+		},
+	},
+	{
+		.ident = "Samsung SX20S",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Samsung Electronics"),
+			DMI_MATCH(DMI_BOARD_NAME, "SX20S"),
+		},
+	},
+	{
 		.ident = "Aspire One",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Acer"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "Aspire one"),
+		},
+	},
+	{
+		.ident = "PC-81005",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "MALATA"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "PC-81005"),
+		},
+	},
+	{
+		.ident = "Clevo M5x0N",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "CLEVO Co."),
+			DMI_MATCH(DMI_BOARD_NAME, "M5x0N"),
 		},
 	},
 	{ }
@@ -612,7 +648,11 @@ static const struct dmi_system_id bad_lid_status[] = {
  */
 static enum drm_connector_status intel_lvds_detect(struct drm_connector *connector)
 {
+	struct drm_device *dev = connector->dev;
 	enum drm_connector_status status = connector_status_connected;
+
+	if (IS_I8XX(dev))
+		return connector_status_connected;
 
 	if (!acpi_lid_open() && !dmi_check_system(bad_lid_status))
 		status = connector_status_disconnected;
@@ -656,20 +696,42 @@ static int intel_lvds_get_modes(struct drm_connector *connector)
 	return 0;
 }
 
+/*
+ * Lid events. Note the use of 'modeset_on_lid':
+ *  - we set it on lid close, and reset it on open
+ *  - we use it as a "only once" bit (ie we ignore
+ *    duplicate events where it was already properly
+ *    set/reset)
+ *  - the suspend/resume paths will also set it to
+ *    zero, since they restore the mode ("lid open").
+ */
 static int intel_lid_notify(struct notifier_block *nb, unsigned long val,
 			    void *unused)
 {
 	struct drm_i915_private *dev_priv =
 		container_of(nb, struct drm_i915_private, lid_notifier);
 	struct drm_device *dev = dev_priv->dev;
+	struct drm_connector *connector = dev_priv->int_lvds_connector;
 
-	if (acpi_lid_open() && !dev_priv->suspended) {
-		mutex_lock(&dev->mode_config.mutex);
-		drm_helper_resume_force_mode(dev);
-		mutex_unlock(&dev->mode_config.mutex);
+	/*
+	 * check and update the status of LVDS connector after receiving
+	 * the LID nofication event.
+	 */
+	if (connector)
+		connector->status = connector->funcs->detect(connector);
+	if (!acpi_lid_open()) {
+		dev_priv->modeset_on_lid = 1;
+		return NOTIFY_OK;
 	}
 
-	drm_sysfs_hotplug_event(dev_priv->dev);
+	if (!dev_priv->modeset_on_lid)
+		return NOTIFY_OK;
+
+	dev_priv->modeset_on_lid = 0;
+
+	mutex_lock(&dev->mode_config.mutex);
+	drm_helper_resume_force_mode(dev);
+	mutex_unlock(&dev->mode_config.mutex);
 
 	return NOTIFY_OK;
 }
@@ -825,6 +887,14 @@ static const struct dmi_system_id intel_no_lvds[] = {
 		.ident = "Aopen i945GTt-VFA",
 		.matches = {
 			DMI_MATCH(DMI_PRODUCT_VERSION, "AO00001JW"),
+		},
+	},
+	{
+		.callback = intel_no_lvds_dmi_callback,
+		.ident = "Clientron U800",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Clientron"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "U800"),
 		},
 	},
 
@@ -1062,6 +1132,8 @@ out:
 		DRM_DEBUG("lid notifier registration failed\n");
 		dev_priv->lid_notifier.notifier_call = NULL;
 	}
+	/* keep the LVDS connector */
+	dev_priv->int_lvds_connector = connector;
 	drm_sysfs_connector_add(connector);
 	return;
 

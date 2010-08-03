@@ -1082,7 +1082,8 @@ intel_tv_mode_valid(struct drm_connector *connector, struct drm_display_mode *mo
 	const struct tv_mode *tv_mode = intel_tv_mode_find(intel_output);
 
 	/* Ensure TV refresh is close to desired refresh */
-	if (tv_mode && abs(tv_mode->refresh - drm_mode_vrefresh(mode)) < 10)
+	if (tv_mode && abs(tv_mode->refresh - drm_mode_vrefresh(mode) * 1000)
+				< 1000)
 		return MODE_OK;
 	return MODE_CLOCK_RANGE;
 }
@@ -1212,20 +1213,17 @@ intel_tv_mode_set(struct drm_encoder *encoder, struct drm_display_mode *mode,
 		tv_ctl |= TV_TRILEVEL_SYNC;
 	if (tv_mode->pal_burst)
 		tv_ctl |= TV_PAL_BURST;
-	scctl1 = 0;
-	/* dda1 implies valid video levels */
-	if (tv_mode->dda1_inc) {
-		scctl1 |= TV_SC_DDA1_EN;
-	}
 
+	scctl1 = 0;
+	if (tv_mode->dda1_inc)
+		scctl1 |= TV_SC_DDA1_EN;
 	if (tv_mode->dda2_inc)
 		scctl1 |= TV_SC_DDA2_EN;
-
 	if (tv_mode->dda3_inc)
 		scctl1 |= TV_SC_DDA3_EN;
-
 	scctl1 |= tv_mode->sc_reset;
-	scctl1 |= video_levels->burst << TV_BURST_LEVEL_SHIFT;
+	if (video_levels)
+		scctl1 |= video_levels->burst << TV_BURST_LEVEL_SHIFT;
 	scctl1 |= tv_mode->dda1_inc << TV_SCDDA1_INC_SHIFT;
 
 	scctl2 = tv_mode->dda2_size << TV_SCDDA2_SIZE_SHIFT |

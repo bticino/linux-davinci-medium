@@ -35,6 +35,8 @@ static inline void __init smp_store_cpu_info(unsigned int cpu)
 {
 	struct sh_cpuinfo *c = cpu_data + cpu;
 
+	memcpy(c, &boot_cpu_data, sizeof(struct sh_cpuinfo));
+
 	c->loops_per_jiffy = loops_per_jiffy;
 }
 
@@ -67,6 +69,7 @@ asmlinkage void __cpuinit start_secondary(void)
 	unsigned int cpu;
 	struct mm_struct *mm = &init_mm;
 
+	enable_mmu();
 	atomic_inc(&mm->mm_count);
 	atomic_inc(&mm->mm_users);
 	current->active_mm = mm;

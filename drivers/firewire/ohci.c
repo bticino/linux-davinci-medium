@@ -275,7 +275,7 @@ static void log_irqs(u32 evt)
 	    !(evt & OHCI1394_busReset))
 		return;
 
-	fw_notify("IRQ %08x%s%s%s%s%s%s%s%s%s%s%s%s%s\n", evt,
+	fw_notify("IRQ %08x%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n", evt,
 	    evt & OHCI1394_selfIDComplete	? " selfID"		: "",
 	    evt & OHCI1394_RQPkt		? " AR_req"		: "",
 	    evt & OHCI1394_RSPkt		? " AR_resp"		: "",
@@ -286,6 +286,7 @@ static void log_irqs(u32 evt)
 	    evt & OHCI1394_postedWriteErr	? " postedWriteErr"	: "",
 	    evt & OHCI1394_cycleTooLong		? " cycleTooLong"	: "",
 	    evt & OHCI1394_cycle64Seconds	? " cycle64Seconds"	: "",
+	    evt & OHCI1394_cycleInconsistent	? " cycleInconsistent"	: "",
 	    evt & OHCI1394_regAccessFail	? " regAccessFail"	: "",
 	    evt & OHCI1394_busReset		? " busReset"		: "",
 	    evt & ~(OHCI1394_selfIDComplete | OHCI1394_RQPkt |
@@ -293,6 +294,7 @@ static void log_irqs(u32 evt)
 		    OHCI1394_respTxComplete | OHCI1394_isochRx |
 		    OHCI1394_isochTx | OHCI1394_postedWriteErr |
 		    OHCI1394_cycleTooLong | OHCI1394_cycle64Seconds |
+		    OHCI1394_cycleInconsistent |
 		    OHCI1394_regAccessFail | OHCI1394_busReset)
 						? " ?"			: "");
 }
@@ -1439,6 +1441,17 @@ static irqreturn_t irq_handler(int irq, void *data)
 			  OHCI1394_LinkControl_cycleMaster);
 	}
 
+	if (unlikely(event & OHCI1394_cycleInconsistent)) {
+		/*
+		 * We need to clear this event bit in order to make
+		 * cycleMatch isochronous I/O work.  In theory we should
+		 * stop active cycleMatch iso contexts now and restart
+		 * them at least two cycles later.  (FIXME?)
+		 */
+		if (printk_ratelimit())
+			fw_notify("isochronous cycle inconsistent\n");
+	}
+
 	if (event & OHCI1394_cycle64Seconds) {
 		cycle_time = reg_read(ohci, OHCI1394_IsochronousCycleTimer);
 		if ((cycle_time & 0x80000000) == 0)
@@ -1528,6 +1541,7 @@ static int ohci_enable(struct fw_card *card, u32 *config_rom, size_t length)
 		  OHCI1394_reqTxComplete | OHCI1394_respTxComplete |
 		  OHCI1394_isochRx | OHCI1394_isochTx |
 		  OHCI1394_postedWriteErr | OHCI1394_cycleTooLong |
+		  OHCI1394_cycleInconsistent |
 		  OHCI1394_cycle64Seconds | OHCI1394_regAccessFail |
 		  OHCI1394_masterIntEnable);
 	if (param_debug & OHCI_PARAM_DEBUG_BUSRESETS)
@@ -1890,15 +1904,30 @@ static int handle_it_packet(struct context *context,
 {
 	struct iso_context *ctx =
 		container_of(context, struct iso_context, context);
+	int i;
+	struct descriptor *pd;
 
-	if (last->transfer_status == 0)
-		/* This descriptor isn't done yet, stop iteration. */
+	for (pd = d; pd <= last; pd++)
+		if (pd->transfer_status)
+			break;
+	if (pd > last)
+		/* Descriptor(s) not done yet, stop iteration */
 		return 0;
 
-	if (le16_to_cpu(last->control) & DESCRIPTOR_IRQ_ALWAYS)
+	i = ctx->header_length;
+	if (i + 4 < PAGE_SIZE) {
+		/* Present this value as big-endian to match the receive code */
+		*(__be32 *)(ctx->header + i) = cpu_to_be32(
+				((u32)le16_to_cpu(pd->transfer_status) << 16) |
+				le16_to_cpu(pd->res_count));
+		ctx->header_length += 4;
+	}
+	if (le16_to_cpu(last->control) & DESCRIPTOR_IRQ_ALWAYS) {
 		ctx->base.callback(&ctx->base, le16_to_cpu(last->res_count),
-				   0, NULL, ctx->base.callback_data);
-
+				   ctx->header_length, ctx->header,
+				   ctx->base.callback_data);
+		ctx->header_length = 0;
+	}
 	return 1;
 }
 
@@ -2180,6 +2209,13 @@ static int ohci_queue_iso_receive_dualbuffer(struct fw_iso_context *base,
 	page     = payload >> PAGE_SHIFT;
 	offset   = payload & ~PAGE_MASK;
 	rest     = p->payload_length;
+	/*
+	 * The controllers I've tested have not worked correctly when
+	 * second_req_count is zero.  Rather than do something we know won't
+	 * work, return an error
+	 */
+	if (rest == 0)
+		return -EINVAL;
 
 	/* FIXME: make packet-per-buffer/dual-buffer a context option */
 	while (rest > 0) {
@@ -2233,7 +2269,7 @@ static int ohci_queue_iso_receive_packet_per_buffer(struct fw_iso_context *base,
 					unsigned long payload)
 {
 	struct iso_context *ctx = container_of(base, struct iso_context, base);
-	struct descriptor *d = NULL, *pd = NULL;
+	struct descriptor *d, *pd;
 	struct fw_iso_packet *p = packet;
 	dma_addr_t d_bus, page_bus;
 	u32 z, header_z, rest;
@@ -2271,8 +2307,9 @@ static int ohci_queue_iso_receive_packet_per_buffer(struct fw_iso_context *base,
 		d->data_address = cpu_to_le32(d_bus + (z * sizeof(*d)));
 
 		rest = payload_per_buffer;
+		pd = d;
 		for (j = 1; j < z; j++) {
-			pd = d + j;
+			pd++;
 			pd->control = cpu_to_le16(DESCRIPTOR_STATUS |
 						  DESCRIPTOR_INPUT_MORE);
 
@@ -2375,6 +2412,7 @@ static void ohci_pmac_off(struct pci_dev *dev)
 
 #define PCI_VENDOR_ID_AGERE		PCI_VENDOR_ID_ATT
 #define PCI_DEVICE_ID_AGERE_FW643	0x5901
+#define PCI_DEVICE_ID_TI_TSB43AB23	0x8024
 
 static int __devinit pci_probe(struct pci_dev *dev,
 			       const struct pci_device_id *ent)
@@ -2440,7 +2478,8 @@ static int __devinit pci_probe(struct pci_dev *dev,
 #if !defined(CONFIG_X86_32)
 	/* dual-buffer mode is broken with descriptor addresses above 2G */
 	if (dev->vendor == PCI_VENDOR_ID_TI &&
-	    dev->device == PCI_DEVICE_ID_TI_TSB43AB22)
+	    (dev->device == PCI_DEVICE_ID_TI_TSB43AB22 ||
+	     dev->device == PCI_DEVICE_ID_TI_TSB43AB23))
 		ohci->use_dualbuffer = false;
 #endif
 

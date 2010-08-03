@@ -1250,8 +1250,7 @@ static int io_subchannel_probe(struct subchannel *sch)
 	unsigned long flags;
 	struct ccw_dev_id dev_id;
 
-	cdev = sch_get_cdev(sch);
-	if (cdev) {
+	if (cio_is_console(sch->schid)) {
 		rc = sysfs_create_group(&sch->dev.kobj,
 					&io_subchannel_attr_group);
 		if (rc)
@@ -1260,13 +1259,13 @@ static int io_subchannel_probe(struct subchannel *sch)
 				      "0.%x.%04x (rc=%d)\n",
 				      sch->schid.ssid, sch->schid.sch_no, rc);
 		/*
-		 * This subchannel already has an associated ccw_device.
+		 * The console subchannel already has an associated ccw_device.
 		 * Throw the delayed uevent for the subchannel, register
-		 * the ccw_device and exit. This happens for all early
-		 * devices, e.g. the console.
+		 * the ccw_device and exit.
 		 */
 		dev_set_uevent_suppress(&sch->dev, 0);
 		kobject_uevent(&sch->dev.kobj, KOBJ_ADD);
+		cdev = sch_get_cdev(sch);
 		cdev->dev.groups = ccwdev_attr_groups;
 		device_initialize(&cdev->dev);
 		ccw_device_register(cdev);
@@ -1293,7 +1292,7 @@ static int io_subchannel_probe(struct subchannel *sch)
 	sch->private = kzalloc(sizeof(struct io_subchannel_private),
 			       GFP_KERNEL | GFP_DMA);
 	if (!sch->private)
-		goto out_err;
+		goto out_schedule;
 	/*
 	 * First check if a fitting device may be found amongst the
 	 * disconnected devices or in the orphanage.
@@ -1318,7 +1317,7 @@ static int io_subchannel_probe(struct subchannel *sch)
 	}
 	cdev = io_subchannel_create_ccwdev(sch);
 	if (IS_ERR(cdev))
-		goto out_err;
+		goto out_schedule;
 	rc = io_subchannel_recog(cdev, sch);
 	if (rc) {
 		spin_lock_irqsave(sch->lock, flags);
@@ -1326,9 +1325,7 @@ static int io_subchannel_probe(struct subchannel *sch)
 		spin_unlock_irqrestore(sch->lock, flags);
 	}
 	return 0;
-out_err:
-	kfree(sch->private);
-	sysfs_remove_group(&sch->dev.kobj, &io_subchannel_attr_group);
+
 out_schedule:
 	io_subchannel_schedule_removal(sch);
 	return 0;
@@ -1342,13 +1339,14 @@ io_subchannel_remove (struct subchannel *sch)
 
 	cdev = sch_get_cdev(sch);
 	if (!cdev)
-		return 0;
+		goto out_free;
 	/* Set ccw device to not operational and drop reference. */
 	spin_lock_irqsave(cdev->ccwlock, flags);
 	sch_set_cdev(sch, NULL);
 	cdev->private->state = DEV_STATE_NOT_OPER;
 	spin_unlock_irqrestore(cdev->ccwlock, flags);
 	ccw_device_unregister(cdev);
+out_free:
 	kfree(sch->private);
 	sysfs_remove_group(&sch->dev.kobj, &io_subchannel_attr_group);
 	return 0;
@@ -1609,7 +1607,7 @@ int ccw_purge_blacklisted(void)
 	return 0;
 }
 
-static void device_set_disconnected(struct ccw_device *cdev)
+void ccw_device_set_disconnected(struct ccw_device *cdev)
 {
 	if (!cdev)
 		return;
@@ -1705,7 +1703,7 @@ static int io_subchannel_sch_event(struct subchannel *sch, int slow)
 		ccw_device_trigger_reprobe(cdev);
 		break;
 	case DISC:
-		device_set_disconnected(cdev);
+		ccw_device_set_disconnected(cdev);
 		break;
 	default:
 		break;

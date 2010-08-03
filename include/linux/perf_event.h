@@ -219,7 +219,7 @@ struct perf_event_attr {
 #define PERF_EVENT_IOC_DISABLE		_IO ('$', 1)
 #define PERF_EVENT_IOC_REFRESH		_IO ('$', 2)
 #define PERF_EVENT_IOC_RESET		_IO ('$', 3)
-#define PERF_EVENT_IOC_PERIOD		_IOW('$', 4, u64)
+#define PERF_EVENT_IOC_PERIOD		_IOW('$', 4, __u64)
 #define PERF_EVENT_IOC_SET_OUTPUT	_IO ('$', 5)
 
 enum perf_event_ioc_flags {
@@ -442,6 +442,7 @@ enum perf_callchain_context {
 #include <linux/hrtimer.h>
 #include <linux/fs.h>
 #include <linux/pid_namespace.h>
+#include <linux/workqueue.h>
 #include <asm/atomic.h>
 
 #define PERF_MAX_STACK_DEPTH		255
@@ -470,8 +471,8 @@ struct hw_perf_event {
 			unsigned long	event_base;
 			int		idx;
 		};
-		union { /* software */
-			atomic64_t	count;
+		struct { /* software */
+			s64		remaining;
 			struct hrtimer	hrtimer;
 		};
 	};
@@ -513,6 +514,10 @@ struct file;
 
 struct perf_mmap_data {
 	struct rcu_head			rcu_head;
+#ifdef CONFIG_PERF_USE_VMALLOC
+	struct work_struct		work;
+#endif
+	int				data_order;
 	int				nr_pages;	/* nr of data pages  */
 	int				writable;	/* are we writable   */
 	int				nr_locked;	/* nr pages mlocked  */
