@@ -20,6 +20,7 @@
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/i2c/at24.h>
+#include <linux/i2c/tsc2004.h>
 #include <linux/leds.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
@@ -107,6 +108,8 @@ static inline int have_tvp7002(void)
 #define CPLD_IMG_MUX5	CPLD_OFFSET(4,2)
 
 #define CPLD_RESETS	CPLD_OFFSET(4,3)
+
+#define CPLD_TS_CFG	CPLD_OFFSET(5,0)
 
 #define CPLD_CCD_DIR1	CPLD_OFFSET(0x3e,0)
 #define CPLD_CCD_IO1	CPLD_OFFSET(0x3e,1)
@@ -224,6 +227,51 @@ static struct snd_platform_data dm365_evm_snd_data = {
 	.eventq_no = EVENTQ_3,
 };
 
+/*
+ * TSC 2004 Support
+ */
+#define TSC2004_GPIO_IRQ_PIN		GPIO_TO_PIN(0, 0)
+#define DM365_EVM_TSC2004_ADDRESS	0x49
+
+static int tsc2004_init_irq(void)
+{
+	int ret = 0;
+	u8 val;
+
+	ret = gpio_request(TSC2004_GPIO_IRQ_PIN, "tsc2004-irq");
+	if (ret < 0) {
+		pr_warning("%s: failed to TSC2004 IRQ GPIO: %d\n",
+				__func__, ret);
+		return ret;
+	}
+
+	gpio_direction_input(TSC2004_GPIO_IRQ_PIN);
+
+	val = __raw_readb(cpld + CPLD_TS_CFG);
+	val |= 0x2;
+	__raw_writeb(val, cpld + CPLD_TS_CFG);
+
+	return ret;
+}
+
+static void tsc2004_exit_irq(void)
+{
+	gpio_free(TSC2004_GPIO_IRQ_PIN);
+}
+
+static int tsc2004_get_irq_level(void)
+{
+	return gpio_get_value(TSC2004_GPIO_IRQ_PIN) ? 0 : 1;
+}
+
+struct tsc2004_platform_data dm365evm_tsc2004data = {
+	.model = 2004,
+	.x_plate_ohms = 180,
+	.get_pendown_state = tsc2004_get_irq_level,
+	.init_platform_hw = tsc2004_init_irq,
+	.exit_platform_hw = tsc2004_exit_irq,
+};
+
 static struct i2c_board_info i2c_info[] = {
 	{
 		I2C_BOARD_INFO("dm365evm_keys", 0x25),
@@ -241,6 +289,11 @@ static struct i2c_board_info i2c_info[] = {
 	{
 		I2C_BOARD_INFO("PCA9543A", 0x73),
 	},
+};
+
+static struct i2c_board_info __initdata dm365_evm_tsc2004_dev = {
+	I2C_BOARD_INFO("tsc2004", DM365_EVM_TSC2004_ADDRESS),
+	.platform_data  = &dm365evm_tsc2004data,
 };
 
 static struct davinci_i2c_platform_data i2c_pdata = {
@@ -836,6 +889,12 @@ static struct spi_board_info dm365_evm_spi_info[] __initconst = {
 	},
 };
 
+static void __init dm365_init_tsc2004(void)
+{
+	dm365_evm_tsc2004_dev.irq = gpio_to_irq(TSC2004_GPIO_IRQ_PIN);
+	i2c_register_board_info(1, &dm365_evm_tsc2004_dev, 1);
+}
+
 static __init void dm365_evm_init(void)
 {
 	evm_init_i2c();
@@ -856,6 +915,8 @@ static __init void dm365_evm_init(void)
 
 	dm365_init_spi0(BIT(0), dm365_evm_spi_info,
 			ARRAY_SIZE(dm365_evm_spi_info));
+
+	dm365_init_tsc2004();
 }
 
 static __init void dm365_evm_irq_init(void)
