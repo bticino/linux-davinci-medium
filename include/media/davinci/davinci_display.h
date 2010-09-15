@@ -92,6 +92,20 @@ struct display_layer_info {
 	enum davinci_v_exp_ratio v_exp;
 };
 
+/* Frame rate simulation information */
+struct davinci_timeperframe_info {
+	/* Framerate of display hardware */
+	struct v4l2_fract hw_timeperframe;
+	/* Framerate to simulate by skipping irq requests */
+	struct v4l2_fract sim_timeperframe;
+	/* irq service rate (how often do we service an irq) */
+	u32 irq_service_rate;
+	/* Next irq to service */
+	u32 next_irq;
+	/* irq count since last one serviced */
+	u32 irq_count;
+};
+
 /* display object structure */
 struct display_obj {
 	/* Buffer specific parameters
@@ -140,6 +154,8 @@ struct display_obj {
 	u8 started;
 	/* Identifies device object */
 	enum davinci_display_device_id device_id;
+	/* Frame rate information */
+	struct davinci_timeperframe_info tpf_info;
 };
 
 /* File handle structure */

@@ -33,6 +33,7 @@
 #include <linux/mm.h>
 #include <linux/mutex.h>
 #include <linux/videodev2.h>
+#include <linux/gcd.h>
 #include <asm/pgtable.h>
 #include <mach/cputype.h>
 #include <media/davinci/davinci_enc.h>
@@ -243,6 +244,49 @@ static void davinci_buffer_release(struct videobuf_queue *q,
 	dev_dbg(davinci_display_dev, "</davinci_buffer_release>\n");
 }
 
+/* davinci_frames_to_process()
+ * Return the number of frames to process to achieve the desired frame rate.
+ * If 0 is returned, the current displayed frame needs to be repeated.
+ * If >1 is returned, all buffers need to be skipped except the last one,
+ * which is displayed.
+ */
+static int davinci_frames_to_process(struct display_obj *layer)
+{
+	struct davinci_timeperframe_info *tpfInfo = &(layer->tpf_info);
+	unsigned long framesToSkip;
+
+	/* If we are not simulating a frame rate, we always process exactly
+	 * one frame. */
+	if (tpfInfo->irq_service_rate == 0)
+		return 1;
+
+	/* Increment the IRQ counter by 1.000 */
+	tpfInfo->irq_count += 1000;
+
+	/* If we haven't reached the next threshold for processing a frame,
+	 * we must repeat the current frame (return 0).  This hapens when
+	 * simulating a framerate lower than the hardware framerate.
+	 */
+	if (tpfInfo->irq_count < tpfInfo->next_irq)
+		return 0;
+
+	/* In cases where we're simulating a framerate higher than the hardware
+	 * we may need to dequeue additional buffers and throw them away. */
+	framesToSkip = 0;
+	while (tpfInfo->next_irq + tpfInfo->irq_service_rate <=
+		tpfInfo->irq_count) {
+
+		tpfInfo->next_irq += tpfInfo->irq_service_rate;
+		framesToSkip++;
+	}
+
+	tpfInfo->next_irq += tpfInfo->irq_service_rate;
+	tpfInfo->next_irq -= tpfInfo->irq_count;
+	tpfInfo->irq_count = 0;
+
+	return 1 + framesToSkip;
+}
+
 static struct videobuf_queue_ops video_qops = {
 	.buf_setup = davinci_buffer_setup,
 	.buf_prepare = davinci_buffer_prepare,
@@ -272,6 +316,17 @@ static void davinci_display_isr(unsigned int event, void *dispObj)
 		layer = dispDevice->dev[i];
 		/* If streaming is started in this layer */
 		if (!layer->started)
+			continue;
+		/* Query the number of frames to process in this ISR call to
+		 * simulate the desired frame rate.  Right now, we only support
+		 * simulated frame rates less than the hardware framerate, so
+		 * this value will always be 0 or 1.  When rates faster than
+		 * the hardware rate are supported, * it can be > 1 in which
+		 * case we need to dequeue and throw away (skip) additional
+		 * buffers.  Right now, all we do is repeat the current frame
+		 * when it is 0.
+		 */
+		if (davinci_frames_to_process(layer) == 0)
 			continue;
 		/* Check the field format */
 		if ((V4L2_FIELD_NONE == layer->pix_fmt.field) &&
@@ -551,6 +606,86 @@ static int davinci_disp_check_window_params(struct v4l2_rect *c)
 	return 0;
 }
 
+/* vpbe_get_mode_timeperframe() : get framerate of current video mode
+ */
+static int vpbe_get_mode_timeperframe(unsigned char *mode_info_name,
+		struct v4l2_fract *frVal)
+{
+	int ret = 0;
+
+	if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_NTSC)) {
+		frVal->numerator   = 30000;
+		frVal->denominator = 1001;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_NTSC_RGB)) {
+		frVal->numerator   = 30000;
+		frVal->denominator = 1001;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_PAL)) {
+		frVal->numerator   = 25;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_PAL_RGB)) {
+		frVal->numerator   = 25;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_720P_24)) {
+		frVal->numerator   = 24;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_720P_25)) {
+		frVal->numerator   = 25;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_720P_30)) {
+		frVal->numerator   = 30;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_720P_50)) {
+		frVal->numerator   = 50;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_720P_60)) {
+		frVal->numerator   = 60;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_1080I_25)) {
+		frVal->numerator   = 25;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_1080I_30)) {
+		frVal->numerator   = 30;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_1080P_24)) {
+		frVal->numerator   = 24;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_1080P_25)) {
+		frVal->numerator   = 25;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_1080P_30)) {
+		frVal->numerator   = 30;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_1080P_50)) {
+		frVal->numerator   = 50;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_1080P_60)) {
+		frVal->numerator   = 60;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_480P_60)) {
+		frVal->numerator   = 60;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_576P_50)) {
+		frVal->numerator   = 50;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_640x480)) {
+		frVal->numerator   = 60;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_640x400)) {
+		frVal->numerator   = 60;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_640x350)) {
+		frVal->numerator   = 60;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_800x480)) {
+		frVal->numerator   = 60;
+		frVal->denominator = 1;
+	} else {
+		dev_err(davinci_display_dev, "unknown video mode\n");
+		ret = -EINVAL;
+	}
+	return ret;
+}
+
 /* vpbe_try_format()
  * If user application provides width and height, and have bytesperline set
  * to zero, driver calculates bytesperline and sizeimage based on hardware
@@ -722,6 +857,160 @@ static int vpbe_s_priority(struct file *file, void *priv,
 
 	ret = v4l2_prio_change(&layer->prio, &fh->prio, p);
 
+	return ret;
+}
+
+static int vpbe_g_parm(struct file *file, void *priv,
+			struct v4l2_streamparm *parm)
+{
+	struct davinci_fh  *fh    = file->private_data;
+	struct display_obj *layer = fh->layer;
+	int                 ret   = 0;
+
+	/* Clear out the input structure */
+	memset(parm, 0, sizeof(struct v4l2_streamparm));
+
+	/* Set the buffer type */
+	parm->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+
+	/* We support frame repeating controlled by the timeperframe setting.
+	 * Frame skipping is still TBD */
+	parm->parm.output.capability |= V4L2_CAP_TIMEPERFRAME;
+
+	/* If a simulated frame rate is in effect, return it */
+	if (layer->tpf_info.irq_service_rate > 0) {
+		parm->parm.output.timeperframe =
+			layer->tpf_info.sim_timeperframe;
+	}
+	/* Othersise, retrieve the current mode's framerate */
+	else {
+		ret = vpbe_get_mode_timeperframe(davinci_dm.mode_info.name,
+			&parm->parm.output.timeperframe);
+		if (ret < 0)
+			goto hardware_framerate;
+	}
+
+	goto exit;
+
+hardware_framerate:
+	dev_err(davinci_display_dev, "Could not retrieve hardware framerate");
+	ret = -EINVAL;
+
+exit:
+	return ret;
+}
+
+static int vpbe_s_parm(struct file *file, void *priv,
+			struct v4l2_streamparm *parm)
+{
+	struct davinci_fh      *fh = file->private_data;
+	struct display_obj     *layer = fh->layer;
+	struct v4l2_streamparm  result;
+	struct v4l2_fract      *hw_tpf;
+	struct v4l2_fract      *sim_tpf;
+	struct v4l2_fract       service_rate;
+	unsigned long           normalize_gcd;
+	int                     ret = 0;
+
+	/* Establish some aliases for code readability */
+	hw_tpf  = &layer->tpf_info.hw_timeperframe;
+	sim_tpf = &parm->parm.output.timeperframe;
+
+	/* Get our current settings */
+	ret = vpbe_g_parm(file, priv, &result);
+	if (ret < 0)
+		goto g_parm_failed;
+
+	/* Division by zero is not allowed */
+	if (sim_tpf->denominator == 0)
+		goto division_by_zero;
+
+	/* Get the hardware framerate */
+	ret = vpbe_get_mode_timeperframe(davinci_dm.mode_info.name, hw_tpf);
+	if (ret < 0)
+		goto hardware_framerate;
+
+	/* Normalize the specified timeperframe */
+	normalize_gcd = gcd(sim_tpf->numerator, sim_tpf->denominator);
+	sim_tpf->numerator   /= normalize_gcd;
+	sim_tpf->denominator /= normalize_gcd;
+
+	/* If zero was specified for timeperframe or the hardware rate was
+	 * specified, use the hardware rate */
+	if (sim_tpf->numerator == 0 ||
+	    (sim_tpf->numerator   == hw_tpf->numerator &&
+	     sim_tpf->denominator == hw_tpf->denominator)) {
+
+		/* Disable the simulated framerate */
+		layer->tpf_info.irq_service_rate = 0;
+		result.parm.output.timeperframe = *hw_tpf;
+		goto exit;
+	}
+
+	/* Since we're doing fixed-point math to three decimal places, we
+	 * cannot support a numerator value larger than 2^32 / 1000 */
+	if (sim_tpf->numerator > (-1UL / 1000UL))
+		goto too_big;
+
+	/* Right now, a simulated framerate faster than the hardware is not
+	 * supported. */
+	if ((sim_tpf->numerator * 1000 / sim_tpf->denominator) >
+	    (hw_tpf->numerator * 1000 / hw_tpf->denominator)) {
+		goto too_fast;
+	}
+
+	/* If we get this far, we know that the specified framerate is valid.
+	 * Update the simulated framerate. */
+	layer->tpf_info.sim_timeperframe = *sim_tpf;
+	sim_tpf = &layer->tpf_info.sim_timeperframe;
+
+	/* Calculate the irq service rate.  */
+	service_rate.numerator   = hw_tpf->numerator   * sim_tpf->denominator;
+	service_rate.denominator = hw_tpf->denominator * sim_tpf->numerator;
+
+	normalize_gcd = gcd(service_rate.numerator, service_rate.denominator);
+	service_rate.numerator   /= normalize_gcd;
+	service_rate.denominator /= normalize_gcd;
+
+	/* Store the service rate in integer form. Multiply the result by 1000
+	 * to also include the first three decimal digits. */
+	layer->tpf_info.irq_service_rate =
+		(service_rate.numerator * 1000) / service_rate.denominator;
+	result.parm.output.timeperframe = *sim_tpf;
+
+	layer->tpf_info.next_irq  = layer->tpf_info.irq_service_rate;
+	layer->tpf_info.irq_count = 0;
+
+	goto exit;
+
+too_fast:
+	dev_err(davinci_display_dev, "timeperframe cannot exceed hardware "
+		"framerate");
+	ret = -EINVAL;
+	goto exit;
+
+too_big:
+	dev_err(davinci_display_dev, "timeperframe numerator cannot exceed "
+		"%lu", -1UL / 1000UL);
+	ret = -EINVAL;
+	goto exit;
+
+hardware_framerate:
+	dev_err(davinci_display_dev, "Could not retrieve hardware framerate");
+	ret = -EINVAL;
+	goto exit;
+
+division_by_zero:
+	dev_err(davinci_display_dev, "timeperframe divides by zero");
+	ret = -EINVAL;
+	goto exit;
+
+g_parm_failed:
+	dev_err(davinci_display_dev, "Could not retrieve current settings");
+	ret = -EINVAL;
+
+exit:
+	*parm = result;
 	return ret;
 }
 
@@ -1484,6 +1773,11 @@ static int davinci_open(struct file *filep)
 	fh->prio = V4L2_PRIORITY_UNSET;
 	v4l2_prio_open(&layer->prio, &fh->prio);
 	dev_dbg(davinci_display_dev, "</davinci_open>\n");
+
+	/* Initialize framerate information */
+	memset(&fh->layer->tpf_info, 0,
+		sizeof(struct davinci_timeperframe_info));
+
 	return 0;
 }
 
@@ -1535,6 +1829,9 @@ static int davinci_release(struct file *filep)
 		davinci_disp_release_layer(layer->layer_info.id);
 	}
 
+	/* Clear any simulated frame rate */
+	memset(&layer->tpf_info, 0, sizeof(struct davinci_timeperframe_info));
+
 	/* Close the priority */
 	v4l2_prio_close(&layer->prio, &fh->prio);
 	filep->private_data = NULL;
@@ -1584,6 +1881,8 @@ static const struct v4l2_ioctl_ops vpbe_ioctl_ops = {
 	.vidioc_s_crop		 = vpbe_s_crop,
 	.vidioc_g_priority	 = vpbe_g_priority,
 	.vidioc_s_priority	 = vpbe_s_priority,
+	.vidioc_g_parm    	 = vpbe_g_parm,
+	.vidioc_s_parm    	 = vpbe_s_parm,
 	.vidioc_default		 = vpbe_param_handler,
 };
 
