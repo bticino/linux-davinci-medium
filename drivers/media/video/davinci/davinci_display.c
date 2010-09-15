@@ -360,7 +360,7 @@ static void davinci_display_isr(unsigned int event, void *dispObj)
 			addr = videobuf_to_dma_contig(layer->nextFrm);
 			davinci_disp_start_layer(layer->layer_info.id,
 						 addr,
-						 davinci_dm.cbcr_ofst);
+						 &davinci_dm.fb_desc);
 		} else {
 			/* Interlaced mode
 			 * If it is first interrupt, ignore it
@@ -436,7 +436,7 @@ static void davinci_display_isr(unsigned int event, void *dispObj)
 				addr = videobuf_to_dma_contig(layer->nextFrm);
 				davinci_disp_start_layer(layer->layer_info.id,
 							addr,
-							davinci_dm.cbcr_ofst);
+							&davinci_dm.fb_desc);
 			}
 		}
 	}
@@ -463,7 +463,7 @@ static int davinci_set_video_display_params(struct display_obj *layer)
 	/* Set address in the display registers */
 	davinci_disp_start_layer(layer->layer_info.id,
 				 addr,
-				 davinci_dm.cbcr_ofst);
+				 &davinci_dm.fb_desc);
 	davinci_disp_enable_layer(layer->layer_info.id, 0);
 	/* Enable the window */
 	layer->layer_info.enable = 1;
@@ -1620,7 +1620,7 @@ static long vpbe_param_handler(struct file *file, void *priv,
 
 	switch (cmd) {
 	case VIDIOC_S_COFST:
-		davinci_dm.cbcr_ofst = *((unsigned long *) param);
+		davinci_dm.fb_desc.cbcr_ofst = *((unsigned long *) param);
 		mutex_unlock(&davinci_dm.lock);
 		break;
 	default:
@@ -1842,7 +1842,7 @@ static int davinci_release(struct file *filep)
 	/* unlock mutex on layer object */
 	mutex_unlock(&davinci_dm.lock);
 
-	davinci_dm.cbcr_ofst = 0;
+	davinci_dm.fb_desc.cbcr_ofst = 0;
 
 	dev_dbg(davinci_display_dev, "</davinci_release>\n");
 	return 0;

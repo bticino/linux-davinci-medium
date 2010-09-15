@@ -95,8 +95,6 @@ static enum davinci_osd_layer fb_info_to_osd_enum(const struct fb_info *info)
 #define is_display_interlaced(mode) (((mode)->vmode & FB_VMODE_INTERLACED) \
 	== FB_VMODE_INTERLACED)
 
-static unsigned int fb_cbcr_ofst;
-
 /*
  * Convert an fb_var_screeninfo struct to a Davinci display layer configuration.
  * lconfig->xpos, lconfig->ypos, and lconfig->line_length are not modified
@@ -577,7 +575,7 @@ static void davincifb_vsync_callback(unsigned event, void *arg)
 			davinci_disp_start_layer(dm->win[WIN_OSD0].layer,
 						 dm->win[WIN_OSD0].
 						 sdram_address,
-						 fb_cbcr_ofst);
+						 NULL);
 			dm->win[WIN_OSD0].sdram_address = 0;
 		}
 		addr = 0;
@@ -586,7 +584,7 @@ static void davincifb_vsync_callback(unsigned event, void *arg)
 			davinci_disp_start_layer(dm->win[WIN_OSD1].layer,
 						 dm->win[WIN_OSD1].
 						 sdram_address,
-						 fb_cbcr_ofst);
+						 NULL);
 			dm->win[WIN_OSD1].sdram_address = 0;
 		}
 		addr = 0;
@@ -595,7 +593,7 @@ static void davincifb_vsync_callback(unsigned event, void *arg)
 			davinci_disp_start_layer(dm->win[WIN_VID0].layer,
 						 dm->win[WIN_VID0].
 						 sdram_address,
-						 fb_cbcr_ofst);
+						 NULL);
 			dm->win[WIN_VID0].sdram_address = 0;
 		}
 		addr = 0;
@@ -604,7 +602,7 @@ static void davincifb_vsync_callback(unsigned event, void *arg)
 			davinci_disp_start_layer(dm->win[WIN_VID1].layer,
 						 dm->win[WIN_VID1].
 						 sdram_address,
-						 fb_cbcr_ofst);
+						 NULL);
 			dm->win[WIN_VID1].sdram_address = 0;
 		}
 		++dm->vsync_cnt;
@@ -618,7 +616,7 @@ static void davincifb_vsync_callback(unsigned event, void *arg)
 							 layer,
 							 dm->win[WIN_OSD0].
 							 sdram_address,
-							 fb_cbcr_ofst);
+							 NULL);
 				dm->win[WIN_OSD0].sdram_address = 0;
 			}
 			addr = 0;
@@ -628,7 +626,7 @@ static void davincifb_vsync_callback(unsigned event, void *arg)
 							 layer,
 							 dm->win[WIN_OSD1].
 							 sdram_address,
-							 fb_cbcr_ofst);
+							 NULL);
 				dm->win[WIN_OSD1].sdram_address = 0;
 			}
 			addr = 0;
@@ -638,7 +636,7 @@ static void davincifb_vsync_callback(unsigned event, void *arg)
 							 layer,
 							 dm->win[WIN_VID0].
 							 sdram_address,
-							 fb_cbcr_ofst);
+							 NULL);
 				dm->win[WIN_VID0].sdram_address = 0;
 			}
 			addr = 0;
@@ -648,7 +646,7 @@ static void davincifb_vsync_callback(unsigned event, void *arg)
 							 layer,
 							 dm->win[WIN_VID1].
 							 sdram_address,
-							 fb_cbcr_ofst);
+							 NULL);
 				dm->win[WIN_VID1].sdram_address = 0;
 			}
 		} else {
@@ -1679,7 +1677,7 @@ static int davincifb_set_par(struct fb_info *info)
 		+ var->yoffset * info->fix.line_length;
 	}
 	davinci_disp_set_layer_config(win->layer, &lconfig);
-	davinci_disp_start_layer(win->layer, start, fb_cbcr_ofst);
+	davinci_disp_start_layer(win->layer, start, NULL);
 	if (win->display_window)
 		davinci_disp_enable_layer(win->layer, 0);
 
@@ -1805,7 +1803,7 @@ davincifb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	    var->yoffset * info->fix.line_length;
 	}
 	if (davinci_disp_is_second_field()) {
-		davinci_disp_start_layer(win->layer, start, fb_cbcr_ofst);
+		davinci_disp_start_layer(win->layer, start, NULL);
 	} else
 		win->sdram_address = start;
 

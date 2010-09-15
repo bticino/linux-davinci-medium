@@ -305,6 +305,20 @@ struct davinci_layer_config {
 	int interlaced;
 };
 
+
+/**
+ * struct davinci_fb_desc
+ * @cbcr_ofst: offset of the cbcr data from the beginning of the frame buffer
+ *
+ * Description:
+ * A structure describing additional information about the frame buffers being
+ * passed to the display.  This may be needed when the buffers have a
+ * non-standard layout.
+ */
+struct davinci_fb_desc {
+    unsigned long cbcr_ofst;
+};
+
 /**
  * davinci_disp_request_layer
  * @layer: layer id
@@ -444,7 +458,7 @@ void davinci_disp_get_layer_config(enum davinci_disp_layer layer,
  */
 void davinci_disp_start_layer(enum davinci_disp_layer layer,
 			      unsigned long fb_base_phys,
-			      unsigned long cbcr_ofst);
+			      struct davinci_fb_desc *fb_desc);
 
 /**
  * davinci_disp_set_interpolation_filter

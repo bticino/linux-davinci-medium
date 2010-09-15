@@ -175,8 +175,8 @@ struct davinci_display {
 	struct mutex lock;
 	/* Display mode information */
 	struct vid_enc_mode_info mode_info;
-	/* C-Plane offset from start of y-plane */
-	unsigned int cbcr_ofst;
+	/* Frame buffer information */
+	struct davinci_fb_desc fb_desc;
 	/* interrupt callback */
 	struct davinci_disp_callback event_callback;
 	struct display_obj *dev[DAVINCI_DISPLAY_MAX_DEVICES];

@@ -1401,7 +1401,7 @@ EXPORT_SYMBOL(davinci_disp_enable_layer);
 
 static void _davinci_disp_start_layer(enum davinci_disp_layer layer,
 					unsigned long fb_base_phys,
-					unsigned long cbcr_ofst)
+					struct davinci_fb_desc *fb_desc)
 {
 	if (cpu_is_davinci_dm644x()) {
 		switch (layer) {
@@ -1461,8 +1461,8 @@ static void _davinci_disp_start_layer(enum davinci_disp_layer layer,
 		unsigned long fb_offset_32, cbcr_offset_32;
 
 		fb_offset_32 = fb_base_phys - DAVINCI_DDR_BASE;
-		if (cbcr_ofst)
-			cbcr_offset_32 = cbcr_ofst;
+		if (fb_desc && fb_desc->cbcr_ofst)
+			cbcr_offset_32 = fb_desc->cbcr_ofst;
 		else
 			cbcr_offset_32 = win->lconfig.line_length *
 					 win->lconfig.ysize;
@@ -1562,7 +1562,7 @@ static void _davinci_disp_start_layer(enum davinci_disp_layer layer,
 
 void davinci_disp_start_layer(enum davinci_disp_layer layer,
 			      unsigned long fb_base_phys,
-			      unsigned long cbcr_ofst)
+			      struct davinci_fb_desc *fb_desc)
 {
 	struct davinci_window_state *win = &osd->win[layer];
 	unsigned long flags;
@@ -1570,7 +1570,7 @@ void davinci_disp_start_layer(enum davinci_disp_layer layer,
 	spin_lock_irqsave(&osd->lock, flags);
 
 	win->fb_base_phys = fb_base_phys & ~0x1F;
-	_davinci_disp_start_layer(layer, fb_base_phys, cbcr_ofst);
+	_davinci_disp_start_layer(layer, fb_base_phys, fb_desc);
 
 	if (layer == WIN_VID0) {
 		osd->pingpong =
@@ -2212,7 +2212,7 @@ void davinci_disp_init_layer(enum davinci_disp_layer layer)
 	_davinci_disp_set_zoom(layer, win->h_zoom, win->v_zoom);
 
 	win->fb_base_phys = 0;
-	_davinci_disp_start_layer(layer, win->fb_base_phys, 0);
+	_davinci_disp_start_layer(layer, win->fb_base_phys, NULL);
 
 	win->lconfig.line_length = 0;
 	win->lconfig.xsize = 0;
