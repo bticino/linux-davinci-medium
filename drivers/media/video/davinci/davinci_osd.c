@@ -1467,6 +1467,19 @@ static void _davinci_disp_start_layer(enum davinci_disp_layer layer,
 			cbcr_offset_32 = win->lconfig.line_length *
 					 win->lconfig.ysize;
 		cbcr_offset_32 += fb_offset_32;
+
+		/* If a Y-plane display offset was specified, adjuest the fb
+		 * and cbcr offsets to reflect the desired start of the
+		 * display.  This only applies when an NV12 colorspace is being
+		 * used on the display.
+		 */
+		if (fb_desc && fb_desc->yd_ofst) {
+			if (win->lconfig.pixfmt == PIXFMT_NV12) {
+				fb_offset_32 += fb_desc->yd_ofst;
+				cbcr_offset_32 += (fb_desc->yd_ofst) >> 1;
+			}
+		}
+
 		fb_offset_32 = fb_offset_32 >> 5;
 		cbcr_offset_32 = cbcr_offset_32 >> 5;
 		/*

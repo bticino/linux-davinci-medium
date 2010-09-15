@@ -1623,6 +1623,19 @@ static long vpbe_param_handler(struct file *file, void *priv,
 		davinci_dm.fb_desc.cbcr_ofst = *((unsigned long *) param);
 		mutex_unlock(&davinci_dm.lock);
 		break;
+	case VIDIOC_S_YDOFST:
+		davinci_dm.fb_desc.yd_ofst = *((unsigned long *) param);
+
+		/* The Y-plane display offset must be 64-byte aligned */
+		if (davinci_dm.fb_desc.yd_ofst & 0x3F) {
+			dev_err(davinci_display_dev, "fb_desc.yd_ofst is not "
+				"aligned to 64 bytes\n");
+			davinci_dm.fb_desc.yd_ofst = 0;
+			ret = -EINVAL;
+		}
+
+		mutex_unlock(&davinci_dm.lock);
+		break;
 	default:
 		ret = -EINVAL;
 	}
@@ -1843,6 +1856,7 @@ static int davinci_release(struct file *filep)
 	mutex_unlock(&davinci_dm.lock);
 
 	davinci_dm.fb_desc.cbcr_ofst = 0;
+	davinci_dm.fb_desc.yd_ofst   = 0;
 
 	dev_dbg(davinci_display_dev, "</davinci_release>\n");
 	return 0;

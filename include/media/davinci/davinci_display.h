@@ -26,6 +26,12 @@
  */
 #define VIDIOC_S_COFST	_IOWR('V', 200, int)
 
+/* Application calls this ioctl for setting the offset into the Y-plane
+ * that represents the beginning of the displayed image.  This is useful
+ * for cropping codec padding at the top of the Y-plane.
+ */
+#define VIDIOC_S_YDOFST	_IOWR('V', 201, int)
+
 #ifdef __KERNEL__
 
 /* Header files */

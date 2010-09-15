@@ -309,14 +309,17 @@ struct davinci_layer_config {
 /**
  * struct davinci_fb_desc
  * @cbcr_ofst: offset of the cbcr data from the beginning of the frame buffer
+ * @yd_offset: offset into the Y-plane where the layer should start displaying
  *
  * Description:
  * A structure describing additional information about the frame buffers being
  * passed to the display.  This may be needed when the buffers have a
  * non-standard layout.
+ * @yd_ofst must be 64-byte aligned.
  */
 struct davinci_fb_desc {
     unsigned long cbcr_ofst;
+    unsigned long yd_ofst;
 };
 
 /**
