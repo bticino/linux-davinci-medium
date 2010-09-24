@@ -26,6 +26,7 @@
 #include "acorn.h"
 #include "amiga.h"
 #include "atari.h"
+#include "bubl.h"
 #include "ldm.h"
 #include "mac.h"
 #include "msdos.h"
@@ -80,6 +81,9 @@ static int (*check_part[])(struct parsed_partitions *, struct block_device *) = 
 #endif
 #ifdef CONFIG_LDM_PARTITION
 	ldm_partition,		/* this must come before msdos */
+#endif
+#ifdef CONFIG_BUBL_PARTITION
+	bubl_partition,		/* this must come before msdos */
 #endif
 #ifdef CONFIG_MSDOS_PARTITION
 	msdos_partition,
