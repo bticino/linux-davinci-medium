@@ -89,6 +89,12 @@ config ATARI_PARTITION
 	  Say Y here if you would like to use hard disks under Linux which
 	  were partitioned under the Atari OS.
 
+config BUBL_PARTITION
+	bool "Bticino UBL partitions"
+	default y if MMC_DAVINCI
+	help
+	  Say Y here if you would like to use the BTicino partition table
+
 config IBM_PARTITION
 	bool "IBM disk label and partition support"
 	depends on PARTITION_ADVANCED && S390
