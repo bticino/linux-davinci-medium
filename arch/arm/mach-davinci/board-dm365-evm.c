@@ -55,8 +55,8 @@
 /* have_imager() - Check if we have support for imager interface */
 static inline int have_imager(void)
 {
-#if defined(CONFIG_SOC_CAMERA_MT9T031) || \
-    defined(CONFIG_SOC_CAMERA_MT9T031_MODULE)
+#if defined(CONFIG_SOC_CAMERA_MT9P031) || \
+    defined(CONFIG_SOC_CAMERA_MT9P031_MODULE)
 	return 1;
 #else
 	return 0;
@@ -368,7 +368,7 @@ static const struct i2c_device_id pca9543a_ids[] = {
 	{ /* end of list */ },
 };
 
-/* This is for i2c driver for the MT9T031 header i2c switch */
+/* This is for i2c driver for the MT9P031 header i2c switch */
 static struct i2c_driver pca9543a_driver = {
 	.driver.name	= "PCA9543A",
 	.id_table	= pca9543a_ids,
@@ -384,6 +384,12 @@ static void dm365evm_reset_imager(int rst)
 {
 	u8 val;
 	
+   val = __raw_readb(cpld + CPLD_POWER) | BIT(3) | BIT(11) | BIT(19) | BIT(27);
+	__raw_writeb(val, (cpld + CPLD_POWER));
+
+   val = __raw_readb(cpld + CPLD_MUX) | BIT(6) | BIT(14) | BIT(22) | BIT(30);
+	__raw_writeb(val, (cpld + CPLD_MUX));
+
 	/* Reset bit6 of CPLD_IMG_DIR2 */
 	val = __raw_readb(cpld + CPLD_IMG_DIR2) & ~BIT(6);
 	__raw_writeb(val, (cpld + CPLD_IMG_DIR2));	
@@ -436,8 +442,8 @@ static int dm365evm_enable_pca9543a(int en)
 	return 0;
 }
 
-/* Input available at the mt9t031 */
-static struct v4l2_input mt9t031_inputs[] = {
+/* Input available at the mt9p031 */
+static struct v4l2_input mt9p031_inputs[] = {
 	{
 		.index = 0,
 		.name = "Camera",
@@ -535,18 +541,18 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 		},
 	},
 	{
-		.module_name = "mt9t031",
+		.module_name = "mt9p031",
 		.is_camera = 1,
-		.grp_id = VPFE_SUBDEV_MT9T031,
-		.num_inputs = ARRAY_SIZE(mt9t031_inputs),
-		.inputs = mt9t031_inputs,
+		.grp_id = VPFE_SUBDEV_MT9P031,
+		.num_inputs = ARRAY_SIZE(mt9p031_inputs),
+		.inputs = mt9p031_inputs,
 		.ccdc_if_params = {
 			.if_type = VPFE_RAW_BAYER,
 			.hdpol = VPFE_PINPOL_POSITIVE,
 			.vdpol = VPFE_PINPOL_POSITIVE,
 		},
 		.board_info = {
-			I2C_BOARD_INFO("mt9t031", 0x5d),
+			I2C_BOARD_INFO("mt9p031", 0x5d),
 			/* this is for PCLK rising edge */
 			.platform_data = (void *)1,
 		},
@@ -569,7 +575,7 @@ static int dm365evm_setup_video_input(enum vpfe_subdev_id id)
 			label = "tvp5146 SD";
 			dm365evm_reset_imager(0);
 			break;
-		case VPFE_SUBDEV_MT9T031:
+		case VPFE_SUBDEV_MT9P031:
 			mux |= CPLD_VIDEO_INPUT_MUX_IMAGER;
 			resets |= BIT(0); /* Put TVP5146 in reset */
 			label = "HD imager";

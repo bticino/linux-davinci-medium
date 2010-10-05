@@ -19,7 +19,7 @@
  *    VPFE Capture driver allows applications to capture and stream video
  *    frames on DaVinci SoCs (DM6446, DM355 etc) from a YUV source such as
  *    TVP5146 or  Raw Bayer RGB image data from an image sensor
- *    such as Microns' MT9T001, MT9T031 etc.
+ *    such as Microns' MT9T001, mt9p031 etc.
  *
  *    These SoCs have, in common, a Video Processing Subsystem (VPSS) that
  *    consists of a Video Processing Front End (VPFE) for capturing
@@ -100,12 +100,12 @@ module_param(cont_bufsize, uint, S_IRUGO);
 
 /**
  * VPFE capture can be used for capturing video such as from TVP5146 or TVP7002
- * and for capture raw bayer data from camera sensors such as MT9T031. At this
- * point there is problem in co-existence of mt9t031 and tvp5146 due to i2c
+ * and for capture raw bayer data from camera sensors such as mt9p031. At this
+ * point there is problem in co-existence of mt9p031 and tvp5146 due to i2c
  * address collision. So set the variable below from bootargs to do either video
  * capture or camera capture.
  * interface = 0 - video capture (from TVP514x or such),
- * interface = 1 - Camera capture (from MT9T031 or such)
+ * interface = 1 - Camera capture (from mt9p031 or such)
  * Re-visit this when we fix the co-existence issue
  */
 MODULE_PARM_DESC(interface, "interface 0-1 (default:0)");
@@ -355,7 +355,7 @@ static int vpfe_get_camera_frame_params(struct vpfe_device *vpfe_dev)
 	 */
 	memset(&sd_fmt, 0, sizeof(sd_fmt));
 	sd_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	/* hard code it to match that of mt9t031 sensor */
+	/* hard code it to match that of mt9p031 sensor */
 	sd_fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_SGRBG10;
 	/* use a value big enough */
 	sd_fmt.fmt.pix.width = 1 << 31;
@@ -2792,7 +2792,7 @@ static __init int vpfe_probe(struct platform_device *pdev)
 		sdinfo = &vpfe_cfg->sub_devs[i];
 		/**
 		 * register subdevices based on interface setting. Currently
-		 * tvp5146 and mt9t031 cannot co-exists due to i2c address
+		 * tvp5146 and mt9p031 cannot co-exists due to i2c address
 		 * conflicts. So only one of them is registered. Re-visit this
 		 * once we have support for i2c switch handling in i2c driver
 		 * framework
