@@ -439,6 +439,8 @@ int davinci_enc_select_venc_clock(int clk)
 		__raw_writel(0x18, IO_ADDRESS(SYS_VPSS_CLKCTL));
 	else if (clk == pll2_venc_clk_rate)
 		__raw_writel(0x38, IO_ADDRESS(SYS_VPSS_CLKCTL));
+	else if (cpu_is_davinci_dm368())
+		__raw_writel(0x3a, IO_ADDRESS(SYS_VPSS_CLKCTL));
 	else {
 		dev_err(venc->vdev, "Desired VENC clock not available\n");
 		return -EINVAL;

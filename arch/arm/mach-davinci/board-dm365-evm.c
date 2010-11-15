@@ -45,6 +45,7 @@
 #include <mach/nand.h>
 #include <mach/keyscan.h>
 #include <mach/gpio.h>
+#include <mach/cputype.h>
 #include <linux/videodev2.h>
 #include <media/tvp514x.h>
 #include <media/tvp7002.h>
@@ -594,6 +595,12 @@ static int dm365evm_setup_video_input(enum vpfe_subdev_id id)
 			return 0;
 	}
 	__raw_writeb(mux, cpld + CPLD_MUX);
+
+	if (cpu_is_davinci_dm368()) {
+		davinci_cfg_reg(DM365_GPIO80);
+		resets |= BIT(7) | BIT(6) | BIT(5);
+	}
+
 	__raw_writeb(resets, cpld + CPLD_RESETS);
 
 	pr_info("EVM: switch to %s video input\n", label);
@@ -801,6 +808,9 @@ fail:
 
 	/* External muxing for some signals */
 	mux = 0;
+
+	/* Read CPLD version number */
+	soc_info->cpld_version = __raw_readb(cpld + CPLD_VERSION);
 
 	/* Read SW5 to set up NAND + keypad _or_ OneNAND (sync read).
 	 * NOTE:  SW4 bus width setting must match!
