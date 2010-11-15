@@ -57,6 +57,15 @@ static inline int is_davinci_ ##type(void)				\
 IS_DAVINCI_CPU_VAR(dm644x_v21, DAVINCI_CPU_ID_DM6446, 1)
 IS_DAVINCI_CPU_VAR(dm646x_v30, DAVINCI_CPU_ID_DM6467, 1)
 
+#define IS_DAVINCI_CPU_CPLD_VER(type, id, cpld_ver)			\
+static inline int is_davinci_ ##type(void)				\
+{									\
+	return ((davinci_soc_info.cpu_id == (id)) &&			\
+		(davinci_soc_info.cpld_version == (cpld_ver)));		\
+}
+
+IS_DAVINCI_CPU_CPLD_VER(dm368, DAVINCI_CPU_ID_DM365, 0x21)
+
 #ifdef CONFIG_ARCH_DAVINCI_DM644x
 #define cpu_is_davinci_dm644x() is_davinci_dm644x()
 #define cpu_is_davinci_dm644x_v21() is_davinci_dm644x_v21()
@@ -81,8 +90,10 @@ IS_DAVINCI_CPU_VAR(dm646x_v30, DAVINCI_CPU_ID_DM6467, 1)
 
 #ifdef CONFIG_ARCH_DAVINCI_DM365
 #define cpu_is_davinci_dm365() is_davinci_dm365()
+#define cpu_is_davinci_dm368() is_davinci_dm368()
 #else
 #define cpu_is_davinci_dm365() 0
+#define cpu_is_davinci_dm368() 0
 #endif
 
 #ifdef CONFIG_ARCH_DAVINCI_DA830

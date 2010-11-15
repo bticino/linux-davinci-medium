@@ -47,6 +47,7 @@ struct davinci_soc_info {
 	u32				cpu_id;
 	u32				jtag_id;
 	u8				variant;
+	u8				cpld_version;
 	void __iomem			*jtag_id_base;
 	struct davinci_id		*ids;
 	unsigned long			ids_num;
