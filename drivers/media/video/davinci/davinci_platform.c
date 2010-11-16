@@ -24,6 +24,7 @@
 #include <linux/attribute_container.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
+#include <linux/gpio.h>
 #include <mach/hardware.h>
 #include <mach/mux.h>
 #include <mach/cputype.h>
@@ -124,6 +125,7 @@ char *davinci_modes[] = {
 	VID_ENC_STD_640x480,
 	VID_ENC_STD_640x400,
 	VID_ENC_STD_640x350,
+	VID_ENC_STD_480x272,
 	VID_ENC_STD_800x480,
 	""
 };
@@ -535,6 +537,20 @@ static void enableDigitalOutput(int bEnable)
 		if (cpu_is_davinci_dm644x())
 			__raw_writel(0, IO_ADDRESS(DM644X_VPBE_REG_BASE + VPBE_PCR));
 
+		if (cpu_is_davinci_dm368()) {
+			/* Set PINMUX for VCLK */
+			davinci_cfg_reg(DM365_VCLK);
+
+			/* Set PINMUX for GPIO82 */			
+			davinci_cfg_reg(DM365_GPIO82);
+			
+			gpio_request(82, "lcd_oe");
+			
+			/* Set GPIO82 low */
+			gpio_direction_output(82, 0);
+			gpio_set_value(82, 0);
+		}
+
 		dispc_reg_out(VENC_LCDOUT, 0);
 		dispc_reg_out(VENC_HSPLS, 0);
 		dispc_reg_out(VENC_HSTART, 0);
@@ -917,6 +933,11 @@ static void davinci_enc_set_prgb(struct vid_enc_mode_info *mode_info)
 	dispc_reg_out(VENC_VMOD, 0x2011);
 	dispc_reg_out(VENC_LCDOUT, 0x1);
 
+	if (cpu_is_davinci_dm368()) {
+		/* Turn on LCD display */
+		mdelay(200);
+		gpio_set_value(82, 1);
+	}
 }
 
 /*
@@ -1162,6 +1183,7 @@ void davinci_enc_priv_setmode(struct vid_enc_device_mgr *mgr)
 	} else if (strcmp(mgr->current_mode.name, VID_ENC_STD_640x480) == 0 ||
 		strcmp(mgr->current_mode.name, VID_ENC_STD_640x400) == 0 ||
 		strcmp(mgr->current_mode.name, VID_ENC_STD_640x350) == 0 ||
+		strcmp(mgr->current_mode.name, VID_ENC_STD_480x272) == 0 ||
 		strcmp(mgr->current_mode.name, VID_ENC_STD_800x480) == 0) {
 		davinci_enc_set_prgb(&mgr->current_mode);
 	} else if (strcmp(mgr->current_mode.name, VID_ENC_STD_720P_60) == 0) {

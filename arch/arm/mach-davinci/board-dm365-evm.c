@@ -871,6 +871,19 @@ fail:
 	}
 	__raw_writeb(mux, cpld + CPLD_MUX);
 	__raw_writeb(resets, cpld + CPLD_RESETS);
+
+	/* Turn on LCD backlight for DM368 */
+	if (cpu_is_davinci_dm368()) {
+		/* Configure 9.25MHz clock to LCD */
+		__raw_writeb(0x80, cpld + CPLD_RESETS);
+
+		/* CPLD_CONN_GIO17 is level high */
+		__raw_writeb(0xff, cpld + CPLD_CCD_IO1);
+
+		/* CPLD_CONN_GIO17 is an output */
+		__raw_writeb(0xfb, cpld + CPLD_CCD_DIR1);
+	}
+
 	pr_info("EVM: %s video input\n", label);
 
 	/* REVISIT export switches: NTSC/PAL (SW5.6), EXTRA1 (SW5.2), etc */

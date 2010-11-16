@@ -1170,6 +1170,9 @@ static int vpbe_cropcap(struct file *file, void *priv,
 		cropcap->bounds = cropcap->defrect = vga_bounds;
 		cropcap->bounds.height = cropcap->defrect.height = 350;
 		cropcap->pixelaspect = sp_aspect;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_480x272)) {
+		cropcap->bounds = cropcap->defrect = vga_bounds;
+		cropcap->pixelaspect = sp_aspect;
 	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_720P_60)) {
 		cropcap->bounds = cropcap->defrect = hd_720p_bounds;
 		cropcap->pixelaspect = sp_aspect;

@@ -296,6 +296,8 @@ enum davinci_dm365_index {
 	DM365_GPIO33,
 	DM365_GPIO40,
 	DM365_GPIO80,
+	DM365_GPIO82,
+	DM365_VCLK,
 
 	/* Video */
 	DM365_VOUT_FIELD,
