@@ -155,6 +155,15 @@ config VIDEO_TDA9875
 	  To compile this driver as a module, choose M here: the
 	  module will be called tda9875.
 
+config VIDEO_TDA9885
+	tristate "Philips TDA9885 video demodulator"
+	depends on VIDEO_V4L2 && I2C
+	---help---
+	  Support for tda9885 video demodulator.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called tda9885.
+
 config VIDEO_TEA6415C
 	tristate "Philips TEA6415C audio processor"
 	depends on I2C
