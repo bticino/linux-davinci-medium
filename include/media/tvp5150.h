@@ -21,14 +21,32 @@
 #ifndef _TVP5150_H_
 #define _TVP5150_H_
 
-/* TVP5150 HW inputs */
-#define TVP5150_COMPOSITE0 0
-#define TVP5150_COMPOSITE1 1
-#define TVP5150_SVIDEO     2
+/* Number of pixels and number of lines per frame for different standards */
+#define NTSC_NUM_ACTIVE_PIXELS          (720)
+#define NTSC_NUM_ACTIVE_LINES           (480)
+#define PAL_NUM_ACTIVE_PIXELS           (720)
+#define PAL_NUM_ACTIVE_LINES            (576)
 
-/* TVP5150 HW outputs */
-#define TVP5150_NORMAL       0
-#define TVP5150_BLACK_SCREEN 1
+/**
+ * enum tvp515x_input - enum for different decoder input pin
+ *              configuration.
+ */
+enum tvp515x_input {
+	TVP5150_COMPOSITE0 = 0,
+	TVP5150_COMPOSITE1,
+	TVP5150_SVIDEO,
+	TVP5150_INPUT_INVALID
+};
+
+/**
+ * enum tvp515x_output - enum for different output modes
+ *
+ */
+enum tvp515x_output {
+	TVP5150_NORMAL = 0,
+	TVP5150_BLACK_SCREEN,
+	TVP5150_OUTPUT_INVALID
+};
 
 #endif
 
