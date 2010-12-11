@@ -1415,6 +1415,7 @@ static struct ccdc_hw_device ccdc_hw_dev = {
 
 static int __init dm365_ccdc_probe(struct platform_device *pdev)
 {
+	void (*setup_pinmux)(void);
 	static resource_size_t  res_len;
 	struct resource	*res;
 	void *__iomem addr;
@@ -1464,11 +1465,17 @@ static int __init dm365_ccdc_probe(struct platform_device *pdev)
 		i++;
 	}
 
-	davinci_cfg_reg(DM365_VIN_CAM_WEN);
-	davinci_cfg_reg(DM365_VIN_CAM_VD);
-	davinci_cfg_reg(DM365_VIN_CAM_HD);
-	davinci_cfg_reg(DM365_VIN_YIN4_7_EN);
-	davinci_cfg_reg(DM365_VIN_YIN0_3_EN);
+	/* Platform data holds setup_pinmux function ptr */
+	if (NULL == pdev->dev.platform_data) {
+		status = -ENODEV;
+		goto fail_platform_data;
+	}
+	setup_pinmux = pdev->dev.platform_data;
+	/*
+	 * setup Mux configuration for ccdc which may be different for
+	 * different SoCs using this CCDC
+	 */
+	setup_pinmux();
 
 	printk(KERN_NOTICE "%s is registered with vpfe.\n",
 		ccdc_hw_dev.name);
@@ -1487,6 +1494,7 @@ fail_nobase_res:
 		release_mem_region(res->start, res_len);
 		i--;
 	}
+fail_platform_data:
 	vpfe_unregister_ccdc_device(&ccdc_hw_dev);
 	return status;
 }
