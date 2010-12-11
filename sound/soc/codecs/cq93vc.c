@@ -183,7 +183,19 @@ static int cq93vc_probe(struct platform_device *pdev)
 	/* Off, with power on */
 	cq93vc_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 
+	ret = snd_soc_init_card(socdev);
+	if (ret < 0) {
+		printk(KERN_ERR "cq93vc: failed to register card\n");
+		goto reset_err;
+	}
+
 	return 0;
+
+reset_err:
+	snd_soc_free_pcms(socdev);
+	snd_soc_dapm_free(socdev);
+
+	return ret;
 }
 
 static int cq93vc_remove(struct platform_device *pdev)
@@ -264,10 +276,10 @@ static int __devexit cq93vc_codec_remove(struct platform_device *pdev)
 	struct snd_soc_codec *codec = socdev->card->codec;
 
 	snd_soc_unregister_dai(&cq93vc_dai);
-	snd_soc_unregister_codec(&codec);
+	snd_soc_unregister_codec(codec);
 
-	kfree(codec);
 	cq93vc_codec = NULL;
+	cq93vc_dai.dev = NULL;
 
 	return 0;
 }
