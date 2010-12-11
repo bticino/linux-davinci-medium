@@ -25,6 +25,16 @@ config SND_DAVINCI_SOC_EVM
 	  Say Y if you want to add support for SoC audio on TI
 	  DaVinci DM6446 or DM355 EVM platforms.
 
+config SND_DAVINCI_SOC_BASI
+	tristate "SoC Audio support for DM365 basi board"
+	depends on SND_DAVINCI_SOC && MACH_BASI
+	select SND_DM365_VOICE_CODEC
+	select SND_SOC_CQ0093VC
+	select SND_DAVINCI_SOC_VCIF
+	help
+	  Say Y if you want to add support for SoC audio on
+	  Bticino basi board.
+
 config SND_DM365_VOICE_CODEC
 	bool "Voice Codec - CQ93VC"
 	select MFD_DAVINCI_VOICECODEC
