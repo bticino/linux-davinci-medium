@@ -1,0 +1,553 @@
+/*
+ * BTicino S.p.A. basi platform support
+ * based on evm-dm365 board
+ *
+ * Copyright (C) 2010 raffaele.recalcati@bticino.it
+ *                    davide.bonfanti@bticino.it
+ *               BTicino S.p.A.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation version 2.
+ *
+ * This program is distributed "as is" WITHOUT ANY WARRANTY of any
+ * kind, whether express or implied; without even the implied warranty
+ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/dma-mapping.h>
+#include <linux/i2c.h>
+#include <linux/io.h>
+#include <linux/clk.h>
+#include <linux/i2c/at24.h>
+#include <linux/leds.h>
+#include <linux/mtd/mtd.h>
+#include <linux/mtd/partitions.h>
+#include <linux/input.h>
+#include <linux/spi/spi.h>
+#include <linux/spi/eeprom.h>
+#include <linux/delay.h>
+#include <linux/backlight.h>
+
+#include <media/soc_camera.h>
+
+#include <asm/setup.h>
+#include <asm/mach-types.h>
+#include <asm/mach/arch.h>
+#include <asm/mach/map.h>
+#include <mach/mux.h>
+#include <mach/hardware.h>
+#include <mach/dm365.h>
+#include <mach/psc.h>
+#include <mach/common.h>
+#include <mach/i2c.h>
+#include <mach/serial.h>
+#include <mach/mmc.h>
+#include <mach/mux.h>
+#include <mach/keyscan.h>
+#include <mach/gpio.h>
+#include <mach/usb.h>
+#include <linux/videodev2.h>
+#include <media/soc_camera.h>
+#include <media/tvp5150.h>
+#include <linux/i2c/tda9885.h>
+#include <mach/aemif.h>
+
+#include <mach/basi.h>
+
+#define DM365_ASYNC_EMIF_CONTROL_BASE   0x01d10000
+#define DM365_ASYNC_EMIF_DATA_CE0_BASE  0x02000000
+#define DM365_ASYNC_EMIF_DATA_CE1_BASE  0x04000000
+#define DM365_EVM_PHY_MASK              (0x2)
+#define DM365_EVM_MDIO_FREQUENCY        (2200000)	/* PHY bus frequency */
+#define HW_IN_CLOCKOUT2_UDA_I2S
+
+static int basi_debug = 1;
+module_param(basi_debug, int, 0644);
+MODULE_PARM_DESC(basi_debug, "Debug level 0-1");
+
+static struct at24_platform_data at24_info = {
+	.byte_len = (256 * 1024) / 8,
+	.page_size = 64,
+	.flags = AT24_FLAG_ADDR16,
+	.setup = davinci_get_mac_addr,
+	.context = (void *)0x7f00,	/* where it gets the mac-address */
+};
+
+static struct tda9885_platform_data tda9885_defaults = {
+	.switching_mode = 0xf2,
+	.adjust_mode = 0xd0,
+	.data_mode = 0x0b,
+};
+
+/* Inputs available at the TVP5146 */
+static struct v4l2_input tvp5151_inputs[] = {
+	{
+		.index = 0,
+		.name = "SCS Composite",
+		.type = V4L2_INPUT_TYPE_CAMERA,
+		.std = V4L2_STD_PAL,
+	},
+};
+
+/*
+ * this is the route info for connecting each input to decoder
+ * ouput that goes to vpfe. There is a one to one correspondence
+ * with tvp5151_inputs
+ */
+static struct vpfe_route tvp5151_routes[] = {
+	{
+//		.input = INPUT_CVBS_VI2B,
+//		.output = OUTPUT_10BIT_422_EMBEDDED_SYNC,
+	},
+{
+//		.input = INPUT_SVIDEO_VI2C_VI1C,
+//		.output = OUTPUT_10BIT_422_EMBEDDED_SYNC,
+	},
+};
+
+static struct vpfe_subdev_info vpfe_sub_devs[] = {
+	{
+		.module_name = "tvp5150",
+		.grp_id = VPFE_SUBDEV_TVP5150,
+		.num_inputs = ARRAY_SIZE(tvp5151_inputs),
+		.inputs = tvp5151_inputs,
+		.routes = tvp5151_routes,
+		.can_route = 1,
+		.ccdc_if_params = {
+			.if_type = VPFE_BT656,
+			.hdpol = VPFE_PINPOL_POSITIVE,
+			.vdpol = VPFE_PINPOL_POSITIVE,
+		},
+		.board_info = {
+			I2C_BOARD_INFO("tvp5150", 0x5d),
+#if 0
+			.platform_data = &tvp5151_pdata,
+#endif
+		},
+	},
+};
+
+static int basi_setup_video_input(enum vpfe_subdev_id id)
+{
+	return 0;
+}
+
+static struct vpfe_config vpfe_cfg = {
+	.setup_input = basi_setup_video_input,
+	.num_subdevs = ARRAY_SIZE(vpfe_sub_devs),
+	.sub_devs = vpfe_sub_devs,
+	.card_name = "DM365 BASI",
+	.ccdc = "DM365 ISIF",
+	.num_clocks = 1,
+	.clocks = {"vpss_master"},
+};
+
+static void basi_emac_configure(void)
+{
+	/*
+	 * EMAC pins are multiplexed with GPIO and UART
+	 * Further details are available at the DM365 ARM
+	 * Subsystem Users Guide(sprufg5.pdf) pages 125 - 127
+	 */
+	davinci_cfg_reg(DM365_EMAC_TX_EN);
+	davinci_cfg_reg(DM365_EMAC_TX_CLK);
+	davinci_cfg_reg(DM365_EMAC_COL);
+	davinci_cfg_reg(DM365_EMAC_TXD3);
+	davinci_cfg_reg(DM365_EMAC_TXD2);
+	davinci_cfg_reg(DM365_EMAC_TXD1);
+	davinci_cfg_reg(DM365_EMAC_TXD0);
+	davinci_cfg_reg(DM365_EMAC_RXD3);
+	davinci_cfg_reg(DM365_EMAC_RXD2);
+	davinci_cfg_reg(DM365_EMAC_RXD1);
+	davinci_cfg_reg(DM365_EMAC_RXD0);
+	davinci_cfg_reg(DM365_EMAC_RX_CLK);
+	davinci_cfg_reg(DM365_EMAC_RX_DV);
+	davinci_cfg_reg(DM365_EMAC_RX_ER);
+	davinci_cfg_reg(DM365_EMAC_CRS);
+	davinci_cfg_reg(DM365_EMAC_MDIO);
+	davinci_cfg_reg(DM365_EMAC_MDCLK);
+
+	/*
+	 * EMAC interrupts are multiplexed with GPIO interrupts
+	 * Details are available at the DM365 ARM
+	 * Subsystem Users Guide(sprufg5.pdf) pages 133 - 134
+	 */
+	davinci_cfg_reg(DM365_INT_EMAC_RXTHRESH);
+	davinci_cfg_reg(DM365_INT_EMAC_RXPULSE);
+	davinci_cfg_reg(DM365_INT_EMAC_TXPULSE);
+	davinci_cfg_reg(DM365_INT_EMAC_MISCPULSE);
+}
+
+static void pinmux_check(void)
+{
+	void __iomem *pinmux_reg[] = {
+		IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x0),
+		IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x4),
+		IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x8),
+		IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0xC),
+		IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x10)
+	};
+	int pinmux[5], i;
+
+		for (i = 0; i < 5; i++) {
+			pinmux[i] = __raw_readl(pinmux_reg[i]);
+		printk("pinmux%d=%X\n",i,pinmux[i]);
+	}
+}
+
+static void basi_gpio_configure(void)
+{
+	int status;
+
+	davinci_cfg_reg(DM365_GPIO45);
+	status = gpio_request(BOOT_FL_WP, "Protecting SPI chip select");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO: Protecting SPI \
+		                 chip select: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(BOOT_FL_WP, 1);
+
+	davinci_cfg_reg(DM365_GPIO36);
+	status = gpio_request(EN_AUDIO, "Audio modulator Enable on external connector");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO: Audio modulator Enable on \
+		                 external connector: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(EN_AUDIO, 0);
+
+	davinci_cfg_reg(DM365_GPIO98);
+	status = gpio_request(ABIL_DEM_VIDEO, "Enable video demodulator");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO: Enable video \
+				 demodulator: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(ABIL_DEM_VIDEO, 1); /* enabled */
+
+	davinci_cfg_reg(DM365_GPIO37);
+	status = gpio_request(PDEC_PWRDNn, "Pal-Decoder power down");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO: Pal-Decoder \
+			         power down: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(PDEC_PWRDNn, 1);
+
+	davinci_cfg_reg(DM365_GPIO26);
+	status = gpio_request(PDEC_RESETn, "PAL decoder Reset");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO PAL \
+					   decoder reset: %d\n", __func__,
+					    status);
+		return;
+	}
+	gpio_direction_output(PDEC_RESETn, 1);
+
+	davinci_cfg_reg(DM365_GPIO97);
+	status = gpio_request(E2_WPn, "Eeprom write protect");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO eeprom \
+				      write protect: %d\n", __func__,
+				      status);
+		return;
+	}
+	gpio_direction_output(E2_WPn, 0);
+
+	davinci_cfg_reg(DM365_GPIO100);
+	status = gpio_request(REG_ERR_AVn, "Reset pic SCS AV");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO reset pic \
+			         scs av: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(REG_ERR_AVn, 1);
+
+	davinci_cfg_reg(DM365_GPIO99);
+	status = gpio_request(EN_RTC, "RTC power enable");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO enable \
+				 external rtc powering: %d\n", __func__,
+				 status);
+		return;
+	}
+	gpio_direction_output(EN_RTC, 1); /* enabled */
+
+	davinci_cfg_reg(DM365_GPIO35);
+	status = gpio_request(ZARLINK_CS, "Zarlink chip select");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO Zarlink \
+				 chip select: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(ZARLINK_CS, 0);
+
+	davinci_cfg_reg(DM365_GPIO38);
+	status = gpio_request(PIC_RESET_N, "PIC AI reset");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request PIC AI \
+				 reset: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(PIC_RESET_N, 1);
+
+	davinci_cfg_reg(DM365_GPIO40);
+	status = gpio_request(LED_1, "LED");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request LED \
+				 %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(LED_1, 1);
+
+	davinci_cfg_reg(DM365_GPIO39);
+	status = gpio_request(OC2_VBUS_USB, "Over Current VBUS");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request Over Current \
+				 VBUS: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_input(OC2_VBUS_USB);
+
+	davinci_cfg_reg(DM365_GPIO41);
+	status = gpio_request(SD_CARD_DET, "Always true eMMC det");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request always true \
+				 eMMC det: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_input(SD_CARD_DET);
+
+	davinci_cfg_reg(DM365_GPIO42);
+	status = gpio_request(EMMC_RESET, "eMMC reset");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request eMMC \
+				 reset %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(EMMC_RESET, 1);
+
+	davinci_cfg_reg(DM365_GPIO44);
+	status = gpio_request(ENET_RESETn, "ENET RESET");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request ENET \
+				 RESET %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(ENET_RESETn, 1);
+
+/*
+ *      TODO
+ * 	davinci_cfg_reg(DM365_GPIO69); see PINMUX2 .. difficult
+ */
+
+	davinci_cfg_reg(DM365_GPIO50);
+	status = gpio_request(POWER_FAIL, "POWER_FAIL");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO POWER \
+				 FAIL: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_input(POWER_FAIL);
+
+	davinci_cfg_reg(DM365_GPIO51);
+	status = gpio_request(RES_EXTUART, "RES_EXTUART");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO RES \
+				 EXTUART: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(RES_EXTUART, 0);
+
+	davinci_cfg_reg(DM365_GPIO96);
+	status = gpio_request(PB_IN, "External Push Button");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO push button \
+				 in: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_input(PB_IN);
+
+	if (basi_debug) {
+		gpio_export(BOOT_FL_WP, 0); /* danger */
+		gpio_export(LED_1, 0); /* danger */
+		gpio_export(EN_AUDIO, 0);
+		gpio_export(ABIL_DEM_VIDEO, 0);
+		gpio_export(PDEC_PWRDNn, 0);
+		gpio_export(PDEC_RESETn, 0);
+		gpio_export(PIC_RESET_N, 0);
+		gpio_export(E2_WPn, 0);
+		gpio_export(REG_ERR_AVn, 0);
+		gpio_export(EN_RTC, 0);
+		gpio_export(ZARLINK_CS, 0);
+/*
+ * ZARLINK_RESET todo
+ */
+		gpio_export(PB_IN, 0);
+		gpio_export(OC2_VBUS_USB, 0);
+		gpio_export(SD_CARD_DET, 0);
+		gpio_export(POWER_FAIL, 0);
+		gpio_export(RES_EXTUART, 0);
+		gpio_export(EMMC_RESET, 0);
+	}
+}
+
+static int basi_mmc_get_ro(int module)
+{
+	return gpio_get_value(SD_WR_PR);
+}
+
+static struct davinci_mmc_config basi_mmc_config = {
+	/* .get_cd is not defined since it seems it useless... the MMC
+	 * controller detects anyway the card! O_o
+	 */
+	.get_ro		= basi_mmc_get_ro,
+	.wires		= 4,
+	.max_freq	= 50000000,
+	.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
+	.version	= MMC_CTLR_VERSION_2,
+};
+
+static void basi_mmc_configure(void)
+{
+	int ret;
+
+	davinci_cfg_reg(DM365_MMCSD0);
+	davinci_cfg_reg(DM365_GPIO43); /* Not connected to the eMMC */
+
+	ret = gpio_request(SD_WR_PR, "MMC WP");
+	if (ret)
+		pr_warning("basi: cannot request GPIO %d!\n", SD_WR_PR);
+	gpio_direction_input(SD_WR_PR);
+	davinci_setup_mmc(0, &basi_mmc_config);
+
+	return;
+}
+
+static void basi_usb_configure(void)
+{
+	pr_notice("Launching setup_usb\n");
+	setup_usb(500, 8);
+}
+
+static struct platform_device basi_asoc_device[] = {
+	{
+		.name = "basi-asoc",
+		.id = 0,
+	},
+};
+
+static struct i2c_board_info __initdata basi_i2c_info[] = {
+	{
+		I2C_BOARD_INFO("pcf8563", 0x51),
+	},
+	{
+		I2C_BOARD_INFO("24c256", 0x53),
+		.platform_data = &at24_info,
+	},
+	{
+		I2C_BOARD_INFO("tda9885", 0x43),
+		.platform_data = &tda9885_defaults
+	},
+};
+
+static struct davinci_i2c_platform_data i2c_pdata = {
+	.bus_freq = 400 /* kHz */ ,
+	.bus_delay = 0 /* usec */ ,
+};
+
+static void __init basi_init_i2c(void)
+{
+	davinci_init_i2c(&i2c_pdata);
+	i2c_register_board_info(1, basi_i2c_info, ARRAY_SIZE(basi_i2c_info));
+}
+
+static struct platform_device *basi_devices[] __initdata = {
+	&basi_asoc_device[0],
+};
+
+static struct davinci_uart_config uart_config __initdata = {
+	.enabled_uarts = (1 << 0) | (1 << 1),
+};
+
+static void __init basi_map_io(void)
+{
+	printk("%s - %d: setup input configuration for VPFE input devices\n", __func__,
+				__LINE__);
+
+	dm365_set_vpfe_config(&vpfe_cfg);
+
+	dm365_init();
+}
+
+static struct spi_eeprom at25640 = {
+	.byte_len = SZ_64K / 8,
+	.name = "at25640",
+	.page_size = 32,
+	.flags = EE_ADDR2,
+};
+
+static struct spi_board_info basi_spi_info[] __initconst = {
+	{
+		.modalias       = "at25",
+		.platform_data  = &at25640,
+		.max_speed_hz   = 20 * 1000 * 1000,     /* at 3v3 */
+		.bus_num        = 0,
+		.chip_select    = 0,
+		.mode           = SPI_MODE_0,
+	},
+};
+
+static struct snd_platform_data dm365_basi_snd_data;
+
+
+static __init void basi_init(void)
+{
+	pr_warning("basi_init: START\n");
+	if (basi_debug>1)
+		pinmux_check();
+	basi_gpio_configure();
+	davinci_cfg_reg(DM365_UART1_RXD_34);
+	davinci_cfg_reg(DM365_UART1_TXD_25);
+	davinci_serial_init(&uart_config);
+	pr_warning("basi_init: starting\n");
+	mdelay(100);
+	davinci_cfg_reg(DM365_I2C_SDA);
+	davinci_cfg_reg(DM365_I2C_SCL);
+	basi_init_i2c();
+	basi_emac_configure();
+
+#ifdef  ENABLING_SPI
+	/*
+	 * DANGEROUS, because spi flash contains bubl bootloader
+	 */
+	dm365_init_spi0(BIT(0), basi_spi_info, ARRAY_SIZE(basi_spi_info));
+#endif
+
+	basi_mmc_configure();
+	basi_usb_configure();
+	dm365_init_vc(&dm365_basi_snd_data);
+	platform_add_devices(basi_devices, ARRAY_SIZE(basi_devices));
+	dm365_init_rtc();
+
+	if (basi_debug)
+		pinmux_check();
+	pr_warning("basi_init: END\n");
+}
+
+MACHINE_START(BASI, "BTicino BASI board")
+	.phys_io = IO_PHYS,
+	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
+	.boot_params = (0x80000100),
+	.map_io = basi_map_io,
+	.init_irq = davinci_irq_init,
+	.timer = &davinci_timer,
+	.init_machine = basi_init,
+MACHINE_END
