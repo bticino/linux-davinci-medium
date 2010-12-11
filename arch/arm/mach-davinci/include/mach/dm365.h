@@ -29,11 +29,16 @@
 
 #define DM365_RTC_BASE			(0x01C69000)
 
+#define DAVINCI_DM365_VC_BASE		(0x01D0C000)
+#define DAVINCI_DMA_VC_TX		2
+#define DAVINCI_DMA_VC_RX		3
+
 /* Base of key scan register bank */
 #define DM365_KEYSCAN_BASE		(0x01C69400)
 
 void __init dm365_init(void);
 void __init dm365_init_asp(struct snd_platform_data *pdata);
+void __init dm365_init_vc(struct snd_platform_data *pdata);
 void __init dm365_init_rtc(void);
 void __init dm365_init_ks(struct davinci_ks_platform_data *pdata);
 void dm365_set_vpfe_config(struct vpfe_config *cfg);
