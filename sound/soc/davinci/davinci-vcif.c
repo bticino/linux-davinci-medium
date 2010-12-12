@@ -159,6 +159,7 @@ static int davinci_vcif_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		davinci_vcif_start(substream);
+		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
@@ -198,33 +199,36 @@ EXPORT_SYMBOL_GPL(davinci_vcif_dai);
 static int davinci_vcif_probe(struct platform_device *pdev)
 {
 	struct davinci_vc *davinci_vc = platform_get_drvdata(pdev);
-	struct davinci_vcif_dev *davinci_vcif_dev;
+	struct davinci_vcif_dev *dev;
 	int ret;
 
-	davinci_vcif_dev = kzalloc(sizeof(struct davinci_vcif_dev), GFP_KERNEL);
 	if (!davinci_vc) {
+		dev_dbg(&pdev->dev, "could not find davinci_vc drvdata!\n");
+		return -EINVAL;
+	}
+
+	dev = kzalloc(sizeof(struct davinci_vcif_dev), GFP_KERNEL);
+	if (!dev) {
 		dev_dbg(&pdev->dev,
 			"could not allocate memory for private data\n");
 		return -ENOMEM;
 	}
 
+	dev->davinci_vc = davinci_vc;
+
 	/* DMA tx params */
-	davinci_vcif_dev->davinci_vc = davinci_vc;
-	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_PLAYBACK].channel =
+	dev->dma_params[SNDRV_PCM_STREAM_PLAYBACK].channel =
 					davinci_vc->davinci_vcif.dma_tx_channel;
-	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_PLAYBACK].dma_addr =
+	dev->dma_params[SNDRV_PCM_STREAM_PLAYBACK].dma_addr =
 					davinci_vc->davinci_vcif.dma_tx_addr;
 
 	/* DMA rx params */
-	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].channel =
+	dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].channel =
 					davinci_vc->davinci_vcif.dma_rx_channel;
-	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].dma_addr =
+	dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].dma_addr =
 					davinci_vc->davinci_vcif.dma_rx_addr;
 
-	davinci_vcif_dai.dev = &pdev->dev;
-	davinci_vcif_dai.dma_data = davinci_vcif_dev->dma_params;
-	davinci_vcif_dai.private_data = davinci_vcif_dev;
-
+	davinci_vcif_dai.private_data = dev;
 	ret = snd_soc_register_dai(&davinci_vcif_dai);
 	if (ret != 0) {
 		dev_err(&pdev->dev, "could not register dai\n");
@@ -234,14 +238,17 @@ static int davinci_vcif_probe(struct platform_device *pdev)
 	return 0;
 
 fail:
-	kfree(davinci_vcif_dev);
+	kfree(dev);
 
 	return ret;
 }
 
 static int davinci_vcif_remove(struct platform_device *pdev)
 {
+	struct davinci_vcif_dev *dev = davinci_vcif_dai.private_data;
+
 	snd_soc_unregister_dai(&davinci_vcif_dai);
+	kfree(dev);
 
 	return 0;
 }
@@ -257,7 +264,7 @@ static struct platform_driver davinci_vcif_driver = {
 
 static int __init davinci_vcif_init(void)
 {
-	return platform_driver_probe(&davinci_vcif_driver, davinci_vcif_probe);
+	return platform_driver_register(&davinci_vcif_driver);
 }
 module_init(davinci_vcif_init);
 
