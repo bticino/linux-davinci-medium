@@ -46,8 +46,8 @@
 } while (0)
 
 struct davinci_vcif_dev {
-	struct davinci_vc *davinci_vc;
 	struct davinci_pcm_dma_params	dma_params[2];
+	struct davinci_vc *davinci_vc;
 };
 
 static void davinci_vcif_start(struct snd_pcm_substream *substream)
