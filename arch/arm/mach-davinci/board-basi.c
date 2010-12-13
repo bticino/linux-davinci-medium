@@ -273,6 +273,36 @@ static void __init basi_gpio_init_irq(void)
 	set_irq_chained_handler(IRQ_DM365_GPIO0, basi_gpio_irq_handler);
 }
 
+static irqreturn_t basi_powerfail_stop(int irq, void *dev_id);
+
+static irqreturn_t basi_powerfail_start(int irq, void *dev_id)
+{
+	basi_mask_irq_gpio0(IRQ_DM365_GPIO0_2);
+	basi_unmask_irq_gpio0(IRQ_DM365_GPIO0_0);
+
+	/* PowerFail situation - START: power is going away */
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t basi_powerfail_stop(int irq, void *dev_id)
+{
+	basi_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	basi_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
+
+	/* PowerFail situation - STOP: power is coming back */
+	return IRQ_HANDLED;
+}
+
+static void basi_powerfail_configure(void)
+{
+	int ret;
+	ret = request_irq(IRQ_DM365_GPIO0_2, basi_powerfail_start, 0,
+			  "pwrfail-on", NULL);
+	ret = request_irq(IRQ_DM365_GPIO0_0, basi_powerfail_stop, 0,
+			  "pwrfail-off", NULL);
+	basi_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
+}
+
 static void basi_gpio_configure(void)
 {
 	int status;
@@ -608,6 +638,7 @@ static __init void basi_init(void)
 
 	basi_mmc_configure();
 	basi_usb_configure();
+	basi_powerfail_configure();
 	dm365_init_vc(&dm365_basi_snd_data);
 	platform_add_devices(basi_devices, ARRAY_SIZE(basi_devices));
 	dm365_init_rtc();
