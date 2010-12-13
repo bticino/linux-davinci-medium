@@ -485,7 +485,7 @@ static void basi_gpio_configure(void)
 				 reset: %d\n", __func__, status);
 		return;
 	}
-	gpio_direction_output(PIC_RESET_N, 1);
+	gpio_direction_output(PIC_RESET_N, 0);
 
 	davinci_cfg_reg(DM365_GPIO40);
 	status = gpio_request(LED_1, "LED");
