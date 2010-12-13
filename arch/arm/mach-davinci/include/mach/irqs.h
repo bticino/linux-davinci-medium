@@ -242,6 +242,9 @@
 #define IRQ_DM365_TCERRINT2	61
 #define IRQ_DM365_TCERRINT3	62
 #define IRQ_DM365_EMUINT	63
+#define IRQ_DM365_GPIO0_0      100
+#define IRQ_DM365_GPIO0_1      101
+#define IRQ_DM365_GPIO0_2      102
 
 /* DA8XX interrupts */
 #define IRQ_DA8XX_COMMTX		0
