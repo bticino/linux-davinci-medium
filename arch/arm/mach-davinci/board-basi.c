@@ -33,6 +33,7 @@
 #include <linux/spi/eeprom.h>
 #include <linux/delay.h>
 #include <linux/backlight.h>
+#include <linux/irq.h>
 
 #include <media/soc_camera.h>
 
@@ -278,9 +279,84 @@ static void pinmux_check(void)
 	}
 }
 
+
+static struct irq_on_gpio0 {
+	unsigned int gpio;
+	unsigned int irq;
+};
+
+static struct irq_on_gpio0 basi_irq_on_gpio0 [] = {
+	{
+		.gpio = INT_UART,
+		.irq = IRQ_DM365_GPIO0_1,
+	}, {
+		.gpio = POWER_FAIL,
+		.irq = IRQ_DM365_GPIO0_2,
+	},
+};
+
+static unsigned long basi_gpio0_irq_enabled;
+
+static void basi_mask_irq_gpio0(unsigned int irq)
+{
+	int basi_gpio_irq = (irq - IRQ_DM365_GPIO0_0);
+	basi_gpio0_irq_enabled &= ~(1 << basi_gpio_irq);
+}
+
+static void basi_unmask_irq_gpio0(unsigned int irq)
+{
+	int basi_gpio_irq = (irq - IRQ_DM365_GPIO0_0);
+	basi_gpio0_irq_enabled |= (1 << basi_gpio_irq);
+}
+
+static struct irq_chip basi_gpio0_irq_chip = {
+	.name           = "DM365_GPIO0",
+	.ack            = basi_mask_irq_gpio0,
+	.mask           = basi_mask_irq_gpio0,
+	.unmask         = basi_unmask_irq_gpio0,
+};
+
+static void basi_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
+{
+	unsigned int cnt;
+
+	if ((basi_gpio0_irq_enabled & 0x01) && (gpio_get_value(0))) {
+		/* enabled interrupt when lines are all high */
+		generic_handle_irq(IRQ_DM365_GPIO0_0);
+	}
+	else if (!gpio_get_value(0)) {
+		for (cnt = 0; cnt < ARRAY_SIZE(basi_irq_on_gpio0); cnt++) {
+			if (!gpio_get_value(basi_irq_on_gpio0[cnt].gpio) && (basi_gpio0_irq_enabled &
+			    (1<<(basi_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0)))){
+				generic_handle_irq(basi_irq_on_gpio0[cnt].irq);
+			}
+		}
+	}
+	desc->chip->ack(irq);
+}
+
+static void __init basi_gpio_init_irq(void)
+{
+	int irq;
+
+	davinci_irq_init();
+	/* setup extra Basi irqs on GPIO0*/
+	for(irq = IRQ_DM365_GPIO0_0; irq <= IRQ_DM365_GPIO0_2; irq++) {
+		set_irq_chip(irq, &basi_gpio0_irq_chip);
+		set_irq_handler(irq, handle_simple_irq);
+		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
+	}
+
+	set_irq_type(IRQ_DM365_GPIO0, IRQ_TYPE_EDGE_BOTH);
+	set_irq_chained_handler(IRQ_DM365_GPIO0, basi_gpio_irq_handler);
+}
+
 static void basi_gpio_configure(void)
 {
 	int status;
+
+	gpio_request(0, "GIO0");
+	gpio_direction_input(0);
 
 	davinci_cfg_reg(DM365_GPIO45);
 	status = gpio_request(BOOT_FL_WP, "Protecting SPI chip select");
@@ -625,7 +701,7 @@ MACHINE_START(BASI, "BTicino BASI board")
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),
 	.map_io = basi_map_io,
-	.init_irq = davinci_irq_init,
+	.init_irq = basi_gpio_init_irq,
 	.timer = &davinci_timer,
 	.init_machine = basi_init,
 MACHINE_END
