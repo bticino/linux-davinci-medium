@@ -33,6 +33,7 @@
 #include <linux/spi/eeprom.h>
 #include <linux/delay.h>
 #include <linux/backlight.h>
+#include <linux/serial_8250.h>
 #include <linux/irq.h>
 
 #include <media/soc_camera.h>
@@ -60,6 +61,7 @@
 #include <mach/aemif.h>
 
 #include <mach/basi.h>
+#include <mach/aemif.h>
 
 #define DM365_ASYNC_EMIF_CONTROL_BASE   0x01d10000
 #define DM365_ASYNC_EMIF_DATA_CE0_BASE  0x02000000
@@ -200,6 +202,88 @@ static void pinmux_check(void)
 			pinmux[i] = __raw_readl(pinmux_reg[i]);
 		printk("pinmux%d=%X\n",i,pinmux[i]);
 	}
+}
+
+static struct plat_serial8250_port basi_dm365_serial_platform_data[] = {
+	{
+		.mapbase        = DM365_ASYNC_EMIF_DATA_CE1_BASE,
+		.irq            = IRQ_DM365_GPIO0_1,
+		.type           = PORT_16550A,
+		.flags          = UPF_BOOT_AUTOCONF | UPF_IOREMAP | UART_CONFIG_TYPE | UPF_SKIP_TEST | UPF_FIXED_TYPE,
+		.iotype         = UPIO_MEM,
+		.regshift       = 0,
+		.uartclk        = 8000000,
+	},
+	{
+		.flags          = 0
+	},
+};
+
+static struct resource davinci_asyn_resources[] = {
+	{
+		.start          = DM365_ASYNC_EMIF_DATA_CE1_BASE,
+		.end            = DM365_ASYNC_EMIF_DATA_CE1_BASE + SZ_32M - 1,
+		.flags          = IORESOURCE_MEM,
+	}, {
+		.start          = DM365_ASYNC_EMIF_CONTROL_BASE,
+		.end            = DM365_ASYNC_EMIF_CONTROL_BASE + SZ_4K - 1,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device basi_dm365_serial_device = {
+	.name                   = "serial8250",
+	.id                     = PLAT8250_DEV_PLATFORM1,
+	.resource               = davinci_asyn_resources,
+	.dev                    = {
+		.platform_data  = basi_dm365_serial_platform_data,
+	},
+};
+
+static void basi_uart2_configure(void)
+{
+	struct clk *aemif_clk;
+	struct davinci_aemif_timing t;
+	void __iomem *base;
+	int ret;
+	base = ioremap(DM365_ASYNC_EMIF_CONTROL_BASE, SZ_4K - 1);
+
+	aemif_clk = clk_get(NULL, "aemif");
+	if (IS_ERR(aemif_clk)) {
+		printk(KERN_ERR "couldn't get AEMIF CLOCK!!! - ttyS2 won't work\n");
+		return;
+	}
+	clk_enable(aemif_clk);
+	clk_put(aemif_clk);
+
+	/* set external bus 8-bits wide */
+	ret = __raw_readb(base + A1CR_OFFSET + 1 * 4);
+	ret &= ~1;
+	__raw_writeb(ret, base + A1CR_OFFSET + 1 * 4);
+
+	/* All timings in nanoseconds */
+	t.wsetup = 15;
+	t.wstrobe = 40;
+	t.whold = 20;
+	t.rsetup = 40;
+	t.rstrobe = 40;
+	t.rhold = 20;
+	t.ta = 50;
+	ret = davinci_aemif_setup_timing(&t, base, 1);
+	if (ret) {
+		printk(KERN_ERR  "failed setting aemif timings - ttyS2 won't work");
+		return;
+	}
+
+	/* setting proper pinmux for AEMIF */
+	davinci_cfg_reg(DM365_AEMIF_AR2);
+	davinci_cfg_reg(DM365_AEMIF_CE1);
+	davinci_cfg_reg(DM365_EM_WE_OE);
+	davinci_cfg_reg(DM365_GPIO51);
+	gpio_direction_output(RES_EXTUART, 0);
+
+	set_irq_type(gpio_to_irq(0), IRQ_TYPE_EDGE_BOTH);
+	platform_device_register(&basi_dm365_serial_device);
 }
 
 static struct irq_on_gpio0 {
@@ -579,7 +663,7 @@ static struct platform_device *basi_devices[] __initdata = {
 };
 
 static struct davinci_uart_config uart_config __initdata = {
-	.enabled_uarts = (1 << 0) | (1 << 1),
+	.enabled_uarts = (1 << 0) | (1 << 1) | (1 << 2),
 };
 
 static void __init basi_map_io(void)
@@ -638,6 +722,7 @@ static __init void basi_init(void)
 
 	basi_mmc_configure();
 	basi_usb_configure();
+	basi_uart2_configure();
 	basi_powerfail_configure();
 	dm365_init_vc(&dm365_basi_snd_data);
 	platform_add_devices(basi_devices, ARRAY_SIZE(basi_devices));

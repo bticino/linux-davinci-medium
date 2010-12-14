@@ -205,6 +205,8 @@ enum davinci_dm365_index {
 	DM365_AEMIF_A7,
 	DM365_AEMIF_D15_8,
 	DM365_AEMIF_CE0,
+	DM365_AEMIF_CE1,
+	DM365_EM_WE_OE,
 
 	/* ASP0 function */
 	DM365_MCBSP0_BDX,

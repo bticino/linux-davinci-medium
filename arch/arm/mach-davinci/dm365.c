@@ -512,6 +512,8 @@ MUX_CFG(DM365,	AEMIF_A3,	2,   2,     3,	  1,	 false)
 MUX_CFG(DM365,	AEMIF_A7,	2,   4,     3,	  1,	 false)
 MUX_CFG(DM365,	AEMIF_D15_8,	2,   6,     1,	  1,	 false)
 MUX_CFG(DM365,	AEMIF_CE0,	2,   7,     1,	  0,	 false)
+MUX_CFG(DM365,  AEMIF_CE1,      2,   8,     1,    0,     false)
+MUX_CFG(DM365,  EM_WE_OE,       2,   9,     1,    0,     false)
 
 MUX_CFG(DM365,	MCBSP0_BDX,	0,   23,    1,	  1,	 false)
 MUX_CFG(DM365,	MCBSP0_X,	0,   22,    1,	  1,	 false)
