@@ -117,5 +117,11 @@
  */
 #define ENET_RESETn		44
 
+
+/*
+ * UART Interrupt Pin
+ */
+#define INT_UART		103
+
 #endif /* ASM_ARCH_BASI_H */
 
