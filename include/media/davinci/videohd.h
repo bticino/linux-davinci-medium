@@ -29,5 +29,7 @@
 #define V4L2_STD_1080I_50       ((v4l2_std_id)(0x0020000000000000ULL))
 #define V4L2_STD_1080P_60       ((v4l2_std_id)(0x0040000000000000ULL))
 #define V4L2_STD_1080P_50       ((v4l2_std_id)(0x0080000000000000ULL))
-
+#define V4L2_STD_720P_30        ((v4l2_std_id)(0x0100000000000000ULL))
+#define V4L2_STD_1080I_30       ((v4l2_std_id)(0x0200000000000000ULL))
+#define V4L2_STD_1080P_30       ((v4l2_std_id)(0x0400000000000000ULL))
 #endif

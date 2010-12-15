@@ -21,6 +21,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-common.h>
 #include <media/v4l2-chip-ident.h>
+#include <media/davinci/videohd.h>
 
 /* mt9p031 i2c address 0x5d
  * The platform has to define i2c_board_info
@@ -57,15 +58,23 @@
 #define MT9P031_VERTICAL_BLANK	0
 #define MT9P031_COLUMN_SKIP		32
 #define MT9P031_ROW_SKIP		20
-#define MT9P031_DEFAULT_WIDTH		640
-#define MT9P031_DEFAULT_HEIGHT		480
+#define MT9P031_DEFAULT_WIDTH		1920
+#define MT9P031_DEFAULT_HEIGHT		1080
+
+#define V4L2_STD_MT9P031_STD_ALL  (V4L2_STD_525_60\
+	|V4L2_STD_625_50|V4L2_STD_525P_60\
+	|V4L2_STD_625P_50|V4L2_STD_720P_30\
+   |V4L2_STD_720P_50|V4L2_STD_720P_60\
+   |V4L2_STD_1080I_30|V4L2_STD_1080I_50\
+	|V4L2_STD_1080I_60|V4L2_STD_1080P_30\
+   |V4L2_STD_1080P_50|V4L2_STD_1080P_60)
 
 #define MT9P031_BUS_PARAM	(SOCAM_PCLK_SAMPLE_RISING |	\
 	SOCAM_PCLK_SAMPLE_FALLING | SOCAM_HSYNC_ACTIVE_HIGH |	\
 	SOCAM_VSYNC_ACTIVE_HIGH | SOCAM_DATA_ACTIVE_HIGH |	\
 	SOCAM_MASTER | SOCAM_DATAWIDTH_10)
 
-
+v4l2_std_id mt9p031_cur_std = V4L2_STD_1080P_30;
 /* Debug functions */
 static int debug;
 module_param(debug, bool, 0644);
@@ -112,7 +121,7 @@ static const struct v4l2_queryctrl mt9p031_controls[] = {
 		.type		= V4L2_CTRL_TYPE_INTEGER,
 		.name		= "Exposure",
 		.minimum	= 1,
-		.maximum	= 255,
+		.maximum	= 65535,
 		.step		= 1,
 		.default_value	= 255,
 		.flags		= V4L2_CTRL_FLAG_SLIDER,
@@ -278,14 +287,16 @@ static int mt9p031_set_params(struct v4l2_subdev *sd,
 
 	int i, ret;
 	u16 xbin, ybin, width, height, left, top;
-	const u16 hblank = MT9P031_HORIZONTAL_BLANK,
+   u16 hblank = MT9P031_HORIZONTAL_BLANK,
 		 vblank = MT9P031_VERTICAL_BLANK;
+
 unsigned int reg[][2] = {
 /* PLL Control */
 { 0x0010, 0x0051},       	/*PLL_CONTROL */
-{ 0x0011, 0x1D01},        	/*PLL Config1 = 0x1701*/
-{ 0x0012, 0x0003},        	/*PLL Config2 = 0x5*/
+{ 0x0011, 0x1C01},        	/*PLL Config1 = 0x1701*/
+{ 0x0012, 0x0005},        	/*PLL Config2 = 0x5*/
 { 0x0010, 0x0053},        	/*PLL Control = 0x53*/
+{ 0x0007, 0x1F82},        	/*(3) GREEN2_GAIN_REG = 0x8*/
 { 0x002B, 0x0008},       	/*(3) GREEN1_GAIN_REG = 0x8*/
 { 0x002C, 0x0012},       	/*(3) BLUE_GAIN_REG = 0x12*/
 { 0x002D, 0x000A},        	/*(3) RED_GAIN_REG = 0xA*/
@@ -317,6 +328,19 @@ unsigned int reg[][2] = {
 { 0x57, 0x7}
 };
 
+	if (mt9p031_cur_std == V4L2_STD_1080P_30
+		|| mt9p031_cur_std == V4L2_STD_1080P_50
+		|| mt9p031_cur_std == V4L2_STD_1080P_60
+		|| mt9p031_cur_std == V4L2_STD_1080I_30
+		|| mt9p031_cur_std == V4L2_STD_1080I_50
+		|| mt9p031_cur_std == V4L2_STD_1080I_60){
+			reg[0][1] = 0x51;
+			reg[1][1] = 0x1801;
+			reg[2][1] = 0x0002;
+			reg[3][1] = 0x53;
+			reg[4][1] = 0x1F8E;
+	}
+
 	for (i = 0; i < sizeof(reg)/(2*sizeof(int)); i++) {
 		ret = reg_write(client, reg[i][0], reg[i][1]);
 		if (ret < 0) {
@@ -335,11 +359,13 @@ unsigned int reg[][2] = {
 		rect->top =
 		(mt9p031->height_max - rect->height) / 2 + mt9p031->y_min;
 
-	width = rect->width * xskip;
-	height = rect->height * yskip;
-	left = rect->left * xskip;
-	top = rect->top * yskip;
+	width = rect->width;
+	height = rect->height;
+	left = rect->left;
+	top = rect->top;
 
+   xskip = 0;
+   yskip = 0;
 	xbin = min(xskip, (u16)3);
 	ybin = min(yskip, (u16)3);
 
@@ -370,11 +396,40 @@ unsigned int reg[][2] = {
 	if (ret < 0)
 		return ret;
 
-	/* Blanking and start values - default... */
-	ret = reg_write(client, MT9P031_HORIZONTAL_BLANKING, hblank);
-	if (ret >= 0)
-		ret = reg_write(client, MT9P031_VERTICAL_BLANKING, vblank);
 
+	/* Blanking and start values - default... */
+	if (mt9p031_cur_std == V4L2_STD_720P_30
+		|| mt9p031_cur_std == V4L2_STD_720P_50
+		|| mt9p031_cur_std == V4L2_STD_720P_60){
+			left = (2592-2560)/2+16-rect->left;
+			top = (1944-1472)/2+54-rect->top;
+			width = 2560+rect->left;
+			height = 1472+rect->top;
+			hblank = 0x245;
+			vblank = 0x08;
+
+		ret |= reg_write(client, MT9P031_ROW_ADDRESS_MODE, 0x0011);
+		ret |= reg_write(client, MT9P031_COLUMN_ADDRESS_MODE, 0x0011);
+	}
+else {
+		left = (2592-1920)/2+16-rect->left;
+		top = (1944-1080)/2+54-rect->top;
+		width = 1920+rect->left;
+		height = 1080+rect->top;
+		hblank = 0x01AE;
+		vblank = 0x0;
+
+		ret |= reg_write(client, MT9P031_ROW_ADDRESS_MODE, 0x0000);
+		ret |= reg_write(client, MT9P031_COLUMN_ADDRESS_MODE, 0x0000);
+	}
+
+	ret |= reg_write(client, MT9P031_HORIZONTAL_BLANKING, hblank);
+	ret |= reg_write(client, MT9P031_VERTICAL_BLANKING, vblank);
+	 if (ret < 0)
+		return ret;
+
+
+#if 0
 	if (yskip != mt9p031->yskip || xskip != mt9p031->xskip) {
 		/* Binning, skipping */
 		if (ret >= 0)
@@ -384,6 +439,7 @@ unsigned int reg[][2] = {
 			ret = reg_write(client, MT9P031_ROW_ADDRESS_MODE,
 					((ybin - 1) << 4) | (yskip - 1));
 	}
+#endif
 	v4l2_dbg(1, debug, sd, "new physical left %u, top %u\n", left, top);
 
 	/* The caller provides a supported format, as guaranteed by
@@ -395,11 +451,11 @@ unsigned int reg[][2] = {
 	if (ret >= 0)
 		ret = reg_write(client, MT9P031_WINDOW_WIDTH, width - 1);
 	if (ret >= 0)
-		ret = reg_write(client, MT9P031_WINDOW_HEIGHT,
-				height + mt9p031->y_skip_top - 1);
+		ret = reg_write(client, MT9P031_WINDOW_HEIGHT, height - 1);
 
+#if 0
 	if (ret >= 0 && mt9p031->autoexposure) {
-		ret = set_shutter(sd, height + mt9p031->y_skip_top + vblank);
+		ret = set_shutter(sd, exposure_time);
 		if (ret >= 0) {
 			const u32 shutter_max = MT9P031_MAX_HEIGHT + vblank;
 			const struct v4l2_queryctrl *qctrl =
@@ -410,6 +466,7 @@ unsigned int reg[][2] = {
 				shutter_max + qctrl->minimum;
 		}
 	}
+#endif
 
 	/* Re-enable register update, commit all changes */
 	if (ret >= 0) {
@@ -423,6 +480,19 @@ unsigned int reg[][2] = {
 	return ret < 0 ? ret : 0;
 }
 
+static int mt9p031_get_fmt(struct v4l2_subdev *sd, struct v4l2_format *f)
+{
+	struct mt9p031 *mt9p031 = to_mt9p031(sd);
+	struct v4l2_pix_format *pix = &f->fmt.pix;
+
+	pix->width		= mt9p031->width;
+	pix->height		= mt9p031->height;
+	pix->pixelformat	= V4L2_PIX_FMT_SGRBG10;
+	pix->field		= V4L2_FIELD_NONE;
+	pix->colorspace		= V4L2_COLORSPACE_SRGB;
+
+	return 0;
+}
 static int mt9p031_set_fmt(struct v4l2_subdev *sd,
 			   struct v4l2_format *f)
 {
@@ -541,6 +611,8 @@ static int mt9p031_set_register(struct v4l2_subdev *sd,
 static int mt9p031_get_control(struct v4l2_subdev *, struct v4l2_control *);
 static int mt9p031_set_control(struct v4l2_subdev *, struct v4l2_control *);
 static int mt9p031_queryctrl(struct v4l2_subdev *, struct v4l2_queryctrl *);
+static int mt9p031_querystd(struct v4l2_subdev *sd, v4l2_std_id *id);
+static int mt9p031_set_standard(struct v4l2_subdev *sd, v4l2_std_id id);
 
 static const struct v4l2_subdev_core_ops mt9p031_core_ops = {
 	.g_chip_ident = mt9p031_get_chip_id,
@@ -548,6 +620,7 @@ static const struct v4l2_subdev_core_ops mt9p031_core_ops = {
 	.queryctrl = mt9p031_queryctrl,
 	.g_ctrl	= mt9p031_get_control,
 	.s_ctrl	= mt9p031_set_control,
+    .s_std     =  mt9p031_set_standard,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.get_register = mt9p031_get_register,
 	.set_register = mt9p031_set_register,
@@ -556,7 +629,9 @@ static const struct v4l2_subdev_core_ops mt9p031_core_ops = {
 
 static const struct v4l2_subdev_video_ops mt9p031_video_ops = {
 	.s_fmt = mt9p031_set_fmt,
+    .g_fmt = mt9p031_get_fmt,
 	.try_fmt = mt9p031_try_fmt,
+	.querystd = mt9p031_querystd,
 	.s_stream = mt9p031_s_stream,
 };
 
@@ -693,22 +768,16 @@ static int mt9p031_set_control(struct v4l2_subdev *sd,
 		mt9p031->gain = ctrl->value;
 		break;
 	case V4L2_CID_EXPOSURE:
+
+printk(KERN_INFO"-----Exposure time = %x", ctrl->value);
+
 		/* mt9p031 has maximum == default */
 		if (ctrl->value > qctrl->maximum ||
 		    ctrl->value < qctrl->minimum)
 			return -EINVAL;
 		else {
-			const unsigned long range =
-				qctrl->maximum - qctrl->minimum;
-			const u32 shutter =
-				((ctrl->value - qctrl->minimum) * 1048 +
-					range / 2) / range + 1;
-			u32 old;
+		   u32 shutter = ctrl->value;
 
-			get_shutter(sd, &old);
-			v4l2_dbg(1, debug, sd,
-				"Setting shutter width from %u to %u\n",
-				old, shutter);
 			if (set_shutter(sd, shutter) < 0)
 				return -EIO;
 			mt9p031->exposure = ctrl->value;
@@ -737,6 +806,27 @@ static int mt9p031_set_control(struct v4l2_subdev *sd,
 	return 0;
 }
 
+/* Function querystd not supported by mt9p031 */
+static int mt9p031_querystd(struct v4l2_subdev *sd, v4l2_std_id *id)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct mt9p031 *mt9p031 = to_mt9p031(sd);
+
+	*id = V4L2_STD_MT9P031_STD_ALL;
+
+	return 0;
+}
+
+/* Function set not supported by mt9p031 */
+static int mt9p031_set_standard(struct v4l2_subdev *sd, v4l2_std_id id)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct mt9p031 *mt9p031 = to_mt9p031(sd);
+
+    mt9p031_cur_std = id;
+
+	return 0;
+}
 /* Interface active, can use i2c. If it fails, it can indeed mean, that
  * this wasn't our capture interface, so, we wait for the right one */
 static int mt9p031_detect(struct i2c_client *client, int *model)

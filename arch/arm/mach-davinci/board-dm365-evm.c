@@ -443,12 +443,21 @@ static int dm365evm_enable_pca9543a(int en)
 	return 0;
 }
 
+#define V4L2_STD_MT9P031_STD_ALL  (V4L2_STD_525_60\
+	|V4L2_STD_625_50|V4L2_STD_525P_60\
+	|V4L2_STD_625P_50|V4L2_STD_720P_30\
+   |V4L2_STD_720P_50|V4L2_STD_720P_60\
+   |V4L2_STD_1080I_30|V4L2_STD_1080I_50\
+	|V4L2_STD_1080I_60|V4L2_STD_1080P_30\
+   |V4L2_STD_1080P_50|V4L2_STD_1080P_60)
+
 /* Input available at the mt9p031 */
 static struct v4l2_input mt9p031_inputs[] = {
 	{
 		.index = 0,
 		.name = "Camera",
 		.type = V4L2_INPUT_TYPE_CAMERA,
+      .std = V4L2_STD_MT9P031_STD_ALL,
 	}
 };
 
