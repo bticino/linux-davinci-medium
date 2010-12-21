@@ -801,7 +801,10 @@ static __init void basi_init(void)
 	basi_mmc_configure();
 	basi_usb_configure();
 	basi_uart2_configure();
+#if 0
+	/* for hardware compatibility */
 	basi_powerfail_configure();
+#endif
 	dm365_init_vc(&dm365_basi_snd_data);
 	platform_add_devices(basi_devices, ARRAY_SIZE(basi_devices));
 	dm365_init_rtc();
