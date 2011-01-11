@@ -1067,7 +1067,7 @@ static struct davinci_id dm365_ids[] = {
 		.part_no	= 0xb83e,
 		.manufacturer	= 0x017,
 		.cpu_id		= DAVINCI_CPU_ID_DM365,
-		.name		= "dm365_rev1.2",
+		.name		= "dm36x_rev1.2",
 	},
 };
 

@@ -975,7 +975,7 @@ static __init void dm365_evm_irq_init(void)
 	davinci_irq_init();
 }
 
-MACHINE_START(DAVINCI_DM365_EVM, "DaVinci DM365 EVM")
+MACHINE_START(DAVINCI_DM365_EVM, "DaVinci DM36x EVM")
 	.phys_io	= IO_PHYS,
 	.io_pg_offst	= (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params	= (0x80000100),
