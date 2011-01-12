@@ -372,12 +372,13 @@ irqreturn_t davinci_interrupt(int irq, void *__hci)
 			musb->xceiv->state = OTG_STATE_A_WAIT_VRISE;
 			portstate(musb->port1_status |= USB_PORT_STAT_POWER);
 			del_timer(&otg_workaround);
-		} else {
-			musb->is_active = 0;
-			MUSB_DEV_MODE(musb);
-			musb->xceiv->default_a = 0;
-			musb->xceiv->state = OTG_STATE_B_IDLE;
-			portstate(musb->port1_status &= ~USB_PORT_STAT_POWER);
+		} else if (is_host_enabled(musb) &&
+				musb->int_usb & MUSB_INTR_BABBLE) {
+			WARNING("Babble detected,drvvbus=%x\n", drvvbus);
+			musb->int_usb &= ~MUSB_INTR_BABBLE;
+			musb->xceiv->state = OTG_STATE_A_WAIT_VRISE;
+			musb_writel(musb->ctrl_base, DAVINCI_USB_INT_SET_REG,
+			MUSB_INTR_VBUSERROR << DAVINCI_USB_USBINT_SHIFT);
 		}
 
 		/* NOTE:  this must complete poweron within 100 msec

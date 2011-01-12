@@ -518,15 +518,21 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 			 */
 		case OTG_STATE_A_WAIT_BCON:
 		case OTG_STATE_A_WAIT_VRISE:
-			if (musb->vbuserr_retry) {
-				musb->vbuserr_retry--;
+			if (is_otg_enabled(musb)) {
+				if (musb->vbuserr_retry) {
+					musb->vbuserr_retry--;
+					ignore = 1;
+					devctl |= MUSB_DEVCTL_SESSION;
+					musb_writeb(mbase, MUSB_DEVCTL, devctl);
+				} else {
+					musb->port1_status |=
+					(1 << USB_PORT_FEAT_OVER_CURRENT)
+					| (1 << USB_PORT_FEAT_C_OVER_CURRENT);
+				}
+			} else if (is_host_enabled(musb)) {
 				ignore = 1;
 				devctl |= MUSB_DEVCTL_SESSION;
 				musb_writeb(mbase, MUSB_DEVCTL, devctl);
-			} else {
-				musb->port1_status |=
-					  (1 << USB_PORT_FEAT_OVER_CURRENT)
-					| (1 << USB_PORT_FEAT_C_OVER_CURRENT);
 			}
 			break;
 		default:
