@@ -55,32 +55,20 @@
 #include <mach/gpio.h>
 #include <mach/usb.h>
 #include <linux/videodev2.h>
-
 #include <media/soc_camera.h>
-#include <media/tvp514x.h>
-//#include <media/tvp5150.h>
+//#include <media/tvp514x.h>
+#include <media/tvp5150.h>
 #include <linux/i2c/tda9885.h>
+#include <mach/aemif.h>
 
 #include <mach/basi.h>
-#include <mach/aemif.h>
 
 #define DM365_ASYNC_EMIF_CONTROL_BASE   0x01d10000
 #define DM365_ASYNC_EMIF_DATA_CE0_BASE  0x02000000
 #define DM365_ASYNC_EMIF_DATA_CE1_BASE  0x04000000
-
 #define DM365_EVM_PHY_MASK              (0x2)
 #define DM365_EVM_MDIO_FREQUENCY        (2200000)	/* PHY bus frequency */
-
-#define NAND_BLOCK_SIZE		SZ_128K
-
-
-#undef TVP5146
-
 #define HW_IN_CLOCKOUT2_UDA_I2S
-/*
- * Check the following define in sound/soc/davinci/davinci-bmx.c
- * VC_WORKING_WITH_DMA
- */
 
 static int basi_debug = 1;
 module_param(basi_debug, int, 0644);
@@ -94,43 +82,12 @@ static struct at24_platform_data at24_info = {
 	.context = (void *)0x7f00,	/* where it gets the mac-address */
 };
 
-/*
- * Video support
- * paftorm data not needed by now
- */
-
-#ifdef TVP5146
-static struct tvp514x_platform_data tvp5146_pdata = {
-       .clk_polarity = 0,
-       .hs_polarity = 1,
-       .vs_polarity = 1
-};
-#endif
-
 static struct tda9885_platform_data tda9885_defaults = {
 	.switching_mode = 0xf2,
 	.adjust_mode = 0xd0,
 	.data_mode = 0x0b,
 };
 
-#ifdef TVP5146
-#define TVP514X_STD_ALL        (V4L2_STD_NTSC | V4L2_STD_PAL)
-/* Inputs available at the TVP5146 */
-static struct v4l2_input tvp5146_inputs[] = {
-        {
-                .index = 0,
-                .name = "Composite",
-                .type = V4L2_INPUT_TYPE_CAMERA,
-                .std = TVP514X_STD_ALL,
-        },
-        {
-                .index = 1,
-                .name = "S-Video",
-                .type = V4L2_INPUT_TYPE_CAMERA,
-                .std = TVP514X_STD_ALL,
-        },
-};
-#else
 /* Inputs available at the TVP5146 */
 static struct v4l2_input tvp5151_inputs[] = {
 	{
@@ -140,25 +97,12 @@ static struct v4l2_input tvp5151_inputs[] = {
 		.std = V4L2_STD_PAL,
 	},
 };
-#endif
 
 /*
  * this is the route info for connecting each input to decoder
  * ouput that goes to vpfe. There is a one to one correspondence
- * with tvp5146_inputs
+ * with tvp5151_inputs
  */
-#ifdef TVP5146
-static struct vpfe_route tvp5146_routes[] = {
-        {
-                .input = INPUT_CVBS_VI2B,
-                .output = OUTPUT_10BIT_422_EMBEDDED_SYNC,
-        },
-{
-                .input = INPUT_SVIDEO_VI2C_VI1C,
-                .output = OUTPUT_10BIT_422_EMBEDDED_SYNC,
-        },
-};
-#else
 static struct vpfe_route tvp5151_routes[] = {
 	{
 //		.input = INPUT_CVBS_VI2B,
@@ -169,28 +113,8 @@ static struct vpfe_route tvp5151_routes[] = {
 //		.output = OUTPUT_10BIT_422_EMBEDDED_SYNC,
 	},
 };
-#endif
 
 static struct vpfe_subdev_info vpfe_sub_devs[] = {
-#ifdef TVP5146
-        {
-                .module_name = "tvp5146",
-                .grp_id = VPFE_SUBDEV_TVP5146,
-                .num_inputs = ARRAY_SIZE(tvp5146_inputs),
-                .inputs = tvp5146_inputs,
-                .routes = tvp5146_routes,
-                .can_route = 1,
-                .ccdc_if_params = {
-                        .if_type = VPFE_BT656,
-                        .hdpol = VPFE_PINPOL_POSITIVE,
-                        .vdpol = VPFE_PINPOL_POSITIVE,
-                },
-                .board_info = {
-                        I2C_BOARD_INFO("tvp5146", 0x5d),
-                        .platform_data = &tvp5146_pdata,
-                },
-        },
-#else
 	{
 		.module_name = "tvp5150",
 		.grp_id = VPFE_SUBDEV_TVP5150,
@@ -210,7 +134,6 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 #endif
 		},
 	},
-#endif
 };
 
 static int basi_setup_video_input(enum vpfe_subdev_id id)
@@ -276,7 +199,7 @@ static void pinmux_check(void)
 	int pinmux[5], i;
 
 		for (i = 0; i < 5; i++) {
-                pinmux[i] = __raw_readl(pinmux_reg[i]);
+			pinmux[i] = __raw_readl(pinmux_reg[i]);
 		printk("pinmux%d=%X\n",i,pinmux[i]);
 	}
 }
@@ -286,7 +209,8 @@ static struct plat_serial8250_port basi_dm365_serial_platform_data[] = {
 		.mapbase        = DM365_ASYNC_EMIF_DATA_CE1_BASE,
 		.irq            = IRQ_DM365_GPIO0_1,
 		.type           = PORT_16550A,
-		.flags          = UPF_BOOT_AUTOCONF | UPF_IOREMAP | UART_CONFIG_TYPE | UPF_SKIP_TEST | UPF_FIXED_TYPE,
+		.flags          = UPF_BOOT_AUTOCONF | UPF_IOREMAP | UART_CONFIG_TYPE |
+					UPF_SKIP_TEST | UPF_FIXED_TYPE,
 		.iotype         = UPIO_MEM,
 		.regshift       = 0,
 		.uartclk        = 8000000,
@@ -778,27 +702,28 @@ static struct snd_platform_data dm365_basi_snd_data;
 
 static __init void basi_init(void)
 {
-	pinmux_check();
+	pr_warning("basi_init: START\n");
+	if (basi_debug>1)
+		pinmux_check();
 	basi_gpio_configure();
-	
 	davinci_cfg_reg(DM365_UART1_RXD_34);
 	davinci_cfg_reg(DM365_UART1_TXD_25);
 	davinci_serial_init(&uart_config);
-
 	pr_warning("basi_init: starting\n");
 	mdelay(100);
-
 	davinci_cfg_reg(DM365_I2C_SDA);
 	davinci_cfg_reg(DM365_I2C_SCL);
 	basi_init_i2c();
-
 	basi_emac_configure();
 
-#ifdef  ENABLING_SPI 
+#ifdef  ENABLING_SPI
+	/*
+	 * DANGEROUS, because spi flash contains bubl bootloader
+	 */
 	dm365_init_spi0(BIT(0), basi_spi_info, ARRAY_SIZE(basi_spi_info));
 #endif
 
-	basi_mmc_configure();
+//	basi_mmc_configure();
 	basi_usb_configure();
 	basi_uart2_configure();
 #if 0
@@ -809,9 +734,9 @@ static __init void basi_init(void)
 	platform_add_devices(basi_devices, ARRAY_SIZE(basi_devices));
 	dm365_init_rtc();
 
-	printk("-----------------------------\n");
-	pinmux_check();
-	pr_warning("basi_init ended: debug=%d\n", basi_debug);
+	if (basi_debug)
+		pinmux_check();
+	pr_warning("basi_init: END\n");
 }
 
 MACHINE_START(BASI, "BTicino BASI board")
