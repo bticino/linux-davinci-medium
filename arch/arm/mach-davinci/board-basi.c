@@ -723,7 +723,7 @@ static __init void basi_init(void)
 	dm365_init_spi0(BIT(0), basi_spi_info, ARRAY_SIZE(basi_spi_info));
 #endif
 
-//	basi_mmc_configure();
+	basi_mmc_configure();
 	basi_usb_configure();
 	basi_uart2_configure();
 #if 0
