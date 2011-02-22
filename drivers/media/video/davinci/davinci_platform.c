@@ -441,9 +441,10 @@ int davinci_enc_select_venc_clock(int clk)
 		__raw_writel(0x18, IO_ADDRESS(SYS_VPSS_CLKCTL));
 	else if (clk == pll2_venc_clk_rate)
 		__raw_writel(0x38, IO_ADDRESS(SYS_VPSS_CLKCTL));
-	else if (cpu_is_davinci_dm368())
+	else if (cpu_is_davinci_dm368()) {
+		enable_hd_clk();
 		__raw_writel(0x3a, IO_ADDRESS(SYS_VPSS_CLKCTL));
-	else {
+	} else {
 		dev_err(venc->vdev, "Desired VENC clock not available\n");
 		return -EINVAL;
 	}
@@ -538,8 +539,10 @@ static void enableDigitalOutput(int bEnable)
 			__raw_writel(0, IO_ADDRESS(DM644X_VPBE_REG_BASE + VPBE_PCR));
 
 		if (cpu_is_davinci_dm368()) {
-			/* Set PINMUX for VCLK */
-			davinci_cfg_reg(DM365_VCLK);
+			enable_lcd();
+
+			/* Select EXTCLK as video clock source */
+			__raw_writel(0x1a, IO_ADDRESS(SYS_VPSS_CLKCTL));
 
 			/* Set PINMUX for GPIO82 */			
 			davinci_cfg_reg(DM365_GPIO82);
@@ -865,14 +868,9 @@ EXPORT_SYMBOL(davinci_enc_set_dclk_pw);
  */
 static void davinci_enc_set_prgb(struct vid_enc_mode_info *mode_info)
 {
-
 	enableDigitalOutput(1);
 
 	dispc_reg_out(VENC_VIDCTL, 0x141);
-	/* set VPSS clock */
-	if (davinci_enc_select_venc_clock(VENC_27MHZ) < 0)
-		dev_err(venc->vdev, "PLL's doesnot yield required VENC clk\n");
-
 	dispc_reg_out(VENC_DCLKCTL, 0);
 	dispc_reg_out(VENC_DCLKPTN0, 0);
 

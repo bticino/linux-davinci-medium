@@ -604,12 +604,6 @@ static int dm365evm_setup_video_input(enum vpfe_subdev_id id)
 			return 0;
 	}
 	__raw_writeb(mux, cpld + CPLD_MUX);
-
-	if (cpu_is_davinci_dm368()) {
-		davinci_cfg_reg(DM365_GPIO80);
-		resets |= BIT(7) | BIT(6) | BIT(5);
-	}
-
 	__raw_writeb(resets, cpld + CPLD_RESETS);
 
 	pr_info("EVM: switch to %s video input\n", label);
@@ -881,8 +875,17 @@ fail:
 	__raw_writeb(mux, cpld + CPLD_MUX);
 	__raw_writeb(resets, cpld + CPLD_RESETS);
 
+	pr_info("EVM: %s video input\n", label);
+
+	/* REVISIT export switches: NTSC/PAL (SW5.6), EXTRA1 (SW5.2), etc */
+}
+
+void enable_lcd(void)
+{
 	/* Turn on LCD backlight for DM368 */
 	if (cpu_is_davinci_dm368()) {
+		davinci_cfg_reg(DM365_GPIO80);
+
 		/* Configure 9.25MHz clock to LCD */
 		__raw_writeb(0x80, cpld + CPLD_RESETS);
 
@@ -892,11 +895,22 @@ fail:
 		/* CPLD_CONN_GIO17 is an output */
 		__raw_writeb(0xfb, cpld + CPLD_CCD_DIR1);
 	}
-
-	pr_info("EVM: %s video input\n", label);
-
-	/* REVISIT export switches: NTSC/PAL (SW5.6), EXTRA1 (SW5.2), etc */
 }
+EXPORT_SYMBOL(enable_lcd);
+
+void enable_hd_clk(void)
+{
+	u8 resets;
+
+	resets = __raw_readb(cpld + CPLD_RESETS);
+	if (cpu_is_davinci_dm368()) {
+		davinci_cfg_reg(DM365_GPIO80);
+		resets |= BIT(7) | BIT(6) | BIT(5);
+	}
+
+	__raw_writeb(resets, cpld + CPLD_RESETS);
+}
+EXPORT_SYMBOL(enable_hd_clk);
 
 static struct davinci_uart_config uart_config __initdata = {
 	.enabled_uarts = (1 << 0),
@@ -939,7 +953,6 @@ static __init void dm365_evm_init(void)
 	davinci_serial_init(&uart_config);
 
 	dm365evm_emac_configure();
-	dm365evm_mmc_configure();
 	dm365evm_usb_configure();
 
 	davinci_setup_mmc(0, &dm365evm_mmc_config);
