@@ -1285,7 +1285,7 @@ static int ccdc_config_ycbcr(int mode)
 			((VPFE_PINPOL_NEGATIVE & CCDC_VD_POL_MASK)
 			<< CCDC_VD_POL_SHIFT);
 		regw(3, REC656IF);
-		ccdcfg = ccdcfg | CCDC_DATA_PACK8 | CCDC_YCINSWP_YCBCR;
+		ccdcfg = ccdcfg | CCDC_DATA_PACK8;
 		break;
 	case VPFE_BT656_10BIT:
 		if (params->pix_fmt != CCDC_PIXFMT_YCBCR_8BIT) {
