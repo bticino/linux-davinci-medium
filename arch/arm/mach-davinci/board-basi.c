@@ -86,6 +86,7 @@ static struct tda9885_platform_data tda9885_defaults = {
 	.switching_mode = 0xf2,
 	.adjust_mode = 0xd0,
 	.data_mode = 0x0b,
+	.power = ABIL_DEM_VIDEO,
 };
 
 /* Inputs available at the TVP5146 */
@@ -114,6 +115,16 @@ static struct vpfe_route tvp5151_routes[] = {
 	},
 };
 
+/* Inputs available at the TDA9885 */
+static struct v4l2_input tda9885_inputs[] = {
+	{
+		.index = 0,
+		.name = "SCS Modulated video",
+		.type = V4L2_INPUT_TYPE_CAMERA,
+		.std = V4L2_STD_PAL,
+	},
+};
+
 static struct vpfe_subdev_info vpfe_sub_devs[] = {
 	{
 		.module_name = "tvp5150",
@@ -134,6 +145,18 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 #endif
 		},
 	},
+	{
+		.module_name = "tda9885",
+		.grp_id = VPFE_SUBDEV_TVP5150,
+		.num_inputs = 1,
+		.inputs = tda9885_inputs,
+		.can_route = 1,
+		.board_info = {
+			I2C_BOARD_INFO("tda9885", 0x43),
+			.platform_data = &tda9885_defaults,
+		},
+	},
+
 };
 
 static int basi_setup_video_input(enum vpfe_subdev_id id)
@@ -419,7 +442,7 @@ static void basi_gpio_configure(void)
 				 demodulator: %d\n", __func__, status);
 		return;
 	}
-	gpio_direction_output(ABIL_DEM_VIDEO, 1); /* enabled */
+	gpio_direction_output(ABIL_DEM_VIDEO, 1); /* enabled, to allow i2c attach */
 
 	davinci_cfg_reg(DM365_GPIO37);
 	status = gpio_request(PDEC_PWRDNn, "Pal-Decoder power down");
@@ -641,10 +664,6 @@ static struct i2c_board_info __initdata basi_i2c_info[] = {
 		I2C_BOARD_INFO("24c256", 0x53),
 		.platform_data = &at24_info,
 	},
-	{
-		I2C_BOARD_INFO("tda9885", 0x43),
-		.platform_data = &tda9885_defaults
-	},
 };
 
 static struct davinci_i2c_platform_data i2c_pdata = {
@@ -707,7 +726,7 @@ static __init void basi_init(void)
 	davinci_cfg_reg(DM365_UART1_TXD_25);
 	davinci_serial_init(&uart_config);
 	pr_warning("basi_init: starting\n");
-	mdelay(100);
+	mdelay(1);
 	davinci_cfg_reg(DM365_I2C_SDA);
 	davinci_cfg_reg(DM365_I2C_SCL);
 	basi_init_i2c();
