@@ -62,11 +62,6 @@
 #define E2_WPn			97
 
 /*
- * Reset PIC on the bottom board
- */
-#define PIC_RESET		38
-
-/*
  * RESET pic SCS AV
  */
 #define REG_ERR_AVn		100
