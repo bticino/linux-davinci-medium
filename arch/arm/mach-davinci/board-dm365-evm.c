@@ -856,8 +856,8 @@ fail:
 	if (have_imager()) {
 		label = "HD imager";
 		mux |= CPLD_VIDEO_INPUT_MUX_IMAGER;
-		/* externally mux MMC1/ENET/AIC33 to imager */
-		/* mux |= BIT(6) | BIT(5) | BIT(3); */
+		/* externally mux MMC1 to imager */
+		mux |= BIT(6);
 		dm365evm_reset_imager(1);
 
 	} else {
