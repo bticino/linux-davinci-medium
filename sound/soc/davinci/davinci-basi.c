@@ -9,6 +9,7 @@
  * published by the Free Software Foundation.
  */
 
+#define DEBUG
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/timer.h>
@@ -70,6 +71,53 @@ static struct snd_soc_ops basi_ops_cq93 = {
 	.hw_params = basi_hw_params_cq93,
 };
 
+static int basi_line_evt(struct snd_soc_dapm_widget *w,
+			 struct snd_kcontrol *k, int event)
+{
+	printk(KERN_INFO "basi_line_evt, event = %d\n", event);
+	gpio_set_value(EN_AUDIO, SND_SOC_DAPM_EVENT_ON(event));
+	return 0;
+}
+
+/* davinci-basi machine dapm widgets */
+static const struct snd_soc_dapm_widget cq93_dapm_widgets[] = {
+	SND_SOC_DAPM_HP("Speakers out", NULL),
+	SND_SOC_DAPM_LINE("Line Out", basi_line_evt),
+	SND_SOC_DAPM_MIC("Microphone", NULL),
+};
+
+/* davinci-basi machine connections to the codec pins */
+static const struct snd_soc_dapm_route audio_map[] = {
+	/* Speakers connected to SP (actually not connected !) */
+	{ "Speakers out", NULL, "SP", },
+	/* Line output connected to LO */
+	{ "Line Out", NULL, "LINEO", },
+	/* Microphone input connected to MIC */
+	{ "MICIN", NULL, "Microphone" },
+};
+
+static int basi_cq93_init(struct snd_soc_codec *codec)
+{
+	pr_debug("basi_cq93_init(%p)\n", codec);
+	/* Add davinci-evm specific widgets */
+	snd_soc_dapm_new_controls(codec, cq93_dapm_widgets,
+				  ARRAY_SIZE(cq93_dapm_widgets));
+
+	/* Set up davinci-basi specific audio path audio_map */
+	snd_soc_dapm_add_routes(codec, audio_map, ARRAY_SIZE(audio_map));
+
+	/* not connected */
+	snd_soc_dapm_disable_pin(codec, "SP");
+
+	/* always connected */
+	snd_soc_dapm_enable_pin(codec, "LINEO");
+	snd_soc_dapm_enable_pin(codec, "MICIN");
+
+	snd_soc_dapm_sync(codec);
+
+	return 0;
+}
+
 /* basi digital audio interface glue - connects codec <--> CPU */
 
 static struct snd_soc_dai_link dm365_basi_dai[] = {
@@ -78,6 +126,7 @@ static struct snd_soc_dai_link dm365_basi_dai[] = {
 		.stream_name = "CQ93",
 		.cpu_dai = &davinci_vcif_dai,
 		.codec_dai = &cq93vc_dai,
+		.init = basi_cq93_init,
 		.ops = &basi_ops_cq93,
 	},
 };
