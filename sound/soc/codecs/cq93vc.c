@@ -63,6 +63,25 @@ static inline int cq93vc_write(struct snd_soc_codec *codec, unsigned int reg,
 static const struct snd_kcontrol_new cq93vc_snd_controls[] = {
 	SOC_SINGLE("PGA Capture Volume", DAVINCI_VC_REG05, 0, 0x03, 0),
 	SOC_SINGLE("Mono DAC Playback Volume", DAVINCI_VC_REG09, 0, 0x3f, 0),
+	SOC_SINGLE("Speakers amplifier switch", DAVINCI_VC_REG12, 7, 1, 0),
+	SOC_SINGLE("Line amplifier switch", DAVINCI_VC_REG12, 6, 1, 0),
+	SOC_SINGLE("MIC amplifier switch", DAVINCI_VC_REG12, 3, 1, 0),
+};
+
+static const struct snd_soc_dapm_widget cq93vc_dapm_widgets[] = {
+	SND_SOC_DAPM_DAC("DAC", "Playback", DAVINCI_VC_REG12, 5, 0),
+	SND_SOC_DAPM_ADC("ADC", "Capture", DAVINCI_VC_REG12, 4, 0),
+	SND_SOC_DAPM_OUTPUT("MICIN"),
+	SND_SOC_DAPM_OUTPUT("SP"),
+	SND_SOC_DAPM_OUTPUT("LINEO"),
+};
+
+static const struct snd_soc_dapm_route intercon[] = {
+	/* Inputs */
+	{"ADC", "MIC amplifier switch", "MICIN"},
+	/* Outputs */
+	{"SP", "Speakers amplifier switch", "DAC"},
+	{"LINEO", "Line amplifier switch", "DAC"},
 };
 
 static int cq93vc_mute(struct snd_soc_dai *dai, int mute)
@@ -175,6 +194,11 @@ static int cq93vc_probe(struct platform_device *pdev)
 		dev_err(dev, "%s: failed to create pcms\n", pdev->name);
 		return ret;
 	}
+
+	snd_soc_dapm_new_controls(codec, cq93vc_dapm_widgets,
+				  ARRAY_SIZE(cq93vc_dapm_widgets));
+	snd_soc_dapm_add_routes(codec, intercon, ARRAY_SIZE(intercon));
+	snd_soc_dapm_new_widgets(codec);
 
 	/* Set controls */
 	snd_soc_add_controls(codec, cq93vc_snd_controls,
