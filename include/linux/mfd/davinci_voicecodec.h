@@ -78,6 +78,13 @@
 #define DAVINCI_VC_REG09_DIG_ATTEN	0x3F
 
 /* DAVINCI_VC_REG12 bit fields */
+#define DAVINCI_VC_REG12_PDSP           BIT(7)
+#define DAVINCI_VC_REG12_PDLN           BIT(6)
+#define DAVINCI_VC_REG12_PDDA           BIT(5)
+#define DAVINCI_VC_REG12_PDAD           BIT(4)
+#define DAVINCI_VC_REG12_PDMC           BIT(3)
+#define DAVINCI_VC_REG12_PDBS           BIT(2)
+#define DAVINCI_VC_REG12_PDCM           BIT(0)
 #define DAVINCI_VC_REG12_POWER_ALL_ON	0xFD
 #define DAVINCI_VC_REG12_POWER_ALL_OFF	0x00
 
