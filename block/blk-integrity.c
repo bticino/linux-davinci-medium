@@ -161,6 +161,40 @@ int blk_integrity_compare(struct gendisk *gd1, struct gendisk *gd2)
 }
 EXPORT_SYMBOL(blk_integrity_compare);
 
+int blk_integrity_merge_rq(struct request_queue *q, struct request *req,
+			   struct request *next)
+{
+	if (blk_integrity_rq(req) != blk_integrity_rq(next))
+		return -1;
+
+	if (req->nr_integrity_segments + next->nr_integrity_segments >
+	    q->limits.max_integrity_segments)
+		return -1;
+
+	return 0;
+}
+EXPORT_SYMBOL(blk_integrity_merge_rq);
+
+int blk_integrity_merge_bio(struct request_queue *q, struct request *req,
+			    struct bio *bio)
+{
+	int nr_integrity_segs;
+	struct bio *next = bio->bi_next;
+
+	bio->bi_next = NULL;
+	nr_integrity_segs = blk_rq_count_integrity_sg(q, bio);
+	bio->bi_next = next;
+
+	if (req->nr_integrity_segments + nr_integrity_segs >
+	    q->limits.max_integrity_segments)
+		return -1;
+
+	req->nr_integrity_segments += nr_integrity_segs;
+
+	return 0;
+}
+EXPORT_SYMBOL(blk_integrity_merge_bio);
+
 struct integrity_sysfs_entry {
 	struct attribute attr;
 	ssize_t (*show)(struct blk_integrity *, char *);
