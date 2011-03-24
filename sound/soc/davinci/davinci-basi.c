@@ -76,6 +76,8 @@ static int basi_line_evt(struct snd_soc_dapm_widget *w,
 {
 	printk(KERN_INFO "basi_line_evt, event = %d\n", event);
 	gpio_set_value(EN_AUDIO, SND_SOC_DAPM_EVENT_ON(event));
+	if (SND_SOC_DAPM_EVENT_ON(event))
+		schedule_timeout_uninterruptible(msecs_to_jiffies(500));
 	return 0;
 }
 
