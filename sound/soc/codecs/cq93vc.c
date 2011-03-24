@@ -63,25 +63,22 @@ static inline int cq93vc_write(struct snd_soc_codec *codec, unsigned int reg,
 static const struct snd_kcontrol_new cq93vc_snd_controls[] = {
 	SOC_SINGLE("PGA Capture Volume", DAVINCI_VC_REG05, 0, 0x03, 0),
 	SOC_SINGLE("Mono DAC Playback Volume", DAVINCI_VC_REG09, 0, 0x3f, 0),
-	SOC_SINGLE("Speakers amplifier switch", DAVINCI_VC_REG12, 7, 1, 0),
-	SOC_SINGLE("Line amplifier switch", DAVINCI_VC_REG12, 6, 1, 0),
-	SOC_SINGLE("MIC amplifier switch", DAVINCI_VC_REG12, 3, 1, 0),
 };
 
 static const struct snd_soc_dapm_widget cq93vc_dapm_widgets[] = {
 	SND_SOC_DAPM_DAC("DAC", "Playback", DAVINCI_VC_REG12, 5, 0),
 	SND_SOC_DAPM_ADC("ADC", "Capture", DAVINCI_VC_REG12, 4, 0),
-	SND_SOC_DAPM_OUTPUT("MICIN"),
+	SND_SOC_DAPM_INPUT("MICIN"),
 	SND_SOC_DAPM_OUTPUT("SP"),
 	SND_SOC_DAPM_OUTPUT("LINEO"),
 };
 
 static const struct snd_soc_dapm_route intercon[] = {
 	/* Inputs */
-	{"ADC", "MIC amplifier switch", "MICIN"},
+	{"ADC", NULL, "MICIN"},
 	/* Outputs */
-	{"SP", "Speakers amplifier switch", "DAC"},
-	{"LINEO", "Line amplifier switch", "DAC"},
+	{"SP", NULL, "DAC"},
+	{"LINEO", NULL, "DAC"},
 };
 
 static int cq93vc_mute(struct snd_soc_dai *dai, int mute)
@@ -120,17 +117,20 @@ static int cq93vc_set_bias_level(struct snd_soc_codec *codec,
 {
 	switch (level) {
 	case SND_SOC_BIAS_ON:
+		pr_debug("SND_SOC_BIAS_ON\n");
 		cq93vc_write(codec, DAVINCI_VC_REG12,
 			     DAVINCI_VC_REG12_POWER_ALL_ON);
 		break;
 	case SND_SOC_BIAS_PREPARE:
 		break;
 	case SND_SOC_BIAS_STANDBY:
+		pr_debug("SND_SOC_BIAS_STANDBY\n");
 		cq93vc_write(codec, DAVINCI_VC_REG12,
 			     DAVINCI_VC_REG12_POWER_ALL_OFF);
 		break;
 	case SND_SOC_BIAS_OFF:
 		/* force all power off */
+		pr_debug("SND_SOC_BIAS_OFF\n");
 		cq93vc_write(codec, DAVINCI_VC_REG12,
 			     DAVINCI_VC_REG12_POWER_ALL_OFF);
 		break;
