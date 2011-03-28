@@ -117,9 +117,18 @@ static void davinci_spi_chipselect(struct spi_device *spi, int value)
 	struct davinci_spi *davinci_spi;
 	struct davinci_spi_platform_data *pdata;
 	u32 data1_reg_val = 0;
+	u32 tmp = 0;
 
 	davinci_spi = spi_master_get_devdata(spi->master);
 	pdata = davinci_spi->pdata;
+
+	if (spi->controller_data) {
+		if (spi->mode & SPI_CS_HIGH)
+			tmp = 1;
+		gpio_direction_output(spi->controller_data, !(value^tmp));
+		return;
+	}
+
 
 	/*
 	 * Board specific chip select logic decides the polarity and cs
@@ -546,7 +555,10 @@ static int davinci_spi_bufs_pio(struct spi_device *spi, struct spi_transfer *t)
 	count = davinci_spi->count;
 	data1_reg_val = pdata->cs_hold << SPIDAT1_CSHOLD_SHIFT;
 
-	tmp = 0x1 << spi->chip_select;
+	if (!spi->controller_data)
+		tmp = 0x1 << spi->chip_select;
+	else
+		tmp = 3;
 	data1_reg_val |= tmp << SPIDAT1_CSNR_SHIFT;
 	data1_reg_val |= spi->chip_select << SPIDAT1_DFSEL_SHIFT;
 
