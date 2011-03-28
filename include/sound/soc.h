@@ -167,6 +167,22 @@
 	.info = snd_soc_info_enum_ext, \
 	.get = xhandler_get, .put = xhandler_put, \
 	.private_value = (unsigned long)&xenum }
+/*
+ * Simplified versions of above macros, declaring a struct and calculating
+ * ARRAY_SIZE internally
+ */
+#define SOC_ENUM_DOUBLE_DECL(name, xreg, xshift_l, xshift_r, xtexts) \
+	struct soc_enum name = SOC_ENUM_DOUBLE(xreg, xshift_l, xshift_r, \
+						ARRAY_SIZE(xtexts), xtexts)
+#define SOC_ENUM_SINGLE_DECL(name, xreg, xshift, xtexts) \
+	SOC_ENUM_DOUBLE_DECL(name, xreg, xshift, xshift, xtexts)
+#define SOC_ENUM_SINGLE_EXT_DECL(name, xtexts) \
+	struct soc_enum name = SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(xtexts), xtexts)
+#define SOC_VALUE_ENUM_DOUBLE_DECL(name, xreg, xshift_l, xshift_r, xmask, xtexts, xvalues) \
+	struct soc_enum name = SOC_VALUE_ENUM_DOUBLE(xreg, xshift_l, xshift_r, xmask, \
+							ARRAY_SIZE(xtexts), xtexts, xvalues)
+#define SOC_VALUE_ENUM_SINGLE_DECL(name, xreg, xshift, xmask, xtexts, xvalues) \
+	SOC_VALUE_ENUM_DOUBLE_DECL(name, xreg, xshift, xshift, xmask, xtexts, xvalues)
 
 /*
  * Bias levels
@@ -353,6 +369,7 @@ struct snd_soc_pcm_stream {
 	unsigned int channels_min;	/* min channels */
 	unsigned int channels_max;	/* max channels */
 	unsigned int active:1;		/* stream is in use */
+	void *dma_data;			/* used by platform code */
 };
 
 /* SoC audio ops */
@@ -413,6 +430,7 @@ struct snd_soc_codec {
 	unsigned int num_dai;
 
 #ifdef CONFIG_DEBUG_FS
+	struct dentry *debugfs_codec_root;
 	struct dentry *debugfs_reg;
 	struct dentry *debugfs_pop_time;
 	struct dentry *debugfs_dapm;
@@ -493,6 +511,7 @@ struct snd_soc_card {
 	/* callbacks */
 	int (*set_bias_level)(struct snd_soc_card *,
 			      enum snd_soc_bias_level level);
+	long pmdown_time;
 
 	/* CPU <--> Codec DAI links  */
 	struct snd_soc_dai_link *dai_link;
