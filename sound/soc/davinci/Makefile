@@ -1,6 +1,7 @@
 # DAVINCI Platform Support
 snd-soc-davinci-objs := davinci-pcm.o
 snd-soc-davinci-objs += davinci-pcm-copyfromuser.o
+snd-soc-davinci-objs += cq93vc_copy.o
 snd-soc-davinci-i2s-objs := davinci-i2s.o
 snd-soc-davinci-mcasp-objs:= davinci-mcasp.o
 snd-soc-davinci-vcif-objs:= davinci-vcif.o
