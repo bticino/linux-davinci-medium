@@ -545,11 +545,10 @@ static int davinci_spi_bufs_pio(struct spi_device *spi, struct spi_transfer *t)
 
 	count = davinci_spi->count;
 	data1_reg_val = pdata->cs_hold << SPIDAT1_CSHOLD_SHIFT;
-	tmp = ~(0x1 << spi->chip_select);
 
-	clear_io_bits(davinci_spi->base + SPIDEF, ~tmp);
-
+	tmp = 0x1 << spi->chip_select;
 	data1_reg_val |= tmp << SPIDAT1_CSNR_SHIFT;
+	data1_reg_val |= spi->chip_select << SPIDAT1_DFSEL_SHIFT;
 
 	while ((ioread32(davinci_spi->base + SPIBUF)
 				& SPIBUF_RXEMPTY_MASK) == 0)
