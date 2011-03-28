@@ -1162,7 +1162,7 @@ static int __devinit ads7846_probe(struct spi_device *spi)
 	}
 
 	err = ads784x_hwmon_register(spi, ts);
-	if (err)
+		if (err)
 		goto err_free_irq;
 
 	dev_info(&spi->dev, "touchscreen, irq %d\n", spi->irq);
