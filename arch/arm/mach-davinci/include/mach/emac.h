@@ -25,6 +25,7 @@ struct emac_platform_data {
 	u32 mdio_max_freq;
 	u8 rmii_en;
 	u8 version;
+	void (*power)(struct phy_device *phydev, int on);
 };
 
 enum {

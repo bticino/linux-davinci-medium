@@ -488,6 +488,7 @@ struct emac_priv {
 	struct mii_bus *mii_bus;
 	struct phy_device *phydev;
 	spinlock_t lock;
+	void (*ext_circ_power)(int on);
 };
 
 /* clock frequency for EMAC */
@@ -2439,6 +2440,8 @@ static int emac_dev_open(struct net_device *ndev)
 			return -1;
 		}
 
+		printk("%s %d %s\n", __func__, __LINE__, ndev->name);
+
 		priv->phydev = phy_connect(ndev, dev_name(&priv->phydev->dev),
 				&emac_adjust_link, 0, PHY_INTERFACE_MODE_MII);
 
@@ -2470,8 +2473,10 @@ static int emac_dev_open(struct net_device *ndev)
 	if (netif_msg_drv(priv))
 		dev_notice(emac_dev, "DaVinci EMAC: Opened %s\n", ndev->name);
 
-	if (priv->phy_mask)
+	if (priv->phy_mask){
+		priv->ext_circ_power(1);
 		phy_start(priv->phydev);
+	}
 
 	return 0;
 
@@ -2517,8 +2522,10 @@ static int emac_dev_stop(struct net_device *ndev)
 	emac_cleanup_rxch(priv, EMAC_DEF_RX_CH);
 	emac_write(EMAC_SOFTRESET, 1);
 
-	if (priv->phydev)
+	if (priv->phydev){
 		phy_disconnect(priv->phydev);
+		priv->ext_circ_power(0);
+	}
 
 	/* Free IRQ */
 	while ((res = platform_get_resource(priv->pdev, IORESOURCE_IRQ, i))) {
@@ -2654,6 +2661,9 @@ static int __devinit davinci_emac_probe(struct platform_device *pdev)
 		printk(KERN_ERR "DaVinci EMAC: No platfrom data\n");
 		return -ENODEV;
 	}
+	if (pdata->power)
+		priv->ext_circ_power = pdata->power;
+
 
 	/* MAC addr and PHY mask , RMII enable info from platform_data */
 	memcpy(priv->mac_addr, pdata->mac_addr, 6);
