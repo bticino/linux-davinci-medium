@@ -100,6 +100,14 @@ config LCD_HP700
 	  If you have an HP Jornada 700 series handheld (710/720/728)
 	  say Y to enable LCD control driver.
 
+config LCD_TM035KBH02
+	tristate "TIANMA tm035kbh02 LCD Driver"
+	depends on LCD_CLASS_DEVICE && SPI
+	default n
+	help
+	  If you have an TIANMA tm035kbh02 say Y to enable a driver
+	  for its LCD.
+
 #
 # Backlight
 #
