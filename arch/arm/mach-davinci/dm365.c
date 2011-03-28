@@ -36,6 +36,7 @@
 #include <mach/asp.h>
 #include <mach/keyscan.h>
 #include <mach/spi.h>
+#include <mach/adc.h>
 #include <video/davinci_osd.h>
 #include <video/davinci_vpbe.h>
 
@@ -1174,6 +1175,28 @@ static struct platform_device dm365_ks_device = {
 	.resource	= dm365_ks_resources,
 };
 
+static struct resource dm365_adc_resources[] = {
+	{
+		/* registers */
+		.start = DM365_ADCIF_BASE,
+		.end = DM365_ADCIF_BASE + SZ_1K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		/* interrupt */
+		.start = IRQ_DM365_ADCINT,
+		.end = IRQ_DM365_ADCINT,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device dm365_adc_device = {
+	.name           = "davinci_adc",
+	.id             = 0,
+	.num_resources  = ARRAY_SIZE(dm365_adc_resources),
+	.resource       = dm365_adc_resources,
+};
+
 /* Contents of JTAG ID register used to identify exact cpu type */
 static struct davinci_id dm365_ids[] = {
 	{
@@ -1293,6 +1316,12 @@ void __init dm365_init_rtc(void)
 {
 	davinci_cfg_reg(DM365_INT_PRTCSS);
 	platform_device_register(&dm365_rtc_device);
+}
+
+void __init dm365_init_adc(struct davinci_adc_platform_data *pdata)
+{
+	dm365_adc_device.dev.platform_data = pdata;
+	platform_device_register(&dm365_adc_device);
 }
 
 void __init dm365_init(void)

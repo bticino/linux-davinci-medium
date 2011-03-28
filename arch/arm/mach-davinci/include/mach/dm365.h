@@ -18,6 +18,7 @@
 #include <media/davinci/vpfe_capture.h>
 #include <mach/emac.h>
 #include <mach/asp.h>
+#include <mach/adc.h>
 #include <mach/keyscan.h>
 
 #define DM365_EMAC_BASE			(0x01D07000)
@@ -40,6 +41,7 @@ void __init dm365_init(void);
 void __init dm365_init_asp(struct snd_platform_data *pdata);
 void __init dm365_init_vc(struct snd_platform_data *pdata);
 void __init dm365_init_rtc(void);
+void __init dm365_init_adc(struct davinci_adc_platform_data *pdata);
 void __init dm365_init_ks(struct davinci_ks_platform_data *pdata);
 void dm365_set_vpfe_config(struct vpfe_config *cfg);
 
