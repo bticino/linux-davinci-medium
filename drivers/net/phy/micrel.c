@@ -19,6 +19,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/phy.h>
+#include <linux/mod_devicetable.h>
 
 #define	PHY_ID_KSZ9021			0x00221611
 #define	PHY_ID_KS8737			0x00221720

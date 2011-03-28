@@ -474,4 +474,18 @@ struct platform_device_id {
 			__attribute__((aligned(sizeof(kernel_ulong_t))));
 };
 
+/**
+ * struct mdio_device_id - identifies PHY devices on an MDIO/MII bus
+ * @phy_id: The result of
+ *     (mdio_read(&MII_PHYSID1) << 16 | mdio_read(&PHYSID2)) & @phy_id_mask
+ *     for this PHY type
+ * @phy_id_mask: Defines the significant bits of @phy_id.  A value of 0
+ *     is used to terminate an array of struct mdio_device_id.
+ */
+struct mdio_device_id {
+	__u32 phy_id;
+	__u32 phy_id_mask;
+};
+
+
 #endif /* LINUX_MOD_DEVICETABLE_H */
