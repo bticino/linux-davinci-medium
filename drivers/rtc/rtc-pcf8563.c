@@ -62,6 +62,8 @@ struct pcf8563 {
 	 * 1970...2069.
 	 */
 	int c_polarity;	/* 0: MO_C=1 means 19xx, otherwise MO_C=1 means 20xx */
+	struct i2c_client *client;
+	struct work_struct work;
 };
 
 /*
@@ -171,6 +173,174 @@ static int pcf8563_set_datetime(struct i2c_client *client, struct rtc_time *tm)
 	return 0;
 }
 
+int pcf8563_read_alarm(struct device *dev, struct rtc_wkalrm *wkalrm)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	unsigned char buf[13] = { PCF8563_REG_ST1 };
+	struct rtc_time *tm = &wkalrm->time;
+
+	struct i2c_msg msgs[] = {
+		{ client->addr, 0, 1, buf },	/* setup read ptr */
+		{ client->addr, I2C_M_RD, 13, buf },	/* read status + date */
+	};
+
+	/* read registers */
+	if ((i2c_transfer(client->adapter, msgs, 2)) != 2) {
+		dev_err(&client->dev, "%s: read error\n", __func__);
+		return -EIO;
+	}
+
+	if (buf[PCF8563_REG_SC] & PCF8563_SC_LV)
+		dev_info(&client->dev,
+			"low voltage detected, date/time is not reliable.\n");
+
+	dev_dbg(&client->dev,
+		"%s: raw data is st1=%02x, st2=%02x, sec=%02x, min=%02x, hr=%02x, "
+		"mday=%02x, wday=%02x, mon=%02x, year=%02x\n",
+		__func__,
+		buf[0], buf[1], buf[2], buf[3],
+		buf[4], buf[5], buf[6], buf[7],
+		buf[8]);
+
+	tm->tm_min = bcd2bin(buf[PCF8563_REG_AMN] & 0x7F);
+	tm->tm_hour = bcd2bin(buf[PCF8563_REG_AHR] & 0x3F);
+	tm->tm_mday = bcd2bin(buf[PCF8563_REG_ADM] & 0x3F);
+
+	dev_dbg(&client->dev, "%s: tm is secs=%d, mins=%d, hours=%d, "
+		"mday=%d, mon=%d, year=%d, wday=%d\n",
+		__func__,
+		tm->tm_sec, tm->tm_min, tm->tm_hour,
+		tm->tm_mday, tm->tm_mon, tm->tm_year, tm->tm_wday);
+
+	/* the clock can give out invalid datetime, but we cannot return
+	 * -EINVAL otherwise hwclock will refuse to set the time on bootup.
+	 */
+	if (rtc_valid_tm(tm) < 0)
+		dev_err(&client->dev, "retrieved date/time is not valid.\n");
+
+	return 0;
+
+}
+int pcf8563_set_alarm(struct device *dev, struct rtc_wkalrm *wkalarm)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct rtc_time *tm = &wkalarm->time;
+	int i, err;
+	unsigned char buf[13];
+	struct i2c_msg msgs[] = {
+		{ client->addr, 0, 1, buf },	/* setup read ptr */
+		{ client->addr, I2C_M_RD, 13, buf },	/* read status + date */
+	};
+
+	dev_dbg(&client->dev, "%s: secs=%d, mins=%d, hours=%d, "
+		"mday=%d, mon=%d, year=%d, wday=%d\n",
+		__func__,
+		tm->tm_sec, tm->tm_min, tm->tm_hour,
+		tm->tm_mday, tm->tm_mon, tm->tm_year, tm->tm_wday);
+
+	/* hours, minutes */
+	buf[0] = bin2bcd(tm->tm_min) & 0x7F;
+	buf[1] = bin2bcd(tm->tm_hour) & 0x7F;
+	buf[2] = bin2bcd(tm->tm_mday) & 0x7F;
+	buf[3] = 0x80;
+
+	/* write register's data */
+	for (i = 0; i < 4; i++) {
+		unsigned char data[2] = { PCF8563_REG_AMN + i, buf[i] };
+
+		err = i2c_master_send(client, data, sizeof(data));
+		if (err != sizeof(data)) {
+			dev_err(&client->dev,
+				"%s: err=%d addr=%02x, data=%02x\n",
+				__func__, err, data[0], data[1]);
+			return -EIO;
+		}
+	}
+	buf[0] =  PCF8563_REG_ST1;
+
+	/* read registers */
+	if ((i2c_transfer(client->adapter, msgs, 2)) != 2) {
+		dev_err(&client->dev, "%s: read error\n", __func__);
+		return -EIO;
+	}
+
+	buf[0] = PCF8563_REG_ST2;
+	buf[1] |= 0x02;
+	buf[1] &= 0XF7;
+
+	err = i2c_master_send(client, buf, 2);
+	if (err != 2) {
+		dev_err(&client->dev,
+			"%s: err=%d addr=%02x, data=%02x\n",
+			__func__, err, buf[0], buf[1]);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+int pcf8563_alarm_irq_enable(struct device *dev, unsigned int enabled)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+
+	if (!enabled){
+		disable_irq(client->irq);
+	} else {
+		enable_irq(client->irq);
+	}
+	return 0;
+}
+
+int pcf8563_disable_alarm(struct i2c_client *client)
+{
+	unsigned char buf[2];
+	int err;
+	struct i2c_msg msgs[] = {
+		{ client->addr, 0, 1, buf },
+		{ client->addr, I2C_M_RD, 2, buf },
+	};
+	buf[0] =  PCF8563_REG_ST1;
+
+	/* read registers */
+	if ((i2c_transfer(client->adapter, msgs, 2)) != 2) {
+		dev_err(&client->dev, "%s: read error\n", __func__);
+		return -EIO;
+	}
+	buf[0] = PCF8563_REG_ST2;
+	buf[1] |= 0x02;
+	buf[1] &= 0XF7;
+
+	err = i2c_master_send(client, buf, 2);
+	if (err != 2) {
+		dev_err(&client->dev,
+			"%s: err=%d addr=%02x, data=%02x\n",
+			__func__, err, buf[0], buf[1]);
+		return -EIO;
+	}
+	return 0;
+}
+
+static void _pcf8563_disable_alarm(struct work_struct *work)
+{
+	struct pcf8563 *pcf8563 =  container_of(work, struct pcf8563, work);
+
+	pcf8563_disable_alarm(pcf8563->client);
+}
+
+static irqreturn_t pcf8563_rtc_interrupt(int irq, void *priv_data)
+{
+	struct pcf8563 *pcf8563 =  priv_data;
+
+	/* Communicate event to user-space */
+	rtc_update_irq(pcf8563->rtc, 1, RTC_IRQF | RTC_AF);
+
+	/* arm alarm disable in order to release the interrupt line */
+	INIT_WORK(&pcf8563->work, _pcf8563_disable_alarm);
+	schedule_work(&pcf8563->work);
+
+	return IRQ_HANDLED;
+}
+
 struct pcf8563_limit
 {
 	unsigned char reg;
@@ -192,6 +362,9 @@ static int pcf8563_rtc_set_time(struct device *dev, struct rtc_time *tm)
 static const struct rtc_class_ops pcf8563_rtc_ops = {
 	.read_time	= pcf8563_rtc_read_time,
 	.set_time	= pcf8563_rtc_set_time,
+	.read_alarm	= pcf8563_read_alarm,
+	.set_alarm	= pcf8563_set_alarm,
+	.alarm_irq_enable  = pcf8563_alarm_irq_enable,
 };
 
 static int pcf8563_probe(struct i2c_client *client,
@@ -202,7 +375,6 @@ static int pcf8563_probe(struct i2c_client *client,
 	int err = 0;
 
 	dev_dbg(&client->dev, "%s\n", __func__);
-
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
 		return -ENODEV;
 
@@ -220,8 +392,17 @@ static int pcf8563_probe(struct i2c_client *client,
 		goto exit_kfree;
 	}
 
+	pcf8563->client = client;
 	i2c_set_clientdata(client, pcf8563);
 
+	pcf8563_disable_alarm(client);
+
+	err = request_irq(client->irq, pcf8563_rtc_interrupt, 0,
+			  "pcf8563_rtc", pcf8563);
+	if (err) {
+		printk("%s error requesting interrupt\n", __func__);
+		return -EIO;
+	}
 	return 0;
 
 exit_kfree:
