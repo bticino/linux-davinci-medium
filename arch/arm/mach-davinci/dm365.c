@@ -148,6 +148,14 @@ static struct clk pll1_sysclk9 = {
 	.parent		= &pll1_clk,
 	.flags		= CLK_PLL,
 	.div_reg	= PLLDIV9,
+	.set_rate	= davinci_set_sysclk_rate,
+};
+
+static struct clk clkout2_clk = {
+	.name		= "clkout2",
+	.parent		= &pll1_sysclk9,
+	.flags		= CLK_PLL,
+	.set_rate       = dm365_clkout2_set_rate,
 };
 
 static struct clk pll2_clk = {
@@ -425,6 +433,7 @@ static struct davinci_clk dm365_clks[] = {
 	CLK(NULL, "pll1_sysclk7", &pll1_sysclk7),
 	CLK(NULL, "pll1_sysclk8", &pll1_sysclk8),
 	CLK(NULL, "pll1_sysclk9", &pll1_sysclk9),
+	CLK(NULL, "clkout2", &clkout2_clk),
 	CLK(NULL, "pll2", &pll2_clk),
 	CLK(NULL, "pll2_aux", &pll2_aux_clk),
 	CLK(NULL, "clkout1", &clkout1_clk),
@@ -583,6 +592,7 @@ MUX_CFG(DM365,	SPI4_SDENA1,	4,   16,    3,    2,	 false)
 
 MUX_CFG(DM365,	CLKOUT0,	4,   20,    3,    3,     false)
 MUX_CFG(DM365,	CLKOUT1,	4,   16,    3,    3,     false)
+MUX_CFG(DM365,	CLKOUT2,	4,   8,     3,    3,     false)
 MUX_CFG(DM365,	GPIO20,		3,   21,    3,    0,	 false)
 MUX_CFG(DM365,	GPIO23,		3,   26,    3,    0,	 false)
 MUX_CFG(DM365,	GPIO26,		3,   31,    1,    0,	 false)
@@ -699,6 +709,48 @@ static struct resource dm365_spi0_resources[] = {
 		.flags = IORESOURCE_DMA | IORESOURCE_DMA_EVENT_Q,
 	},
 };
+
+int dm365_clkout2_set_rate(unsigned long rate)
+{
+	int ret = -EINVAL;
+	int i, err, min_err, i_min_err;
+	u32 regval;
+	struct clk *clk;
+	static void __iomem *system_module_base;
+
+	clk = &clkout2_clk;
+	system_module_base = ioremap(DAVINCI_SYSTEM_MODULE_BASE, SZ_4K);
+	regval = __raw_readl(system_module_base + PERI_CLKCTL);
+
+	/* check all possibilities to get best fitting for the required freq */
+	i_min_err = min_err = INT_MAX;
+	for (i = 0x0F; i > 0; i--) {
+		if (clk->parent->set_rate) {
+			ret = clk_set_rate(clk->parent, rate * i) ;
+			err = clk_get_rate(clk->parent) - rate * i;
+			if (min_err > abs(err)) {
+				min_err = abs(err);
+				i_min_err = i;
+			}
+		}
+	}
+	ret = clk_set_rate(clk->parent, rate * i_min_err) ;
+	if (ret)
+		return ret;
+
+	/* setup DIV1 value */
+	regval &= ~(0x0F << 3);
+	regval |= (i_min_err - 1) << 3;
+
+	/* to make changes work stop CLOCKOUT & start it again */
+	regval |= 1 << CLOCKOUT2EN;
+	__raw_writel(regval, system_module_base + PERI_CLKCTL);
+	regval &= ~(1 << CLOCKOUT2EN);
+	__raw_writel(regval, system_module_base + PERI_CLKCTL);
+
+	return ret;
+}
+EXPORT_SYMBOL(dm365_clkout2_set_rate);
 
 static struct platform_device dm365_spi0_device = {
 	.name = "spi_davinci",

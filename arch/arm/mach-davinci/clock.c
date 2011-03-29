@@ -246,6 +246,15 @@ static unsigned long clk_sysclk_recalc(struct clk *clk)
 	struct pll_data *pll;
 	unsigned long rate = clk->rate;
 
+	struct clk *parent = clk;
+
+	if (clk == NULL || IS_ERR(clk))
+		return -EINVAL;
+	while (parent->parent->parent)
+		parent = parent->parent;
+
+	if (parent == clk)
+		return -EPERM;
 	/* If this is the PLL base clock, no more calculations needed */
 	if (clk->pll_data)
 		return rate;
@@ -253,13 +262,13 @@ static unsigned long clk_sysclk_recalc(struct clk *clk)
 	if (WARN_ON(!clk->parent))
 		return rate;
 
-	rate = clk->parent->rate;
+	rate = parent->rate;
 
 	/* Otherwise, the parent must be a PLL */
-	if (WARN_ON(!clk->parent->pll_data))
+	if (WARN_ON(!parent->pll_data))
 		return rate;
 
-	pll = clk->parent->pll_data;
+	pll = parent->pll_data;
 
 	/* If pre-PLL, source clock is before the multiplier and divider(s) */
 	if (clk->flags & PRE_PLL)

@@ -298,6 +298,7 @@ enum davinci_dm365_index {
 	/* Clock */
 	DM365_CLKOUT0,
 	DM365_CLKOUT1,
+	DM365_CLKOUT2,
 
 	/* GPIO */
 	DM365_GPIO20,

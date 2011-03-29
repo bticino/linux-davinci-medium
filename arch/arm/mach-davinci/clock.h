@@ -56,6 +56,11 @@
 #define PLLSTAT_GOSTAT BIT(0)
 #define PLLCMD_GOSET   BIT(0)
 
+#define PERI_CLKCTL	0x48
+#define CLOCKOUT2EN	2
+#define CLOCKOUT1EN	1
+#define CLOCKOUT0EN	0
+
 struct pll_data {
 	u32 phys_base;
 	void __iomem *base;
