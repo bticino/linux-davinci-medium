@@ -53,6 +53,9 @@
 #define PLLDIV_EN       BIT(15)
 #define PLLDIV_RATIO_MASK 0x1f
 
+#define PLLSTAT_GOSTAT BIT(0)
+#define PLLCMD_GOSET   BIT(0)
+
 struct pll_data {
 	u32 phys_base;
 	void __iomem *base;
@@ -105,6 +108,7 @@ struct davinci_clk {
 int davinci_clk_init(struct davinci_clk *clocks);
 int davinci_set_pllrate(struct pll_data *pll, unsigned int prediv,
 				unsigned int mult, unsigned int postdiv);
+int davinci_set_sysclk_rate(struct clk *clk, unsigned long rate);
 
 extern struct platform_device davinci_wdt_device;
 
