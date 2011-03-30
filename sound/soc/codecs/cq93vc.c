@@ -183,7 +183,6 @@ static int cq93vc_probe(struct platform_device *pdev)
 	/* Off, with power on */
 	cq93vc_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 
-	ret = snd_soc_init_card(socdev);
 	if (ret < 0) {
 		printk(KERN_ERR "cq93vc: failed to register card\n");
 		goto reset_err;
