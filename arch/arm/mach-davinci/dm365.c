@@ -518,6 +518,7 @@ MUX_CFG(DM365,	MCBSP0_BFSX,	0,   21,    1,	  1,	 false)
 MUX_CFG(DM365,	MCBSP0_BDR,	0,   20,    1,	  1,	 false)
 MUX_CFG(DM365,	MCBSP0_R,	0,   19,    1,	  1,	 false)
 MUX_CFG(DM365,	MCBSP0_BFSR,	0,   18,    1,	  1,	 false)
+MUX_CFG(DM365,	MCBSP0_CLKS,	4,   20,    3,	  2,	 false)
 
 MUX_CFG(DM365,	SPI0_SCLK,	3,   28,    1,    1,	 false)
 MUX_CFG(DM365,	SPI0_SDI,	3,   26,    3,    1,	 false)
@@ -1346,7 +1347,10 @@ void __init dm365_init_asp(struct snd_platform_data *pdata)
 	davinci_cfg_reg(DM365_MCBSP0_X);
 	davinci_cfg_reg(DM365_MCBSP0_BFSX);
 	davinci_cfg_reg(DM365_MCBSP0_BDR);
-	davinci_cfg_reg(DM365_MCBSP0_R);
+	if (pdata->clk_input_pin == MCBSP_CLKR)
+		davinci_cfg_reg(DM365_MCBSP0_R);
+	else if (pdata->clk_input_pin == MCBSP_CLKS)
+		davinci_cfg_reg(DM365_MCBSP0_CLKS);
 	davinci_cfg_reg(DM365_MCBSP0_BFSR);
 	davinci_cfg_reg(DM365_EVT2_ASP_TX);
 	davinci_cfg_reg(DM365_EVT3_ASP_RX);
