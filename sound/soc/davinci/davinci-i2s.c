@@ -25,6 +25,7 @@
 #include <mach/asp.h>
 
 #include "davinci-pcm.h"
+#include "davinci-i2s.h"
 
 
 /*
@@ -67,16 +68,21 @@
 #define DAVINCI_MCBSP_RCR_RDATDLY(v)	((v) << 16)
 #define DAVINCI_MCBSP_RCR_RFIG		(1 << 18)
 #define DAVINCI_MCBSP_RCR_RWDLEN2(v)	((v) << 21)
+#define DAVINCI_MCBSP_RCR_RFRLEN2(v)	((v) << 24)
+#define DAVINCI_MCBSP_RCR_RPHASE	BIT(31)
 
 #define DAVINCI_MCBSP_XCR_XWDLEN1(v)	((v) << 5)
 #define DAVINCI_MCBSP_XCR_XFRLEN1(v)	((v) << 8)
 #define DAVINCI_MCBSP_XCR_XDATDLY(v)	((v) << 16)
 #define DAVINCI_MCBSP_XCR_XFIG		(1 << 18)
 #define DAVINCI_MCBSP_XCR_XWDLEN2(v)	((v) << 21)
+#define DAVINCI_MCBSP_XCR_XFRLEN2(v)	((v) << 24)
+#define DAVINCI_MCBSP_XCR_XPHASE	BIT(31)
 
 #define DAVINCI_MCBSP_SRGR_FWID(v)	((v) << 8)
 #define DAVINCI_MCBSP_SRGR_FPER(v)	((v) << 16)
 #define DAVINCI_MCBSP_SRGR_FSGM		(1 << 28)
+#define DAVINCI_MCBSP_SRGR_CLKSM	BIT(29)
 
 #define DAVINCI_MCBSP_PCR_CLKRP		(1 << 0)
 #define DAVINCI_MCBSP_PCR_CLKXP		(1 << 1)
@@ -110,6 +116,8 @@ struct davinci_mcbsp_dev {
 	int				mode;
 	u32				pcr;
 	struct clk			*clk;
+	unsigned int fmt;
+	int clk_div;
 };
 
 static inline void davinci_mcbsp_write_reg(struct davinci_mcbsp_dev *dev,
@@ -220,10 +228,12 @@ static int davinci_i2s_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	struct davinci_mcbsp_dev *dev = cpu_dai->private_data;
 	unsigned int pcr;
 	unsigned int srgr;
+	/* Attention srgr is updated by hw_params! */
 	srgr = DAVINCI_MCBSP_SRGR_FSGM |
 		DAVINCI_MCBSP_SRGR_FPER(DEFAULT_BITPERSAMPLE * 2 - 1) |
 		DAVINCI_MCBSP_SRGR_FWID(DEFAULT_BITPERSAMPLE - 1);
 
+	dev->fmt = fmt;
 	/* set master/slave audio interface */
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBS_CFS:
@@ -338,6 +348,18 @@ static int davinci_i2s_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	return 0;
 }
 
+static int davinci_i2s_dai_set_clkdiv(struct snd_soc_dai *cpu_dai,
+				int div_id, int div)
+{
+	struct davinci_mcbsp_dev *dev = cpu_dai->private_data;
+
+	if (div_id != DAVINCI_MCBSP_CLKGDV)
+		return -ENODEV;
+
+	dev->clk_div = div;
+	return 0;
+}
+
 static int davinci_i2s_hw_params(struct snd_pcm_substream *substream,
 				 struct snd_pcm_hw_params *params,
 				 struct snd_soc_dai *dai)
@@ -346,8 +368,8 @@ static int davinci_i2s_hw_params(struct snd_pcm_substream *substream,
 	struct davinci_pcm_dma_params *dma_params =
 					&dev->dma_params[substream->stream];
 	struct snd_interval *i = NULL;
-	int mcbsp_word_length;
-	unsigned int rcr, xcr, srgr;
+	int mcbsp_word_length, master;
+	unsigned int rcr, xcr, srgr, clk_div, freq, framesize;
 	u32 spcr;
 
 	/* general line settings */
@@ -360,12 +382,47 @@ static int davinci_i2s_hw_params(struct snd_pcm_substream *substream,
 		davinci_mcbsp_write_reg(dev, DAVINCI_MCBSP_SPCR_REG, spcr);
 	}
 
-	i = hw_param_interval(params, SNDRV_PCM_HW_PARAM_SAMPLE_BITS);
-	srgr = DAVINCI_MCBSP_SRGR_FSGM;
-	srgr |= DAVINCI_MCBSP_SRGR_FWID(snd_interval_value(i) - 1);
+	master = dev->fmt & SND_SOC_DAIFMT_MASTER_MASK;
+	fmt = params_format(params);
+	mcbsp_word_length = asp_word_length[fmt];
 
-	i = hw_param_interval(params, SNDRV_PCM_HW_PARAM_FRAME_BITS);
-	srgr |= DAVINCI_MCBSP_SRGR_FPER(snd_interval_value(i) - 1);
+	switch (master) {
+	case SND_SOC_DAIFMT_CBS_CFS:
+		freq = clk_get_rate(dev->clk);
+		srgr = DAVINCI_MCBSP_SRGR_FSGM |
+		       DAVINCI_MCBSP_SRGR_CLKSM;
+		srgr |= DAVINCI_MCBSP_SRGR_FWID(mcbsp_word_length *
+						8 - 1);
+		/* symmetric waveforms */
+		clk_div = freq / (mcbsp_word_length * 16) /
+			  params->rate_num * params->rate_den;
+		srgr |= DAVINCI_MCBSP_SRGR_FPER(mcbsp_word_length *
+						16 - 1);
+		clk_div &= 0xFF;
+		srgr |= clk_div;
+		break;
+	case SND_SOC_DAIFMT_CBM_CFS:
+		srgr = DAVINCI_MCBSP_SRGR_FSGM;
+		clk_div = dev->clk_div - 1;
+		srgr |= DAVINCI_MCBSP_SRGR_FWID(mcbsp_word_length * 8 - 1);
+		srgr |= DAVINCI_MCBSP_SRGR_FPER(mcbsp_word_length * 16 - 1);
+		clk_div &= 0xFF;
+		srgr |= clk_div;
+		break;
+	case SND_SOC_DAIFMT_CBM_CFM:
+		/* Clock and frame sync given from external sources */
+		i = hw_param_interval(params, SNDRV_PCM_HW_PARAM_SAMPLE_BITS);
+		srgr = DAVINCI_MCBSP_SRGR_FSGM;
+		srgr |= DAVINCI_MCBSP_SRGR_FWID(snd_interval_value(i) - 1);
+		pr_debug("%s - %d  FWID set: re-read srgr = %X\n",
+			__func__, __LINE__, snd_interval_value(i) - 1);
+
+		i = hw_param_interval(params, SNDRV_PCM_HW_PARAM_FRAME_BITS);
+		srgr |= DAVINCI_MCBSP_SRGR_FPER(snd_interval_value(i) - 1);
+		break;
+	default:
+		return -EINVAL;
+	}
 	davinci_mcbsp_write_reg(dev, DAVINCI_MCBSP_SRGR_REG, srgr);
 
 	rcr = DAVINCI_MCBSP_RCR_RFIG;
@@ -378,27 +435,53 @@ static int davinci_i2s_hw_params(struct snd_pcm_substream *substream,
 		xcr |= DAVINCI_MCBSP_XCR_XDATDLY(1);
 	}
 	/* Determine xfer data type */
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S8:
-		dma_params->data_type = 1;
-		mcbsp_word_length = DAVINCI_MCBSP_WORD_8;
-		break;
-	case SNDRV_PCM_FORMAT_S16_LE:
-		dma_params->data_type = 2;
-		mcbsp_word_length = DAVINCI_MCBSP_WORD_16;
-		break;
-	case SNDRV_PCM_FORMAT_S32_LE:
-		dma_params->data_type = 4;
-		mcbsp_word_length = DAVINCI_MCBSP_WORD_32;
-		break;
-	default:
+	fmt = params_format(params);
+	if ((fmt > SNDRV_PCM_FORMAT_S32_LE) || !data_type[fmt]) {
 		printk(KERN_WARNING "davinci-i2s: unsupported PCM format\n");
 		return -EINVAL;
 	}
 
-	dma_params->acnt  = dma_params->data_type;
-	rcr |= DAVINCI_MCBSP_RCR_RFRLEN1(1);
-	xcr |= DAVINCI_MCBSP_XCR_XFRLEN1(1);
+	if (params_channels(params) == 2) {
+		element_cnt = 2;
+		if (double_fmt[fmt] && dev->enable_channel_combine) {
+			element_cnt = 1;
+			fmt = double_fmt[fmt];
+		}
+		switch (master) {
+		case SND_SOC_DAIFMT_CBS_CFS:
+		case SND_SOC_DAIFMT_CBS_CFM:
+			rcr |= DAVINCI_MCBSP_RCR_RFRLEN2(0);
+			xcr |= DAVINCI_MCBSP_XCR_XFRLEN2(0);
+			rcr |= DAVINCI_MCBSP_RCR_RPHASE;
+			xcr |= DAVINCI_MCBSP_XCR_XPHASE;
+			break;
+		case SND_SOC_DAIFMT_CBM_CFM:
+		case SND_SOC_DAIFMT_CBM_CFS:
+			rcr |= DAVINCI_MCBSP_RCR_RFRLEN2(element_cnt - 1);
+			xcr |= DAVINCI_MCBSP_XCR_XFRLEN2(element_cnt - 1);
+			break;
+		default:
+			return -EINVAL;
+		}
+	}
+	dma_params->acnt = dma_params->data_type = data_type[fmt];
+	dma_params->fifo_level = 0;
+	mcbsp_word_length = asp_word_length[fmt];
+
+	switch (master) {
+	case SND_SOC_DAIFMT_CBS_CFS:
+	case SND_SOC_DAIFMT_CBS_CFM:
+		rcr |= DAVINCI_MCBSP_RCR_RFRLEN1(0);
+		xcr |= DAVINCI_MCBSP_XCR_XFRLEN1(0);
+		break;
+	case SND_SOC_DAIFMT_CBM_CFM:
+	case SND_SOC_DAIFMT_CBM_CFS:
+		rcr |= DAVINCI_MCBSP_RCR_RFRLEN1(element_cnt - 1);
+		xcr |= DAVINCI_MCBSP_XCR_XFRLEN1(element_cnt - 1);
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	rcr |= DAVINCI_MCBSP_RCR_RWDLEN1(mcbsp_word_length) |
 		DAVINCI_MCBSP_RCR_RWDLEN2(mcbsp_word_length);
@@ -409,6 +492,10 @@ static int davinci_i2s_hw_params(struct snd_pcm_substream *substream,
 		davinci_mcbsp_write_reg(dev, DAVINCI_MCBSP_XCR_REG, xcr);
 	else
 		davinci_mcbsp_write_reg(dev, DAVINCI_MCBSP_RCR_REG, rcr);
+
+	pr_debug("%s - %d  srgr=%X\n", __func__, __LINE__, srgr);
+	pr_debug("%s - %d  xcr=%X\n", __func__, __LINE__, xcr);
+	pr_debug("%s - %d  rcr=%X\n", __func__, __LINE__, rcr);
 	return 0;
 }
 
@@ -467,6 +554,7 @@ static struct snd_soc_dai_ops davinci_i2s_dai_ops = {
 	.trigger	= davinci_i2s_trigger,
 	.hw_params	= davinci_i2s_hw_params,
 	.set_fmt	= davinci_i2s_set_dai_fmt,
+	.set_clkdiv	= davinci_i2s_dai_set_clkdiv,
 
 };
 
