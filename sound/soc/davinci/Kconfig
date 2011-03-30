@@ -35,6 +35,31 @@ config SND_DAVINCI_SOC_BASI
 	  Say Y if you want to add support for SoC audio on
 	  Bticino basi board.
 
+config SND_DAVINCI_SOC_DINGO
+        tristate "SoC Audio support for DM365 dingo board"
+        depends on SND_DAVINCI_SOC && MACH_DINGO
+        select SND_DM365_VOICE_CODEC
+        select SND_SOC_CQ0093VC
+        select SND_DAVINCI_SOC_VCIF
+        select SND_DM365_UDA1334_CODEC
+        help
+          Say Y if you want to add support for SoC audio on
+          Bticino dingo board.
+
+config SND_DM365_UDA134X_CODEC
+	bool "Audio Codec - UDA134X"
+	select SND_DAVINCI_SOC_I2S
+	select SND_SOC_UDA134X
+	help
+	  Say Y if you want to add support for UDA134X audio codec
+
+config SND_DM365_UDA1334_CODEC
+	bool "Audio Codec - UDA134X"
+	select SND_DAVINCI_SOC_I2S
+	select SND_SOC_UDA1334
+	help
+	  Say Y if you want to add support for UDA1334 audio codec
+
 config SND_DM365_VOICE_CODEC
 	bool "Voice Codec - CQ93VC"
 	select MFD_DAVINCI_VOICECODEC

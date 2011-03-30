@@ -15,6 +15,7 @@ obj-$(CONFIG_SND_DAVINCI_SOC_VCIF) += snd-soc-davinci-vcif.o
 snd-soc-evm-objs := davinci-evm.o
 snd-soc-sffsdr-objs := davinci-sffsdr.o
 snd-soc-basi-objs := davinci-basi.o
+snd-soc-dingo-objs := davinci-dingo.o
 
 obj-$(CONFIG_SND_DAVINCI_SOC_EVM) += snd-soc-evm.o
 obj-$(CONFIG_SND_DM6467_SOC_EVM) += snd-soc-evm.o
@@ -22,3 +23,4 @@ obj-$(CONFIG_SND_DA830_SOC_EVM) += snd-soc-evm.o
 obj-$(CONFIG_SND_DA850_SOC_EVM) += snd-soc-evm.o
 obj-$(CONFIG_SND_DAVINCI_SOC_SFFSDR) += snd-soc-sffsdr.o
 obj-$(CONFIG_SND_DAVINCI_SOC_BASI) += snd-soc-basi.o
+obj-$(CONFIG_SND_DAVINCI_SOC_DINGO) += snd-soc-dingo.o
