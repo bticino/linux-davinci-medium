@@ -783,6 +783,62 @@ void __init dm365_init_spi0(unsigned chipselect_mask,
 	platform_device_register(&dm365_spi0_device);
 }
 
+static u64 dm365_spi3_dma_mask = DMA_BIT_MASK(32);
+
+static struct davinci_spi_platform_data dm365_spi3_pdata = {
+	.version	= SPI_VERSION_1,
+	.num_chipselect = 2,
+	.clk_internal	= 1,
+	.cs_hold	= 1,
+	.intr_level	= 1,
+	.poll_mode	= 1,	/* 0 -> interrupt mode 1-> polling mode */
+	.use_dma	= 0,	/* when 1, value in poll_mode is ignored */
+	.c2tdelay	= 0,
+	.t2cdelay	= 0,
+	.parity_enable	= 0,
+
+};
+
+static struct resource dm365_spi3_resources[] = {
+	{
+		.start = 0x01c68000,
+		.end   = 0x01c687ff,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = IRQ_DM365_SPIINT3_0,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device dm365_spi3_device = {
+	.name = "spi_davinci",
+	.id = 3,
+	.dev = {
+		.platform_data = &dm365_spi3_pdata,
+	},
+	.num_resources = ARRAY_SIZE(dm365_spi3_resources),
+	.resource = dm365_spi3_resources,
+};
+
+void __init dm365_init_spi3(unsigned chipselect_mask,
+		struct spi_board_info *info, unsigned len)
+{
+	davinci_cfg_reg(DM365_SPI3_SCLK);
+	davinci_cfg_reg(DM365_SPI3_SDI);
+	davinci_cfg_reg(DM365_SPI3_SDO);
+
+	iowrite32(ioread32(IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x18))
+		  | 1<<13, IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x18));
+	/* not all slaves will be wired up */
+	if (chipselect_mask & BIT(0))
+		davinci_cfg_reg(DM365_SPI3_SDENA0);
+	if (chipselect_mask & BIT(1))
+		davinci_cfg_reg(DM365_SPI3_SDENA1);
+
+	spi_register_board_info(info, len);
+	platform_device_register(&dm365_spi3_device);
+}
 
 /* IPIPEIF device configuration */
 static u64 dm365_ipipeif_dma_mask = DMA_BIT_MASK(32);

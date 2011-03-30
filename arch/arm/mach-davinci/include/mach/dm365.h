@@ -48,6 +48,7 @@ void dm365_set_vpfe_config(struct vpfe_config *cfg);
 struct spi_board_info;
 void dm365_init_spi0(unsigned chipselect_mask,
 		struct spi_board_info *info, unsigned len);
-
+void dm365_init_spi3(unsigned chipselect_mask,
+		struct spi_board_info *info, unsigned len);
 int dm365_clkout2_set_rate(unsigned long rate);
 #endif /* __ASM_ARCH_DM365_H */
