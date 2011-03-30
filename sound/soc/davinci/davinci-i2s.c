@@ -109,6 +109,7 @@ struct davinci_mcbsp_dev {
 	 * is cast to a pointer of an array of struct davinci_pcm_dma_params in
 	 * davinci_pcm_open.
 	 */
+	struct device *dev;
 	struct davinci_pcm_dma_params	dma_params[2];
 	void __iomem			*base;
 #define MOD_DSP_A	0
@@ -118,6 +119,7 @@ struct davinci_mcbsp_dev {
 	struct clk			*clk;
 	unsigned int fmt;
 	int clk_div;
+	int clk_input_pin;
 };
 
 static inline void davinci_mcbsp_write_reg(struct davinci_mcbsp_dev *dev,
@@ -244,11 +246,25 @@ static int davinci_i2s_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 			DAVINCI_MCBSP_PCR_CLKRM;
 		break;
 	case SND_SOC_DAIFMT_CBM_CFS:
-		/* McBSP CLKR pin is the input for the Sample Rate Generator.
-		 * McBSP FSR and FSX are driven by the Sample Rate Generator. */
-		pcr = DAVINCI_MCBSP_PCR_SCLKME |
-			DAVINCI_MCBSP_PCR_FSXM |
-			DAVINCI_MCBSP_PCR_FSRM;
+		pcr = DAVINCI_MCBSP_PCR_FSRM | DAVINCI_MCBSP_PCR_FSXM;
+		/*
+		 * Selection of the clock input pin that is the
+		 * input for the Sample Rate Generator.
+		 * McBSP FSR and FSX are driven by the Sample Rate
+		 * Generator.
+		 */
+		switch (dev->clk_input_pin) {
+		case MCBSP_CLKS:
+			pcr |= DAVINCI_MCBSP_PCR_CLKXM |
+				DAVINCI_MCBSP_PCR_CLKRM;
+			break;
+		case MCBSP_CLKR:
+			pcr |= DAVINCI_MCBSP_PCR_SCLKME;
+			break;
+		default:
+			dev_err(dev->dev, "bad clk_input_pin\n");
+			return -EINVAL;
+		}
 		break;
 	case SND_SOC_DAIFMT_CBM_CFM:
 		/* codec is master */
@@ -578,8 +594,8 @@ EXPORT_SYMBOL_GPL(davinci_i2s_dai);
 
 static int davinci_i2s_probe(struct platform_device *pdev)
 {
+	struct snd_platform_data *pdata = pdev->dev.platform_data;
 	struct davinci_mcbsp_dev *dev;
-	struct snd_platform_data *pdata;
 	struct resource *mem, *ioarea, *res;
 	int ret;
 
@@ -602,7 +618,9 @@ static int davinci_i2s_probe(struct platform_device *pdev)
 		goto err_release_region;
 	}
 
-	pdata = pdev->dev.platform_data;
+	if (pdata) {
+		dev->clk_input_pin = pdata->clk_input_pin;
+	}
 	dev->clk = clk_get(&pdev->dev, NULL);
 	if (IS_ERR(dev->clk)) {
 		ret = -ENODEV;
@@ -636,6 +654,7 @@ static int davinci_i2s_probe(struct platform_device *pdev)
 		goto err_free_mem;
 	}
 	dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].channel = res->start;
+	dev->dev = &pdev->dev;
 
 	davinci_i2s_dai.private_data = dev;
 	ret = snd_soc_register_dai(&davinci_i2s_dai);

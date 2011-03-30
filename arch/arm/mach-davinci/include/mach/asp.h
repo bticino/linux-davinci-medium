@@ -61,6 +61,15 @@ struct snd_platform_data {
 	unsigned enable_channel_combine:1;
 	unsigned sram_size_playback;
 	unsigned sram_size_capture;
+	/*
+	 * If McBSP peripheral gets the clock from an external pin,
+	 * there are three chooses, that are MCBSP_CLKX, MCBSP_CLKR
+	 * and MCBSP_CLKS.
+	 * Depending on different hardware connections it is possible
+	 * to use this setting to change the behaviour of McBSP
+	 * driver. The dm365_clk_input_pin enum is available for dm365
+	 */
+	int clk_input_pin;
 
 	/* McASP specific fields */
 	int tdm_slots;
@@ -77,6 +86,10 @@ enum {
 	MCASP_VERSION_2,	/* DA8xx/OMAPL1x */
 };
 
+enum dm365_clk_input_pin {
+	MCBSP_CLKR = 0,		/* DM365 */
+	MCBSP_CLKS,
+};
 #define INACTIVE_MODE	0
 #define TX_MODE		1
 #define RX_MODE		2
