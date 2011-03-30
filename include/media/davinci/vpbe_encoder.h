@@ -25,10 +25,12 @@
 #include <linux/device.h>
 #endif
 
+int get_vpbe_encoder_clock_divisor(void);
+
 #ifdef __KERNEL__
 /* encoder standard related strctures */
-#define VPBE_ENCODER_MAX_NO_OUTPUTS		            (3)
-#define VPBE_ENCODER_MAX_NUM_STD			(13)
+#define VPBE_ENCODER_MAX_NO_OUTPUTS		            (4)
+#define VPBE_ENCODER_MAX_NUM_STD			(14)
 #define VPBE_DM355_ENCODER_MAX_NO_OUTPUTS		    (1)
 #define VPBE_DM355_ENCODER_COMPOSITE_NUM_STD        (2)
 #define VPBE_DM355_ENCODER_MAX_NUM_STD              (2)
@@ -37,12 +39,12 @@
 #define VPBE_DM644X_ENCODER_COMPONENT_NUM_STD		(6)
 #define VPBE_DM644X_ENCODER_SVIDEO_NUM_STD		    (2)
 #define VPBE_DM644X_ENCODER_COMPOSITE_NUM_STD       (2)
+#define VPBE_DM644X_ENCODER_PRGB_NUM_STD       (2)
 
-#define VPBE_DM365_ENCODER_MAX_NO_OUTPUTS		(3)
+#define VPBE_DM365_ENCODER_MAX_NO_OUTPUTS		(4)
 #define VPBE_DM365_ENCODER_COMPOSITE_NUM_STD		(2)
 #define VPBE_DM365_ENCODER_COMPONENT_NUM_STD		(9)
 #define VPBE_DM365_ENCODER_SVIDEO_NUM_STD		(2)
-
 
 #endif				/* End of #ifdef __KERNEL__ */
 

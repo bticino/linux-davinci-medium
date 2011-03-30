@@ -16,6 +16,7 @@
 #include <linux/clk.h>
 #include <video/davinci_vpbe.h>
 #include <video/davinci_osd.h>
+#include <media/davinci/vpbe_encoder.h>
 #include <mach/io.h>
 #include <mach/cputype.h>
 #include <mach/hardware.h>
@@ -126,7 +127,7 @@ static __inline__ u32 osd_merge(u32 mask, u32 val, u32 offset)
 
 void osd_write_left_margin(u32 val)
 {
-	__raw_writel(val, osd->osd_base + OSD_BASEPX);
+	__raw_writel(val * get_vpbe_encoder_clock_divisor(), osd->osd_base + OSD_BASEPX);
 }
 EXPORT_SYMBOL(osd_write_left_margin);
 
@@ -138,7 +139,7 @@ EXPORT_SYMBOL(osd_write_upper_margin);
 
 u32 osd_read_left_margin(void)
 {
-	return __raw_readl(osd->osd_base + OSD_BASEPX);
+	return __raw_readl(osd->osd_base + OSD_BASEPX) / get_vpbe_encoder_clock_divisor();
 }
 EXPORT_SYMBOL(osd_read_left_margin);
 
@@ -1806,7 +1807,7 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 					   const struct davinci_layer_config
 					   *lconfig)
 {
-	u32 winmd = 0, winmd_mask = 0, bmw = 0;
+	u32 winmd = 0, winmd_mask = 0, bmw = 0 , tmp = 0, clk_div;
 
 	_davinci_disp_set_cbcr_order(lconfig->pixfmt);
 
@@ -1821,11 +1822,26 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 			switch (lconfig->pixfmt) {
 			case PIXFMT_RGB565:
 				winmd |= (1 << OSD_OSDWIN0MD_BMP0MD_SHIFT);
+				tmp = get_vpbe_encoder_clock_divisor();
+				tmp %= 8;
+				tmp >>= 1;
+				if (tmp) {
+					winmd |= (tmp << OSD_OSDWIN0MD_OHZ0_SHIFT);
+					tmp >>= 1;
+					winmd |= (tmp << OSD_OSDWIN0MD_OVZ0_SHIFT);
+				}
 				break;
 			case PIXFMT_RGB888:
 				winmd |= (2 << OSD_OSDWIN0MD_BMP0MD_SHIFT);
 				_davinci_disp_enable_rgb888_pixblend
 				    (OSDWIN_OSD0);
+				tmp = get_vpbe_encoder_clock_divisor();
+				tmp %= 8;
+				tmp >>=1;
+				if (tmp) {
+					winmd |= tmp << OSD_OSDWIN0MD_OHZ0_SHIFT;
+					winmd |= tmp << OSD_OSDWIN0MD_OVZ0_SHIFT;
+				}
 				break;
 			case PIXFMT_YCbCrI:
 			case PIXFMT_YCrCbI:
@@ -1836,7 +1852,7 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 			}
 		}
 
-		winmd_mask |= OSD_OSDWIN0MD_BMW0 | OSD_OSDWIN0MD_OFF0;
+		winmd_mask |= OSD_OSDWIN0MD_BMW0 | OSD_OSDWIN0MD_OFF0 | OSD_OSDWIN0MD_OVZ0 | OSD_OSDWIN0MD_OHZ0;
 
 		switch (lconfig->pixfmt) {
 		case PIXFMT_1BPP:
@@ -1856,13 +1872,14 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 		}
 		winmd |= (bmw << OSD_OSDWIN0MD_BMW0_SHIFT);
 
-		if (lconfig->interlaced)
+		if (!lconfig->interlaced)
 			winmd |= OSD_OSDWIN0MD_OFF0;
 
+		clk_div = get_vpbe_encoder_clock_divisor();
 		osd_merge(winmd_mask, winmd, OSD_OSDWIN0MD);
 		osd_write(lconfig->line_length >> 5, OSD_OSDWIN0OFST);
 		osd_write(lconfig->xpos, OSD_OSDWIN0XP);
-		osd_write(lconfig->xsize, OSD_OSDWIN0XL);
+		osd_write(lconfig->xsize * clk_div, OSD_OSDWIN0XL);
 		if (lconfig->interlaced) {
 			osd_write(lconfig->ypos >> 1, OSD_OSDWIN0YP);
 			osd_write(lconfig->ysize >> 1, OSD_OSDWIN0YL);
@@ -2330,6 +2347,7 @@ static int davinci_osd_probe(struct platform_device *pdev)
 {
 	struct davinci_osd_platform_data *pdata = pdev->dev.platform_data;
 	struct resource *res;
+
 
 	osd->dev = &pdev->dev;
 

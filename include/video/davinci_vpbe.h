@@ -309,6 +309,8 @@ struct davinci_venc_platform_data {
 #define VENC_SYNCCTL_OVD_SHIFT   		14
 #define VENC_SYNCCTL_OVD  			(1 << 14)
 
+#define VENC_DCLKCTL_DCKIM_SHIFT		15
+#define VENC_DCLKCTL_DCKIM			(1 << 15)
 #define VENC_DCLKCTL_DCKEC_SHIFT		11
 #define VENC_DCLKCTL_DCKEC			(1 << 11)
 #define VENC_DCLKCTL_DCKPW_SHIFT		0

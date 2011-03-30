@@ -35,6 +35,7 @@
 #include <media/davinci/vid_encoder_types.h>
 #include <video/davinci_vpbe.h>
 #include <video/davinci_osd.h>
+#include <media/davinci/vpbe_encoder.h>
 #include <media/davinci/davinci_enc_mngr.h>
 #include <media/davinci/davinci_platform.h>
 #include "../ths7303.h"
@@ -127,6 +128,7 @@ char *davinci_modes[] = {
 	VID_ENC_STD_640x350,
 	VID_ENC_STD_480x272,
 	VID_ENC_STD_800x480,
+	VID_ENC_STD_NON_STANDARD,
 	""
 };
 
@@ -157,6 +159,8 @@ static __inline__ u32 dispc_reg_merge(u32 offset, u32 val, u32 mask)
 
 u32 venc_reg_in(u32 offset)
 {
+	if (!venc->venc_base)
+		return 0;
 	return (__raw_readl(venc->venc_base + offset));
 }
 EXPORT_SYMBOL(venc_reg_in);
@@ -798,11 +802,15 @@ static void davinci_enc_set_625p(struct vid_enc_mode_info *mode_info)
 /* This function sets the display timing from the fb_info structure*/
 void davinci_enc_set_display_timing(struct vid_enc_mode_info *mode)
 {
-	dispc_reg_out(VENC_HSPLS, mode->hsync_len);
-	dispc_reg_out(VENC_HSTART, mode->left_margin);
-	dispc_reg_out(VENC_HVALID, mode->xres);
+	int d;
+
+	d = get_vpbe_encoder_clock_divisor();
+	dispc_reg_out(VENC_HSPLS, mode->hsync_len * d);
+	dispc_reg_out(VENC_HSTART, mode->left_margin * d);
+	dispc_reg_out(VENC_HVALID, mode->xres * d);
 	dispc_reg_out(VENC_HINT,
-		      mode->xres + mode->left_margin + mode->right_margin - 1);
+		      (mode->xres + mode->left_margin + mode->right_margin)
+								      * d - 1);
 
 	dispc_reg_out(VENC_VSPLS, mode->vsync_len);
 	dispc_reg_out(VENC_VSTART, mode->upper_margin);
@@ -1182,7 +1190,8 @@ void davinci_enc_priv_setmode(struct vid_enc_device_mgr *mgr)
 		strcmp(mgr->current_mode.name, VID_ENC_STD_640x400) == 0 ||
 		strcmp(mgr->current_mode.name, VID_ENC_STD_640x350) == 0 ||
 		strcmp(mgr->current_mode.name, VID_ENC_STD_480x272) == 0 ||
-		strcmp(mgr->current_mode.name, VID_ENC_STD_800x480) == 0) {
+		strcmp(mgr->current_mode.name, VID_ENC_STD_800x480) == 0 ||
+		strcmp(mgr->current_mode.name, VID_ENC_STD_NON_STANDARD) == 0) {
 		davinci_enc_set_prgb(&mgr->current_mode);
 	} else if (strcmp(mgr->current_mode.name, VID_ENC_STD_720P_60) == 0) {
 		/* DM365 has built-in HD DAC; otherwise, they depend on
@@ -1210,7 +1219,9 @@ void davinci_enc_priv_setmode(struct vid_enc_device_mgr *mgr)
 			davinci_enc_set_basep(0, 0xd0, 10);
 		} else
 			davinci_enc_set_1080i(&mgr->current_mode);
-	}
+	} else
+		davinci_enc_set_prgb(&mgr->current_mode);
+
 
 	/* turn off ping-pong buffer and field inversion to fix
 	 * the image shaking problem in 1080I mode. The problem i.d. by the
@@ -1226,7 +1237,6 @@ void davinci_enc_priv_setmode(struct vid_enc_device_mgr *mgr)
 
 void davinci_enc_set_mode_platform(int channel, struct vid_enc_device_mgr *mgr)
 {
-
 	if (0 == mgr->current_mode.std) {
 		davinci_enc_set_display_timing(&mgr->current_mode);
 		return;
@@ -1284,7 +1294,7 @@ static int davinci_venc_remove(struct platform_device *pdev)
 	if (venc->venc_base)
 		iounmap((void *)venc->venc_base);
 	release_mem_region(venc->venc_base_phys, venc->venc_size);
-	
+
 	return 0;
 }
 
@@ -1320,7 +1330,6 @@ static int davinci_platform_init(void)
 		return -ENODEV;
 	}
 
-	
 	return 0;
 }
 

@@ -128,6 +128,7 @@ static struct clk pll1_sysclk6 = {
 	.parent		= &pll1_clk,
 	.flags		= CLK_PLL,
 	.div_reg	= PLLDIV6,
+	.set_rate	= davinci_set_sysclk_rate,
 };
 
 static struct clk pll1_sysclk7 = {
@@ -639,6 +640,7 @@ MUX_CFG(DM365,	GPIO103,	0,   0,     1,	  1,	 false)
 MUX_CFG(DM365,	VOUT_FIELD,	1,   18,    3,	  1,	 false)
 MUX_CFG(DM365,	VOUT_FIELD_G81,	1,   18,    3,	  0,	 false)
 MUX_CFG(DM365,	VOUT_HVSYNC,	1,   16,    1,	  0,	 false)
+MUX_CFG(DM365,	VOUT_OE,	1,   17,    1,	  0,	 false)
 MUX_CFG(DM365,	VOUT_COUTL_EN,	1,   0,     0xff, 0x55,  false)
 MUX_CFG(DM365,	VOUT_COUTH_EN,	1,   8,     0xff, 0x55,  false)
 MUX_CFG(DM365,	VIN_CAM_WEN,	0,   14,    3,	  0,	 false)

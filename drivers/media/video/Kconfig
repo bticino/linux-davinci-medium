@@ -25,7 +25,7 @@ config VIDEOBUF_VMALLOC
 	tristate
 
 config VIDEOBUF_DMA_CONTIG
-	depends on HAS_DMA
+	depends on  HAS_DMA
 	select VIDEOBUF_GEN
 	tristate
 
@@ -670,6 +670,7 @@ config VIDEO_VIVI
 config VIDEO_VPSS_SYSTEM
 	tristate "VPSS System module driver"
 	depends on ARCH_DAVINCI
+	select VIDEOBUF_DMA_CONTIG
 	help
 	  Support for vpss system module for video driver
 	default y

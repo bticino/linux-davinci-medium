@@ -227,6 +227,7 @@ struct vid_enc_mode_info {
 	unsigned int hsync_len;
 	unsigned int vsync_len;
 	unsigned int flags;
+	unsigned int pixclock;
 };
 
 #endif				/* #ifdef __KERNEL__ */
