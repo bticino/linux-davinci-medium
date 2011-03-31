@@ -37,6 +37,8 @@
 #include <sound/soc-dai.h>
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
+#include <sound/tlv.h>
+
 
 #include <mach/dm365.h>
 
@@ -60,25 +62,81 @@ static inline int cq93vc_write(struct snd_soc_codec *codec, unsigned int reg,
 	return 0;
 }
 
+
+static const char *enbyp_txt[] = {
+	"Enabled", "Bypass",
+};
+
+static const char *endis_txt[] = {
+	"Disabled", "Enabled"
+};
+
+static const struct soc_enum hpf =
+SOC_ENUM_SINGLE(DAVINCI_VC_REG04, 3, 2, enbyp_txt);
+
+static const struct soc_enum nf =
+SOC_ENUM_SINGLE(DAVINCI_VC_REG04, 1, 2, enbyp_txt);
+
+static const char *gaa_txt[] = {
+	"20dB", "26dB",
+};
+
+static const struct soc_enum gaa =
+SOC_ENUM_SINGLE(DAVINCI_VC_REG05, 2, 2, gaa_txt);
+
+static const DECLARE_TLV_DB_SCALE(dac_at_scale, -6300, 100, 1);
+
+static const char *soft_mute_txt[] = {
+	"OFF",
+	"ON",
+};
+
+static const struct soc_enum soft_mute =
+SOC_ENUM_SINGLE(DAVINCI_VC_REG09, 6, 2, soft_mute_txt);
+
+static const struct soc_enum alc =
+SOC_ENUM_SINGLE(DAVINCI_VC_REG06, 0, 2, endis_txt);
+
+static const struct soc_enum zcaen =
+SOC_ENUM_SINGLE(DAVINCI_VC_REG05, 4, 2, endis_txt);
+
+static const struct soc_enum zcren =
+SOC_ENUM_SINGLE(DAVINCI_VC_REG05, 3, 2, endis_txt);
+
 static const struct snd_kcontrol_new cq93vc_snd_controls[] = {
-	SOC_SINGLE("PGA Capture Volume", DAVINCI_VC_REG05, 0, 0x03, 0),
-	SOC_SINGLE("Mono DAC Playback Volume", DAVINCI_VC_REG09, 0, 0x3f, 0),
+	SOC_SINGLE("PGA Capture Volume", DAVINCI_VC_REG05, 0, 0x3, 0),
+	SOC_SINGLE_TLV("Mono DAC Playback Volume", DAVINCI_VC_REG09, 0, 0x3f,
+		       0, dac_at_scale),
+	SOC_ENUM("High Pass Filter", hpf),
+	SOC_ENUM("Notch Filter", nf),
+	SOC_ENUM("Mic amplifier gain", gaa),
+	SOC_ENUM("Soft mute", soft_mute),
+	SOC_ENUM("ALC", alc),
+	SOC_ENUM("ZC for ALC", zcaen),
+	SOC_ENUM("ZC for MIC gain and PGA update", zcren),
 };
 
 static const struct snd_soc_dapm_widget cq93vc_dapm_widgets[] = {
 	SND_SOC_DAPM_DAC("DAC", "Playback", DAVINCI_VC_REG12, 5, 0),
 	SND_SOC_DAPM_ADC("ADC", "Capture", DAVINCI_VC_REG12, 4, 0),
+	SND_SOC_DAPM_MICBIAS("Mic Bias", DAVINCI_VC_REG12, 2, 0),
+	SND_SOC_DAPM_PGA("Mic Input", DAVINCI_VC_REG12, 3, 0, NULL, 0),
 	SND_SOC_DAPM_INPUT("MICIN"),
+	SND_SOC_DAPM_PGA("Spkr Output", DAVINCI_VC_REG12, 7, 0, NULL, 0),
 	SND_SOC_DAPM_OUTPUT("SP"),
+	SND_SOC_DAPM_PGA("Line Output", DAVINCI_VC_REG12, 6, 0, NULL, 0),
 	SND_SOC_DAPM_OUTPUT("LINEO"),
 };
 
 static const struct snd_soc_dapm_route intercon[] = {
 	/* Inputs */
-	{"ADC", NULL, "MICIN"},
+	{"ADC", NULL, "Mic Input"},
+	{ "Mic Input", NULL, "MICIN" },
 	/* Outputs */
-	{"SP", NULL, "DAC"},
-	{"LINEO", NULL, "DAC"},
+	{"Spkr Output", NULL, "DAC"},
+	{"SP", NULL, "Spkr Output"},
+	{"Line Output", NULL, "DAC"},
+	{"LINEO", NULL, "Line Output"},
 };
 
 static int cq93vc_mute(struct snd_soc_dai *dai, int mute)
@@ -115,24 +173,27 @@ static int cq93vc_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 static int cq93vc_set_bias_level(struct snd_soc_codec *codec,
 				enum snd_soc_bias_level level)
 {
+	unsigned int tmp;
+	tmp = cq93vc_read(codec, DAVINCI_VC_REG12);
 	switch (level) {
 	case SND_SOC_BIAS_ON:
 		pr_debug("SND_SOC_BIAS_ON\n");
 		cq93vc_write(codec, DAVINCI_VC_REG12,
-			     DAVINCI_VC_REG12_POWER_ALL_ON);
+			     tmp |
+			     (DAVINCI_VC_REG12_PDBS|DAVINCI_VC_REG12_PDCM));
 		break;
 	case SND_SOC_BIAS_PREPARE:
 		break;
 	case SND_SOC_BIAS_STANDBY:
 		pr_debug("SND_SOC_BIAS_STANDBY\n");
 		cq93vc_write(codec, DAVINCI_VC_REG12,
-			     DAVINCI_VC_REG12_POWER_ALL_OFF);
+			     tmp & ~DAVINCI_VC_REG12_PDBS);
 		break;
 	case SND_SOC_BIAS_OFF:
 		/* force all power off */
 		pr_debug("SND_SOC_BIAS_OFF\n");
 		cq93vc_write(codec, DAVINCI_VC_REG12,
-			     DAVINCI_VC_REG12_POWER_ALL_OFF);
+			     tmp & ~DAVINCI_VC_REG12_PDBS);
 		break;
 	}
 	codec->bias_level = level;
