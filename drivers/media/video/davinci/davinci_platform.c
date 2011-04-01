@@ -430,6 +430,9 @@ static void remove_sysfs_files(struct system_device *dev)
  * Description:
  *  Select the venc input clock based on the clk value.
  */
+
+void enable_hd_clk(void) {};
+
 int davinci_enc_select_venc_clock(int clk)
 {
 	struct clk *pll1_venc_clk, *pll2_venc_clk;
@@ -532,6 +535,8 @@ static int tvp73xx_setup_channel(u8 device, enum ths73xx_filter_mode mode)
 	return 0;
 }
 #endif
+
+void enable_lcd(void) {};
 
 static void enableDigitalOutput(int bEnable)
 {
