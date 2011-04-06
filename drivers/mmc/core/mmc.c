@@ -128,7 +128,7 @@ static int mmc_decode_csd(struct mmc_card *card)
 		return -EINVAL;
 	}
 
-	csd->mmca_vsn	 = CSD_SPEC_VER_3; // UNSTUFF_BITS(resp, 122, 4);
+	csd->mmca_vsn	 = UNSTUFF_BITS(resp, 122, 4);
 	m = UNSTUFF_BITS(resp, 115, 4);
 	e = UNSTUFF_BITS(resp, 112, 3);
 	csd->tacc_ns	 = (tacc_exp[e] * tacc_mant[m] + 9) / 10;
@@ -242,7 +242,9 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 			ext_csd[EXT_CSD_SEC_CNT + 1] << 8 |
 			ext_csd[EXT_CSD_SEC_CNT + 2] << 16 |
 			ext_csd[EXT_CSD_SEC_CNT + 3] << 24;
-		if (card->ext_csd.sectors)
+		
+		/* Cards with density > 2GiB are sector addressed */
+		if (card->ext_csd.sectors > (2u * 1024 * 1024 * 1024) / 512)
 			mmc_card_set_blockaddr(card);
 	}
 
