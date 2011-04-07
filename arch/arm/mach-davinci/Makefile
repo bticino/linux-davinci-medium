@@ -35,5 +35,5 @@ obj-$(CONFIG_MACH_DAVINCI_DM6467_EVM)	+= board-dm646x-evm.o cdce949.o
 obj-$(CONFIG_MACH_DAVINCI_DM365_EVM)	+= board-dm365-evm.o
 obj-$(CONFIG_MACH_DAVINCI_DA830_EVM)	+= board-da830-evm.o
 obj-$(CONFIG_MACH_DAVINCI_DA850_EVM)	+= board-da850-evm.o
-obj-$(CONFIG_MACH_BASI)			+= board-basi.o
+obj-$(CONFIG_MACH_BASI)			+= board-basi.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_DINGO)		+= board-dingo.o bt_nexmed-hwmon.o

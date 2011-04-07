@@ -210,6 +210,22 @@ static void basi_emac_configure(void)
 	davinci_cfg_reg(DM365_INT_EMAC_MISCPULSE);
 }
 
+static struct davinci_adc_platform_data basi_adc_data = {
+	.adc_configuration = ADC_CH0_EANBLE | ADC_CH1_EANBLE | ADC_CH2_EANBLE |
+			     ADC_CH3_EANBLE | ADC_CH4_EANBLE | ADC_CH5_EANBLE |
+			     ADC_CH0_ONESHOOT | ADC_CH1_ONESHOOT |
+			     ADC_CH2_ONESHOOT | ADC_CH3_ONESHOOT |
+			     ADC_CH4_ONESHOOT | ADC_CH5_ONESHOOT,
+};
+
+static struct platform_device basi_hwmon_device = {
+	.name = "bt_nexmed_hwmon",
+	.dev = {
+		.platform_data = &basi_adc_data,
+		},
+	.id = 0,
+};
+
 static void pinmux_check(void)
 {
 	void __iomem *pinmux_reg[] = {
@@ -679,6 +695,7 @@ static void __init basi_init_i2c(void)
 
 static struct platform_device *basi_devices[] __initdata = {
 	&basi_asoc_device[0],
+	&basi_hwmon_device,
 };
 
 static struct davinci_uart_config uart_config __initdata = {
@@ -746,6 +763,7 @@ static __init void basi_init(void)
 	dm365_init_vc(&dm365_basi_snd_data);
 	platform_add_devices(basi_devices, ARRAY_SIZE(basi_devices));
 	dm365_init_rtc();
+	dm365_init_adc(&basi_adc_data);
 
 	if (basi_debug)
 		pinmux_check();
