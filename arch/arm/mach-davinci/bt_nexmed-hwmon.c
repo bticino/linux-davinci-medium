@@ -28,7 +28,12 @@
 
 #include <mach/adc.h>
 
-#include <mach/dingo.h>
+struct nexmed_hwmon {
+	struct device *dev;
+	struct platform_device *pdev;
+	struct device *classdev;
+};
+
 
 #undef DEBUG
 
@@ -242,7 +247,7 @@ static SENSOR_DEVICE_ATTR(in4_label, S_IRUGO, show_label, NULL, ADC_SPEED);
 static SENSOR_DEVICE_ATTR(in5_input, S_IRUGO, show_cfg, NULL, ADC_LCD);
 static SENSOR_DEVICE_ATTR(in5_label, S_IRUGO, show_label, NULL, ADC_LCD);
 
-static struct attribute *dingo_hwmon_attr[] = {
+static struct attribute *nexmed_hwmon_attr[] = {
 	&dev_attr_name.attr,
 	&sensor_dev_attr_temp1_input.dev_attr.attr,
 	&sensor_dev_attr_temp1_label.dev_attr.attr,
@@ -257,18 +262,18 @@ static struct attribute *dingo_hwmon_attr[] = {
 	NULL,
 };
 
-static const struct attribute_group dingo_hwmon_group = {
-	.attrs = dingo_hwmon_attr,
+static const struct attribute_group nexmed_hwmon_group = {
+	.attrs = nexmed_hwmon_attr,
 };
 
-static int __init dingo_hwmon_probe(struct platform_device *pdev)
+static int __init nexmed_hwmon_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct device *dev;
 	struct davinci_adc_platform_data *adc_pl_data = pdev->dev.platform_data;
 
 	/* Register sysfs hooks */
-	ret = sysfs_create_group(&pdev->dev.kobj, &dingo_hwmon_group);
+	ret = sysfs_create_group(&pdev->dev.kobj, &nexmed_hwmon_group);
 	if (ret)
 		return ret;
 
@@ -277,7 +282,7 @@ static int __init dingo_hwmon_probe(struct platform_device *pdev)
 		ret = PTR_ERR(dev);
 		dev_err(&pdev->dev,
 				"hwmon_device_register failed with %d.\n", ret);
-		sysfs_remove_group(&pdev->dev.kobj, &dingo_hwmon_group);
+		sysfs_remove_group(&pdev->dev.kobj, &nexmed_hwmon_group);
 		return ret;
 	}
 	dev_set_drvdata(&pdev->dev, adc_pl_data);
@@ -286,13 +291,13 @@ static int __init dingo_hwmon_probe(struct platform_device *pdev)
 }
 
 
-static int __devexit dingo_hwmon_remove(struct platform_device *pdev)
+static int __devexit nexmed_hwmon_remove(struct platform_device *pdev)
 {
-	struct dingo_hwmon *dingo_hwmon = platform_get_drvdata(pdev);
+	struct nexmed_hwmon *nexmed_hwmon = platform_get_drvdata(pdev);
 
-	hwmon_device_unregister(dingo_hwmon->dev);
+	hwmon_device_unregister(nexmed_hwmon->dev);
 
-	sysfs_remove_group(&pdev->dev.kobj, &dingo_hwmon_group);
+	sysfs_remove_group(&pdev->dev.kobj, &nexmed_hwmon_group);
 
 	platform_set_drvdata(pdev, NULL);
 
@@ -300,26 +305,26 @@ static int __devexit dingo_hwmon_remove(struct platform_device *pdev)
 }
 
 
-static struct platform_driver dingo_hwmon_driver = {
-	.probe		= dingo_hwmon_probe,
-	.remove         = __devexit_p(dingo_hwmon_remove),
+static struct platform_driver nexmed_hwmon_driver = {
+	.probe		= nexmed_hwmon_probe,
+	.remove         = __devexit_p(nexmed_hwmon_remove),
 	.driver         = {
 		.owner  = THIS_MODULE,
 		.name   = "bt_nexmed_hwmon",
 	},
 };
 
-static int __init dingo_hwmon_init(void)
+static int __init nexmed_hwmon_init(void)
 {
-	return platform_driver_register(&dingo_hwmon_driver);
+	return platform_driver_register(&nexmed_hwmon_driver);
 }
-module_init(dingo_hwmon_init);
+module_init(nexmed_hwmon_init);
 
-static void __exit dingo_hwmon_exit(void)
+static void __exit nexmed_hwmon_exit(void)
 {
-	platform_driver_unregister(&dingo_hwmon_driver);
+	platform_driver_unregister(&nexmed_hwmon_driver);
 }
-module_exit(dingo_hwmon_exit);
+module_exit(nexmed_hwmon_exit);
 
 MODULE_DESCRIPTION("bt_nexmed_hwmon driver");
 MODULE_AUTHOR("Davide Bonfanti");

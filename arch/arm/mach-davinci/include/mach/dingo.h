@@ -141,12 +141,4 @@
  */
 #define RX_TX485		42
 
-struct dingo_hwmon {
-	struct device *dev;
-	struct platform_device *pdev;
-	struct device *classdev;
-};
-
-
-
 #endif /* ASM_ARCH_DINGO_H */
