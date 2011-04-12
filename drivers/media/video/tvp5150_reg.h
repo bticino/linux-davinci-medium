@@ -47,6 +47,24 @@
 
 #define TVP5150_VIDEO_STD           0x28 /* Video standard */
 
+/*
+ * Mask and bit definitions of TVP5146/47 registers
+ */
+/* The ID values we are looking for */
+#define TVP515X_CHIP_ID_MSB		(0x51)
+#define TVP5150_CHIP_ID_LSB		(0x50)
+#define TVP5151_CHIP_ID_LSB		(0x51)
+
+#define VIDEO_STD_MASK                  (0x0e)
+#define VIDEO_STD_AUTO_SWITCH_BIT       (0x00)
+#define VIDEO_STD_NTSC_MJ_BIT           (0x01)
+#define VIDEO_STD_PAL_BDGHIN_BIT        (0x02)
+#define VIDEO_STD_PAL_M_BIT             (0x03)
+#define VIDEO_STD_PAL_COMBINATION_N_BIT (0x04)
+#define VIDEO_STD_NTSC_4_43_BIT         (0x05)
+#define VIDEO_STD_SECAM_BIT             (0x06)
+#define VIDEO_STD_PAL_60_BIT            (0x07)
+
 /* Reserved 29h-2bh */
 
 #define TVP5150_CB_GAIN_FACT        0x2c /* Cb gain factor */
@@ -119,6 +137,18 @@
 /* Line mode registers */
 #define TVP5150_LINE_MODE_INI       0xd0
 #define TVP5150_LINE_MODE_END       0xfb
+
+/*
+ * Status bit
+ */
+#define STATUS_TV_VCR_BIT               (1<<0)
+#define STATUS_HORZ_SYNC_LOCK_BIT       (1<<1)
+#define STATUS_VIRT_SYNC_LOCK_BIT       (1<<2)
+#define STATUS_CLR_SUBCAR_LOCK_BIT      (1<<3)
+#define STATUS_LOST_LOCK_DETECT_BIT     (1<<4)
+#define STATUS_FEILD_RATE_BIT           (1<<5)
+#define STATUS_LINE_ALTERNATING_BIT     (1<<6)
+#define STATUS_PEAK_WHITE_DETECT_BIT    (1<<7)
 
 #define TVP5150_FULL_FIELD_MODE_REG 0xfc /* Full field mode register */
 /* Reserved	FDh-FFh */
