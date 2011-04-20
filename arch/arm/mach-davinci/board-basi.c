@@ -74,12 +74,21 @@ static int basi_debug = 1;
 module_param(basi_debug, int, 0644);
 MODULE_PARM_DESC(basi_debug, "Debug level 0-1");
 
+/*
+wp_set: set/unset the at24 eeprom write protect
+*/
+void wp_set(int enable)
+{
+	gpio_direction_output(E2_WPn, enable);
+}
+
 static struct at24_platform_data at24_info = {
 	.byte_len = (256 * 1024) / 8,
 	.page_size = 64,
 	.flags = AT24_FLAG_ADDR16,
 	.setup = davinci_get_mac_addr,
 	.context = (void *)0x19e,       /* where it gets the mac-address */
+	.wpset = wp_set,
 };
 
 static struct tda9885_platform_data tda9885_defaults = {
