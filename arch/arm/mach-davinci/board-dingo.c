@@ -104,6 +104,13 @@ MODULE_PARM_DESC(dingo_debug, "Debug level 0-1");
 
 static void dingo_bl_set_intensity(int level);
 
+/*
+wp_set: set/unset the at24 eeprom write protect
+*/
+void wp_set(int enable)
+{
+	gpio_direction_output(E2_WP, enable);
+}
 
 static struct at24_platform_data at24_info = {
 	.byte_len = (256 * 1024) / 8,
@@ -111,6 +118,7 @@ static struct at24_platform_data at24_info = {
 	.flags = AT24_FLAG_ADDR16,
 	.setup = davinci_get_mac_addr,
 	.context = (void *)0x19e,	/* where it gets the mac-address */
+	.wpset = wp_set,
 };
 
 static struct timer_list pf_debounce_timer;
