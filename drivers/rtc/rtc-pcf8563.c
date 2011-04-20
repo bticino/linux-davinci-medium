@@ -393,7 +393,8 @@ static int pcf8563_probe(struct i2c_client *client,
 
 	pcf8563_disable_alarm(client);
 
-	err = request_irq(client->irq, pcf8563_rtc_interrupt, 0,
+	if (client->irq)
+		err = request_irq(client->irq, pcf8563_rtc_interrupt, 0,
 			  "pcf8563_rtc", pcf8563);
 	if (err) {
 		printk("%s error requesting interrupt\n", __func__);
