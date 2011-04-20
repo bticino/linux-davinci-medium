@@ -86,9 +86,11 @@ static int pcf8563_get_datetime(struct i2c_client *client, struct rtc_time *tm)
 		return -EIO;
 	}
 
-	if (buf[PCF8563_REG_SC] & PCF8563_SC_LV)
+	if (buf[PCF8563_REG_SC] & PCF8563_SC_LV) {
 		dev_info(&client->dev,
 			"low voltage detected, date/time is not reliable.\n");
+		return -EINVAL;
+	}
 
 	dev_dbg(&client->dev,
 		"%s: raw data is st1=%02x, st2=%02x, sec=%02x, min=%02x, hr=%02x, "
@@ -118,13 +120,7 @@ static int pcf8563_get_datetime(struct i2c_client *client, struct rtc_time *tm)
 		tm->tm_sec, tm->tm_min, tm->tm_hour,
 		tm->tm_mday, tm->tm_mon, tm->tm_year, tm->tm_wday);
 
-	/* the clock can give out invalid datetime, but we cannot return
-	 * -EINVAL otherwise hwclock will refuse to set the time on bootup.
-	 */
-	if (rtc_valid_tm(tm) < 0)
-		dev_err(&client->dev, "retrieved date/time is not valid.\n");
-
-	return 0;
+	return rtc_valid_tm(tm);
 }
 
 static int pcf8563_set_datetime(struct i2c_client *client, struct rtc_time *tm)
