@@ -79,7 +79,7 @@ static struct at24_platform_data at24_info = {
 	.page_size = 64,
 	.flags = AT24_FLAG_ADDR16,
 	.setup = davinci_get_mac_addr,
-	.context = (void *)0x7f00,	/* where it gets the mac-address */
+	.context = (void *)0x19e,       /* where it gets the mac-address */
 };
 
 static struct tda9885_platform_data tda9885_defaults = {
