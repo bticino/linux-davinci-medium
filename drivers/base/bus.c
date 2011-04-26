@@ -932,6 +932,9 @@ int bus_register(struct bus_type *bus)
 	if (retval)
 		goto bus_attrs_fail;
 
+#ifdef CONFIG_PM_LOSS
+	pm_loss_on_bus_added(bus);
+#endif
 	pr_debug("bus: '%s': registered\n", bus->name);
 	return 0;
 
@@ -962,6 +965,9 @@ EXPORT_SYMBOL_GPL(bus_register);
 void bus_unregister(struct bus_type *bus)
 {
 	pr_debug("bus: '%s': unregistering\n", bus->name);
+#ifdef CONFIG_PM_LOSS
+	pm_loss_on_bus_removed(bus);
+#endif
 	bus_remove_attrs(bus);
 	remove_probe_files(bus);
 	kset_unregister(bus->p->drivers_kset);

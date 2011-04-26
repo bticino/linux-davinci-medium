@@ -39,6 +39,7 @@ extern void (*pm_power_off_prepare)(void);
  */
 
 struct device;
+enum sys_power_state ;
 
 typedef struct pm_message {
 	int event;
@@ -191,6 +192,10 @@ typedef struct pm_message {
  *	power state if all of the necessary conditions are satisfied.  Check
  *	these conditions and handle the device as appropriate, possibly queueing
  *	a suspend request for it.  The return value is ignored by the PM core.
+ *
+ * @power_changed: device power has changed state (used by pm_loss). This
+ *      is invoked whenever system power changes its state (from GOOD to
+ *      FAILING or viceversa)
  */
 
 struct dev_pm_ops {
@@ -211,6 +216,7 @@ struct dev_pm_ops {
 	int (*runtime_suspend)(struct device *dev);
 	int (*runtime_resume)(struct device *dev);
 	int (*runtime_idle)(struct device *dev);
+	int (*power_changed)(struct device *, enum sys_power_state);
 };
 
 /*
@@ -405,6 +411,16 @@ enum rpm_request {
 	RPM_REQ_IDLE,
 	RPM_REQ_SUSPEND,
 	RPM_REQ_RESUME,
+};
+
+/**
+ * System power states
+ *
+ */
+enum sys_power_state {
+	SYS_PWR_GOOD = 0,
+	SYS_PWR_FAILING,
+	SYS_PWR_NOTIFYING,
 };
 
 struct dev_pm_info {

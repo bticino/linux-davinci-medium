@@ -10,6 +10,7 @@
 #include <linux/memory.h>
 
 #include "base.h"
+#include "power/power.h"
 
 /**
  * driver_init - initialize driver model.

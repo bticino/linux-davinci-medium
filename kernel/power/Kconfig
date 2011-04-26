@@ -222,3 +222,30 @@ config PM_RUNTIME
 	  and the bus type drivers of the buses the devices are on are
 	  responsible for the actual handling of the autosuspend requests and
 	  wake-up events.
+
+config PM_LOSS
+	bool "Help drivers reacting to system power losses"
+	depends on PM
+	---help---
+	  Enable power loss management. On some embedded systems, an
+          asynchronous power failure notification event is sometimes available
+	  less than one second before the actual power failure takes place.
+	  Custom policies can be setup to react to such an event. See
+	  Documentation/power/loss.txt for more details.
+	  If unsure, say No.
+
+config PM_LOSS_SIM
+	bool "Simulate power fail events"
+	depends on PM_LOSS
+	---help---
+	  Add the /sys/power/loss/pwrfail_sim file. Do
+		echo 1 > /sys/power/loss/pwrfail_sim
+	  to simulate a power failure and
+		echo 0 > /sys/power/loss/pwrfail_sim
+	  to simulate a power resume
+
+config PM_LOSS_DEBUG
+	bool "Enable power fail debug"
+	depends on PM_LOSS
+	---help---
+	This option enables debugging printk's for the PM_LOSS framework

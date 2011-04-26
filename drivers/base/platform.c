@@ -19,6 +19,7 @@
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
+#include <linux/pm_loss.h>
 
 #include "base.h"
 
@@ -923,6 +924,18 @@ int __weak platform_pm_runtime_idle(struct device *dev)
 
 #endif /* !CONFIG_PM_RUNTIME */
 
+#ifdef CONFIG_PM_LOSS
+
+int __weak platform_pm_loss_power_changed(struct device *dev,
+					  enum sys_power_state s)
+{
+	return -ENOSYS;
+}
+
+#else
+#define platform_pm_loss_power_changed NULL
+#endif
+
 static const struct dev_pm_ops platform_dev_pm_ops = {
 	.prepare = platform_pm_prepare,
 	.complete = platform_pm_complete,
@@ -941,6 +954,7 @@ static const struct dev_pm_ops platform_dev_pm_ops = {
 	.runtime_suspend = platform_pm_runtime_suspend,
 	.runtime_resume = platform_pm_runtime_resume,
 	.runtime_idle = platform_pm_runtime_idle,
+	.power_changed = platform_pm_loss_power_changed,
 };
 
 struct bus_type platform_bus_type = {

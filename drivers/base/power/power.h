@@ -10,6 +10,20 @@ static inline void pm_runtime_remove(struct device *dev) {}
 
 #endif /* !CONFIG_PM_RUNTIME */
 
+#ifdef CONFIG_PM_LOSS
+
+extern void pm_loss_init(void) ;
+extern void pm_loss_on_bus_added(struct bus_type *);
+extern void pm_loss_on_bus_removed(struct bus_type *);
+
+#else /* !CONFIG_PM_LOSS */
+
+static inline void pm_loss_init(void) {}
+static inline void pm_loss_on_bus_added(struct bus_type *b) {};
+static inline void pm_loss_on_bus_removed(struct bus_type *b) {};
+
+#endif
+
 #ifdef CONFIG_PM_SLEEP
 
 /*
