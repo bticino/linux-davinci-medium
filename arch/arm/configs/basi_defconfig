@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32.17-davinci1
-# Tue Apr 19 08:47:53 2011
+# Thu Apr 28 11:43:11 2011
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -138,7 +138,7 @@ CONFIG_DEFAULT_AS=y
 # CONFIG_DEFAULT_CFQ is not set
 # CONFIG_DEFAULT_NOOP is not set
 CONFIG_DEFAULT_IOSCHED="anticipatory"
-# CONFIG_FREEZER is not set
+CONFIG_FREEZER=y
 
 #
 # System Type
@@ -326,7 +326,16 @@ CONFIG_HAVE_AOUT=y
 #
 # Power management options
 #
-# CONFIG_PM is not set
+CONFIG_PM=y
+# CONFIG_PM_DEBUG is not set
+CONFIG_PM_SLEEP=y
+CONFIG_SUSPEND=y
+CONFIG_SUSPEND_FREEZER=y
+# CONFIG_APM_EMULATION is not set
+# CONFIG_PM_RUNTIME is not set
+CONFIG_PM_LOSS=y
+CONFIG_PM_LOSS_SIM=y
+# CONFIG_PM_LOSS_DEBUG is not set
 CONFIG_ARCH_SUSPEND_POSSIBLE=y
 CONFIG_NET=y
 
@@ -561,6 +570,7 @@ CONFIG_MISC_DEVICES=y
 # CONFIG_ICS932S401 is not set
 # CONFIG_ENCLOSURE_SERVICES is not set
 # CONFIG_ISL29003 is not set
+# CONFIG_ZL38005 is not set
 # CONFIG_C2PORT is not set
 
 #
@@ -1174,6 +1184,7 @@ CONFIG_USB=y
 CONFIG_USB_DEVICEFS=y
 CONFIG_USB_DEVICE_CLASS=y
 # CONFIG_USB_DYNAMIC_MINORS is not set
+# CONFIG_USB_SUSPEND is not set
 # CONFIG_USB_OTG is not set
 # CONFIG_USB_OTG_WHITELIST is not set
 # CONFIG_USB_OTG_BLACKLIST_HUB is not set
