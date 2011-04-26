@@ -158,7 +158,8 @@ static struct kset_uevent_ops bus_uevent_ops = {
 	.filter = bus_uevent_filter,
 };
 
-static struct kset *bus_kset;
+struct kset *bus_kset;
+EXPORT_SYMBOL(bus_kset);
 
 
 #ifdef CONFIG_HOTPLUG
