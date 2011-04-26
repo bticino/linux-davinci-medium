@@ -35,6 +35,8 @@
 #include <linux/backlight.h>
 #include <linux/serial_8250.h>
 #include <linux/irq.h>
+#include <linux/list.h>
+#include <linux/pm_loss.h>
 
 #include <media/soc_camera.h>
 
@@ -405,35 +407,118 @@ static void __init basi_gpio_init_irq(void)
 	set_irq_chained_handler(IRQ_DM365_GPIO0, basi_gpio_irq_handler);
 }
 
+/* Power failure stuff */
+#ifdef CONFIG_PM_LOSS
+
+static int powerfail_status;
+
 static irqreturn_t basi_powerfail_stop(int irq, void *dev_id);
 
-static irqreturn_t basi_powerfail_start(int irq, void *dev_id)
+static irqreturn_t basi_powerfail_quick_check_start(int irq, void *dev_id)
 {
 	basi_mask_irq_gpio0(IRQ_DM365_GPIO0_2);
 	basi_unmask_irq_gpio0(IRQ_DM365_GPIO0_0);
 
 	/* PowerFail situation - START: power is going away */
+	return IRQ_WAKE_THREAD;
+}
+
+static irqreturn_t basi_powerfail_start(int irq, void *dev_id)
+{
+	if (powerfail_status)
+		return IRQ_HANDLED;
+	powerfail_status = 1;
+	pm_loss_power_changed(SYS_PWR_FAILING);
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t basi_powerfail_stop(int irq, void *dev_id)
+
+static irqreturn_t basi_powerfail_quick_check_stop(int irq, void *dev_id)
 {
 	basi_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
 	basi_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
 
 	/* PowerFail situation - STOP: power is coming back */
+	return IRQ_WAKE_THREAD;
+}
+
+static irqreturn_t basi_powerfail_stop(int irq, void *dev_id)
+{
+	if (!powerfail_status)
+		return IRQ_HANDLED;
+	powerfail_status = 0;
+	pm_loss_power_changed(SYS_PWR_GOOD);
 	return IRQ_HANDLED;
 }
 
+enum basi_pwrfail_prio {
+	BASI_PWR_FAIL_PRIO_0,
+	BASI_PWR_FAIL_MIN_PRIO = BASI_PWR_FAIL_PRIO_0,
+	BASI_PWR_FAIL_PRIO_1,
+	BASI_PWR_FAIL_PRIO_2,
+	BASI_PWR_FAIL_PRIO_3,
+	BASI_PWR_FAIL_MAX_PRIO = BASI_PWR_FAIL_PRIO_3,
+};
+
+struct pm_loss_default_policy_item basi_pm_loss_policy_items[] = {
+	{
+		.bus_name = "mmc",
+		.bus_priority = BASI_PWR_FAIL_MAX_PRIO,
+	},
+	{
+		.bus_name = "platform",
+		.bus_priority = BASI_PWR_FAIL_PRIO_2,
+	},
+};
+
+#define BASI_POLICY_NAME "basi-default"
+
+struct pm_loss_default_policy_table basi_pm_loss_policy_table = {
+	.name = BASI_POLICY_NAME,
+	.items = basi_pm_loss_policy_items,
+	.nitems = ARRAY_SIZE(basi_pm_loss_policy_items),
+};
+
 static void basi_powerfail_configure(void)
 {
-	int ret;
-	ret = request_irq(IRQ_DM365_GPIO0_2, basi_powerfail_start, 0,
-			  "pwrfail-on", NULL);
-	ret = request_irq(IRQ_DM365_GPIO0_0, basi_powerfail_stop, 0,
-			  "pwrfail-off", NULL);
+	int stat;
+	struct pm_loss_policy *p;
+	stat = request_threaded_irq(IRQ_DM365_GPIO0_2,
+				    basi_powerfail_quick_check_start,
+				    basi_powerfail_start,
+				    0,
+				    "pwrfail-on", NULL);
+	if (stat < 0)
+		printk(KERN_ERR "request_threaded_irq for IRQ%d (pwrfail-on) "
+		       "failed\n", IRQ_DM365_GPIO0_2);
+	stat = request_threaded_irq(IRQ_DM365_GPIO0_0,
+				    basi_powerfail_quick_check_stop,
+				    basi_powerfail_stop, 0,
+				    "pwrfail-off", NULL);
+	if (stat < 0)
+		printk(KERN_ERR "request_threaded_irq for IRQ%d (pwrfail-off) "
+		       "failed\n", IRQ_DM365_GPIO0_0);
 	basi_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	p = pm_loss_setup_default_policy(&basi_pm_loss_policy_table);
+
+	if (!p)
+		printk(KERN_ERR "Could not register pwr change policy\n");
+
+	if (pm_loss_set_policy(BASI_POLICY_NAME) < 0)
+		printk(KERN_ERR "Could not set %s power loss policy\n",
+		       BASI_POLICY_NAME);
 }
+
+int platform_pm_loss_power_changed(struct device *dev,
+				   enum sys_power_state s)
+{
+	/* PUT PLATFORM BUS SPECIFIC pm_loss STUFF HERE */
+	pr_debug_pm_loss("platform_pm_loss_power_changed(%d)\n", s);
+}
+
+#else /* !CONFIG_PM_LOSS */
+#define basi_powerfail_configure()
+#endif
 
 static void basi_gpio_configure(void)
 {
