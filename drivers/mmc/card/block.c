@@ -37,6 +37,9 @@
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sd.h>
 
+#include <linux/pm.h>
+#include <linux/pm_loss.h>
+
 #include <asm/system.h>
 #include <asm/uaccess.h>
 
@@ -757,14 +760,55 @@ static int mmc_blk_resume(struct mmc_card *card)
 	}
 	return 0;
 }
-#else
+
+#ifdef CONFIG_PM_LOSS
+
+#define dev_to_mmc_card(d)	container_of(d, struct mmc_card, dev)
+
+static int mmc_blk_power_changed(struct device *dev,
+				 enum sys_power_state s)
+{
+	struct mmc_card *card = dev_to_mmc_card(dev);
+	struct mmc_blk_data *md = mmc_get_drvdata(card);
+
+	switch (s) {
+	case SYS_PWR_GOOD:
+		pr_debug_pm_loss("mmc_blk_power_changed(%d)\n", s);
+		mmc_blk_set_blksize(md, card);
+		mmc_queue_resume(&md->queue);
+		break;
+	case SYS_PWR_FAILING:
+		pr_debug_pm_loss("mmc_blk_power_changed(%d)\n", s);
+		mmc_queue_suspend(&md->queue);
+		break;
+	default:
+		BUG();
+	}
+	return 0;
+}
+
+static const struct dev_pm_ops mmc_blk_pm_ops = {
+	.power_changed = mmc_blk_power_changed,
+};
+
+#define MMC_BLK_DEV_PM_OPS_PTR (&mmc_blk_pm_ops)
+
+#else /* !CONFIG_PM_LOSS */
+
+#define MMC_BLK_DEV_PM_OPS_PTR NULL
+
+#endif /* !CONFIG_PM_LOSS */
+
+#else /* !CONFIG_PM */
 #define	mmc_blk_suspend	NULL
 #define mmc_blk_resume	NULL
-#endif
+#define MMC_BLK_DEV_PM_OPS_PTR NULL
+#endif /* !CONFIG_PM */
 
 static struct mmc_driver mmc_driver = {
 	.drv		= {
 		.name	= "mmcblk",
+		.pm     = MMC_BLK_DEV_PM_OPS_PTR,
 	},
 	.probe		= mmc_blk_probe,
 	.remove		= mmc_blk_remove,

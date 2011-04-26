@@ -17,6 +17,8 @@
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
 
+#include <linux/pm_loss.h>
+
 #include "core.h"
 #include "sdio_cis.h"
 #include "bus.h"
@@ -136,6 +138,34 @@ static int mmc_bus_resume(struct device *dev)
 	return ret;
 }
 
+#ifdef CONFIG_PM_LOSS
+
+static int mmc_bus_power_changed(struct device *dev,
+				     enum sys_power_state s)
+{
+	int ret = 0;
+
+	pr_debug_pm_loss("mmc_bus_power_changed()\n");
+
+	if (dev->driver && dev->driver->pm &&
+	    dev->driver->pm->power_changed)
+		ret = dev->driver->pm->power_changed(dev, s);
+
+	return ret;
+}
+
+static const struct dev_pm_ops mmc_bus_pm_ops = {
+	.power_changed = mmc_bus_power_changed,
+};
+
+#define MMC_PM_OPS_PTR (&mmc_bus_pm_ops)
+
+#else  /* !CONFIG_PM_LOSS */
+
+#define MMC_PM_OPS_PTR NULL
+
+#endif /* !CONFIG_PM_LOSS */
+
 static struct bus_type mmc_bus_type = {
 	.name		= "mmc",
 	.dev_attrs	= mmc_dev_attrs,
@@ -145,6 +175,7 @@ static struct bus_type mmc_bus_type = {
 	.remove		= mmc_bus_remove,
 	.suspend	= mmc_bus_suspend,
 	.resume		= mmc_bus_resume,
+	.pm             = MMC_PM_OPS_PTR,
 };
 
 int mmc_register_bus(void)
