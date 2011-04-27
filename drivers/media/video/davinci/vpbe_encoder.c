@@ -902,7 +902,6 @@ static int vpbe_encoder_start_display(struct vid_encoder_device *enc)
 	venc_reg_out(VENC_OSDCLK1, 0xFFFF);
 	venc_reg_out(VENC_CLKCTL, 0x10);
 	venc_reg_out(VENC_SYNCCTL, 0x0F);
-	venc_reg_merge(VENC_VIDCTL, (1) << 14, VENC_VIDCTL_VCLKP);
 	venc_reg_merge(VENC_VIDCTL, VENC_VIDCTL_VCLKE, VENC_VIDCTL_VCLKE);
 
 	/* set origin position */
