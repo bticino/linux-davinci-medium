@@ -556,9 +556,10 @@ static int davinci_spi_bufs_pio(struct spi_device *spi, struct spi_transfer *t)
 	data1_reg_val = pdata->cs_hold << SPIDAT1_CSHOLD_SHIFT;
 
 	if (!spi->controller_data)
-		tmp = 0x1 << spi->chip_select;
+		tmp = 0x1 << (1 - spi->chip_select);
 	else
 		tmp = 3;
+
 	data1_reg_val |= tmp << SPIDAT1_CSNR_SHIFT;
 	data1_reg_val |= spi->chip_select << SPIDAT1_DFSEL_SHIFT;
 
