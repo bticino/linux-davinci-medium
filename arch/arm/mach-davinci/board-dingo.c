@@ -371,7 +371,7 @@ static void dingo_bl_set_intensity(int level)
 		clk_put(pwm0_clk);
 		tmp = PWM_CONTINUOS << MODE | 1 << P1OUT;
 		__raw_writeb(tmp, base + PWM_CFG);
-		__raw_writeb(0x3FF, base + PWM_PER);
+		__raw_writew(0X3FF, base + PWM_PER);
 		__raw_writeb(level<<2, base + PWM_PH1D);
 		__raw_writeb(1, base + PWM_START);
 		bl_is_on = 1;
