@@ -46,7 +46,7 @@ struct tm035kbh02 lcd = {
 const u8 regs_tm035kbh02[][2] = {
 /* Register address - Register Value - Register LSB Value */
 	{0x00, 0x03 },
-	{0x03, 0xCC },
+	{0x03, 0xCD },
 	{0x0F, 0x24 },
 };
 
@@ -58,11 +58,9 @@ void tm035kbh02_disable(void)
 	loc_buf[0] = 0x01;
 	loc_buf[1] = 0x03;
 	spi_write(lcd.spi, &loc_buf[0], 2);
-printk("%s %d\n", __func__, __LINE__);
 
 	mdelay(5);
 
-printk("%s %d\n", __func__, __LINE__);
 	gpio_set_value(lcd.reset_n, 0);
 	gpio_set_value(lcd.shutdown, 1);
 	lcd.disabled = 1;
@@ -117,7 +115,6 @@ int  tm035kbh02_set_contrast(struct lcd_device *tm035kbh02_lcd_device, int contr
 {
 	u8 loc_buf[2];
 
-	printk("%s %d\n", __func__, __LINE__);
 	if (lcd.disabled || !lcd.spi)
 		return 0;
 	loc_buf[0] = contrast;
@@ -129,18 +126,15 @@ int  tm035kbh02_set_contrast(struct lcd_device *tm035kbh02_lcd_device, int contr
 
 int  tm035kbh02_get_contrast(struct lcd_device *tm035kbh02_lcd_device)
 {
-	printk("%s %d\n", __func__, __LINE__);
 	return lcd.contrast;
 }
 
 int  tm035kbh02_set_power(struct lcd_device *tm035kbh02_lcd_device, int power)
 {
-printk("%s %d\n", __func__, __LINE__);
 	if (!power) {
 		lcd.is_suspended = 0;
 		tm035kbh02_enable();
 	} else if (power == 4) {
-printk("%s %d\n", __func__, __LINE__);
 		lcd.is_suspended = 1;
 		tm035kbh02_disable();
 	}
@@ -149,7 +143,6 @@ printk("%s %d\n", __func__, __LINE__);
 
 int  tm035kbh02_get_power(struct lcd_device *tm035kbh02_lcd_device)
 {
-printk("%s %d\n", __func__, __LINE__);
 	if (lcd.is_suspended == 1)
 		return 4;
 	return 0;
@@ -169,10 +162,7 @@ struct lcd_device* tm035kbh02_lcd_device;
 static int __devinit tm035kbh02_spi_probe(struct spi_device *spi)
 {
 	struct tm035kbh02_platform_data *pdata = spi->dev.platform_data;
-//	struct lcd_device *lcd_device;
 	int	err;
-
-	dev_dbg(&spi->dev, "%s - %d\n", __func__, __LINE__);
 
 	if (!pdata) {
 		/* if we don't know reset & shutdown GPIO can't drive LCD */
@@ -213,7 +203,8 @@ static int __devinit tm035kbh02_spi_probe(struct spi_device *spi)
 	lcd.HV_inversion = pdata->HV_inversion;
 	lcd.contrast = 8;
 
-	tm035kbh02_lcd_device = lcd_device_register("tm035kbh02", &spi->dev, pdata, &tm035kbh02_lcd_ops);
+	tm035kbh02_lcd_device = lcd_device_register("tm035kbh02",
+				&spi->dev, pdata, &tm035kbh02_lcd_ops);
 
 	if (IS_ERR(tm035kbh02_lcd_device)) {
 		err = PTR_ERR(tm035kbh02_lcd_device);
