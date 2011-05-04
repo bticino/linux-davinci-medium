@@ -27,6 +27,8 @@ struct tm035kbh02_platform_data{
 	int check_presence; /* 1: check Displ presence - 0: don't check */
 	int lcd_present; /* GPIO where to read lcd presence */
 	int HV_inversion;
+	int time_refr_regs; /* if 0 registers are not refreshed otherwise
+			     * a refresh is done every time_refr_regs secs */
 };
 
 /*void tm035kbh02_enable(void);
@@ -54,6 +56,9 @@ struct tm035kbh02{
 	int shutdown; /* GPIO for Shutdown connection */
 	int HV_inversion; /* Horizontal&vertical inversion */
 	int contrast;
+	int brightness;
+	struct work_struct work;
+	int time_refr_regs;
 };
 
 

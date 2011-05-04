@@ -33,6 +33,9 @@
 #include <linux/platform_device.h>
 #include <asm/irq.h>
 
+
+#define LCD_REFRESH_TIME 5000
+
 struct tm035kbh02 lcd = {
 	.is_suspended = 0,
 	.disabled = 1,
@@ -43,11 +46,25 @@ struct tm035kbh02 lcd = {
 	.HV_inversion = 0,
 };
 
+static struct timer_list lcd_refresh_timer;
+
 const u8 regs_tm035kbh02[][2] = {
 /* Register address - Register Value - Register LSB Value */
-	{0x00, 0x03 },
-	{0x03, 0xCD },
+	{0x00, 0x07 },
+	{0x01, 0x00 },
+	{0x02, 0x03 },
+	{0x03, 0xCC },
+	{0x04, 0x46 },
+	{0x05, 0x0D },
+	{0x06, 0x00 },
+	{0x07, 0x00 },
+	{0x0A, 0x88 },
+	{0x0D, 0x20 },
+	{0x0E, 0x10 },
 	{0x0F, 0x24 },
+	{0x10, 0x04 },
+	{0x11, 0x24 },
+	{0x12, 0x24 },
 };
 
 void tm035kbh02_disable(void)
@@ -95,6 +112,11 @@ void tm035kbh02_enable(void)
 	}
 }
 
+static void tm035kbh02_refr(struct work_struct *work)
+{
+	tm035kbh02_enable();
+}
+
 static int tm035kbh02_suspend(struct spi_device *spi, pm_message_t message)
 {
 	lcd.is_suspended = 1;
@@ -111,7 +133,8 @@ static int tm035kbh02_resume(struct spi_device *spi)
 	return 0;
 }
 
-int  tm035kbh02_set_contrast(struct lcd_device *tm035kbh02_lcd_device, int contrast)
+int  tm035kbh02_set_contrast(struct lcd_device *tm035kbh02_lcd_device,
+			     int contrast)
 {
 	u8 loc_buf[2];
 
@@ -129,14 +152,49 @@ int  tm035kbh02_get_contrast(struct lcd_device *tm035kbh02_lcd_device)
 	return lcd.contrast;
 }
 
+int  tm035kbh02_set_brightness(struct lcd_device *tm035kbh02_lcd_device,
+			       int brightness)
+{
+	u8 loc_buf[2];
+
+	if (lcd.disabled || !lcd.spi)
+		return 0;
+	loc_buf[0] = brightness;
+	loc_buf[1] = 0x27;
+	spi_write(lcd.spi, &loc_buf[0], 2);
+	lcd.brightness = brightness;
+	return 0;
+}
+
+int  tm035kbh02_get_brightness(struct lcd_device *tm035kbh02_lcd_device)
+{
+	return lcd.brightness;
+}
+
+static void refresh_lcd_settings(unsigned long data)
+{
+	schedule_work(&lcd.work);
+	lcd_refresh_timer.expires =
+			jiffies + msecs_to_jiffies(lcd.time_refr_regs * 1000);
+	add_timer(&lcd_refresh_timer);
+}
+
 int  tm035kbh02_set_power(struct lcd_device *tm035kbh02_lcd_device, int power)
 {
 	if (!power) {
 		lcd.is_suspended = 0;
 		tm035kbh02_enable();
+		if (lcd.time_refr_regs) {
+			init_timer(&lcd_refresh_timer);
+			lcd_refresh_timer.function = refresh_lcd_settings;
+			lcd_refresh_timer.expires =
+			jiffies + msecs_to_jiffies(lcd.time_refr_regs * 1000);
+			add_timer(&lcd_refresh_timer);
+		}
 	} else if (power == 4) {
 		lcd.is_suspended = 1;
 		tm035kbh02_disable();
+		del_timer(&lcd_refresh_timer);
 	}
 	return 0;
 }
@@ -148,16 +206,16 @@ int  tm035kbh02_get_power(struct lcd_device *tm035kbh02_lcd_device)
 	return 0;
 }
 
-
 struct lcd_ops tm035kbh02_lcd_ops = {
 	.get_power = tm035kbh02_get_power,
 	.set_power = tm035kbh02_set_power,
 	.get_contrast = tm035kbh02_get_contrast,
 	.set_contrast = tm035kbh02_set_contrast,
+	.get_brightness = tm035kbh02_get_brightness,
+	.set_brightness = tm035kbh02_set_brightness,
 };
 
-
-struct lcd_device* tm035kbh02_lcd_device;
+struct lcd_device *tm035kbh02_lcd_device;
 
 static int __devinit tm035kbh02_spi_probe(struct spi_device *spi)
 {
@@ -201,7 +259,9 @@ static int __devinit tm035kbh02_spi_probe(struct spi_device *spi)
 	lcd.shutdown = pdata->shutdown;
 	lcd.model = pdata->model;
 	lcd.HV_inversion = pdata->HV_inversion;
+	lcd.time_refr_regs = pdata->time_refr_regs;
 	lcd.contrast = 8;
+	lcd.brightness = 0x40;
 
 	tm035kbh02_lcd_device = lcd_device_register("tm035kbh02",
 				&spi->dev, pdata, &tm035kbh02_lcd_ops);
@@ -212,7 +272,9 @@ static int __devinit tm035kbh02_spi_probe(struct spi_device *spi)
 		return err;
 	}
 	tm035kbh02_lcd_device->props.max_contrast = 0x1F;
+	tm035kbh02_lcd_device->props.max_brightness = 0x7F;
 
+	INIT_WORK(&lcd.work, tm035kbh02_refr);
 	tm035kbh02_enable();
 
 	return 0;
