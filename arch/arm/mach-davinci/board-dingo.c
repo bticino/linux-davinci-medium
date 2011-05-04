@@ -79,7 +79,7 @@
 #define DINGO_MDIO_FREQUENCY        (2200000) /* PHY bus frequency */
 
 /* PWM Definitions - not found elsewhere */
-#define DM365_PWM0_CONTROL_BASE		0x01C22000
+#define DM365_PWM0_CONTROL_BASE	0x01C22000
 
 /* registers */
 #define PWM_CFG			(0x08)
@@ -156,7 +156,7 @@ static struct mtd_partition dingo_nand_partitions[] = {
 };
 
 static struct davinci_nand_pdata davinci_nand_data = {
-	.mask_chipsel           = 0, /* BIT(14), this bit enable strangely a second nand flash */
+	.mask_chipsel           = 0, /* BIT(14), enable a second nand flash */
 	.parts                  = dingo_nand_partitions,
 	.nr_parts               = ARRAY_SIZE(dingo_nand_partitions),
 	.ecc_mode               = NAND_ECC_HW,
@@ -186,7 +186,7 @@ static struct platform_device davinci_nand_device = {
 	},
 };
 
-void dingo_phy_power (int on)
+void dingo_phy_power(struct phy_device *phydev, int on)
 {
 	pr_notice("%s %d\n", __func__, on);
 	gpio_set_value(ENET_RESETn, on);
@@ -338,8 +338,8 @@ static struct platform_device dingo_bl_device = {
 
 static void dingo_bl_set_intensity(int level)
 {
-	static void __iomem *base = NULL;
-	static int bl_is_on = 0;
+	static void __iomem *base;
+	static int bl_is_on;
 	int tmp;
 
 	if (!base)
@@ -349,12 +349,12 @@ static void dingo_bl_set_intensity(int level)
 
 	level = level & 0xff;
 
-	if (!level){
+	if (!level) {
 		__raw_writeb(PWM_DISABLED << MODE, base + PWM_CFG);
 		bl_is_on = 0;
 		return;
 	}
-	if (!bl_is_on){
+	if (!bl_is_on) {
 		struct clk *pwm0_clk;
 
 		davinci_cfg_reg(DM365_GPIO23);
@@ -365,9 +365,8 @@ static void dingo_bl_set_intensity(int level)
 			pr_err("couldn't get PWM0 CLOCK!\n");
 			return;
 		}
-		if (clk_enable(pwm0_clk)) {
+		if (clk_enable(pwm0_clk))
 			pr_err("couldn't enable PWM0 CLOCK!\n");
-		}
 		clk_put(pwm0_clk);
 		tmp = PWM_CONTINUOS << MODE | 1 << P1OUT;
 		__raw_writel(tmp, base + PWM_CFG);
@@ -377,7 +376,7 @@ static void dingo_bl_set_intensity(int level)
 		bl_is_on = 1;
 
 		/* wait the soft start completion */
-		udelay (250); 
+		udelay(250);
 		davinci_cfg_reg(DM365_PWM0_G23);
 	} else
 		__raw_writel(level<<2, base + PWM_PH1D);
@@ -398,17 +397,19 @@ static void pinmux_check(void)
 
 		for (i = 0; i < 5; i++) {
 			pinmux[i] = __raw_readl(pinmux_reg[i]);
-		printk("pinmux%d=%X\n",i,pinmux[i]);
+		printk(KERN_ERR "pinmux%d=%X\n", i, pinmux[i]);
 	}
 }
 
+#if 0
 static struct plat_serial8250_port dingo_dm365_serial_platform_data[] = {
 	{
 		.mapbase        = DM365_ASYNC_EMIF_DATA_CE1_BASE,
 		.irq            = IRQ_DM365_GPIO0_1,
 		.type           = PORT_16550A,
-		.flags          = UPF_BOOT_AUTOCONF | UPF_IOREMAP | UART_CONFIG_TYPE |
-					UPF_SKIP_TEST | UPF_FIXED_TYPE,
+		.flags          = UPF_BOOT_AUTOCONF | UPF_IOREMAP |
+				  UART_CONFIG_TYPE | UPF_SKIP_TEST |
+				  UPF_FIXED_TYPE,
 		.iotype         = UPIO_MEM,
 		.regshift       = 0,
 		.uartclk        = 8000000,
@@ -484,13 +485,14 @@ static void dingo_uart2_configure(void)
 	set_irq_type(gpio_to_irq(0), IRQ_TYPE_EDGE_BOTH);
 	platform_device_register(&dingo_dm365_serial_device);
 }
+#endif
 
-static struct irq_on_gpio0 {
+struct irq_on_gpio0 {
 	unsigned int gpio;
 	unsigned int irq;
 };
 
-static struct irq_on_gpio0 dingo_irq_on_gpio0 [] = {
+static struct irq_on_gpio0 dingo_irq_on_gpio0[] = {
 	{
 		.gpio = INT_UART,
 		.irq = IRQ_DM365_GPIO0_1,
@@ -532,7 +534,7 @@ static struct irq_chip dingo_gpio0_irq_chip = {
 	.unmask		= dingo_unmask_irq_gpio0,
 	.disable	= dingo_mask_irq_gpio0,
 	.enable		= dingo_unmask_irq_gpio0,
-	.bus_sync_unlock= dingo_unmask_irq_gpio0,
+	.bus_sync_unlock = dingo_unmask_irq_gpio0,
 	.bus_lock	= dingo_mask_irq_gpio0,
 	.set_wake	= dingo_set_wake_irq_gpio0,
 };
@@ -545,14 +547,14 @@ static void dingo_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 	if ((dingo_gpio0_irq_enabled & 0x01) && (gpio_get_value(0))) {
 		/* enabled interrupt when lines are all high */
 		generic_handle_irq(IRQ_DM365_GPIO0_0);
-	}
-	else if (!gpio_get_value(0)) {
+	} else if (!gpio_get_value(0)) {
 		udelay(50);
 		for (cnt = 0; cnt < ARRAY_SIZE(dingo_irq_on_gpio0); cnt++) {
-			if (!gpio_get_value(dingo_irq_on_gpio0[cnt].gpio) && (dingo_gpio0_irq_enabled &
-			    (1<<(dingo_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0)))){
+			if (!gpio_get_value(dingo_irq_on_gpio0[cnt].gpio) &&
+			   (dingo_gpio0_irq_enabled & (1<<
+			   (dingo_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0)))
+			   )
 				generic_handle_irq(dingo_irq_on_gpio0[cnt].irq);
-			}
 		}
 	}
 	desc->chip->unmask(irq);
@@ -564,7 +566,8 @@ static void __init dingo_gpio_init_irq(void)
 
 	davinci_irq_init();
 	/* setup extra Basi irqs on GPIO0*/
-	for(irq = IRQ_DM365_GPIO0_0; irq < IRQ_DM365_GPIO0_0 + ARRAY_SIZE(dingo_irq_on_gpio0); ) {
+	for (irq = IRQ_DM365_GPIO0_0;
+	    irq < IRQ_DM365_GPIO0_0 + ARRAY_SIZE(dingo_irq_on_gpio0);) {
 		irq++;
 		set_irq_chip(irq, &dingo_gpio0_irq_chip);
 		set_irq_handler(irq, handle_level_irq);
@@ -590,9 +593,9 @@ static irqreturn_t dingo_powerfail_start(int irq, void *dev_id)
 static void debounce(unsigned long data)
 {
 	del_timer(&pf_debounce_timer);
-	if (!gpio_get_value(POWER_FAIL)) {
+	if (!gpio_get_value(POWER_FAIL))
 		return;
-	}
+
 	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
 	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
 
@@ -602,13 +605,16 @@ static void debounce(unsigned long data)
 
 static irqreturn_t dingo_powerfail_stop(int irq, void *dev_id)
 {
-/*	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	/*
+	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
 	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
-*/
+	*/
+
 	/* PowerFail situation - STOP: power is coming back */
 	init_timer(&pf_debounce_timer);
 	pf_debounce_timer.function = debounce;
-	pf_debounce_timer.expires = jiffies + msecs_to_jiffies(POWER_FAIL_DEBOUNCE_TO);
+	pf_debounce_timer.expires =
+			jiffies + msecs_to_jiffies(POWER_FAIL_DEBOUNCE_TO);
 	add_timer(&pf_debounce_timer);
 
 	return IRQ_HANDLED;
@@ -641,16 +647,16 @@ static void dingo_gpio_configure(void)
 	status = gpio_request(BOOT_FL_WP, "Protecting SPI0 chip select");
 	if (status) {
 		pr_err("%s: failed to request GPIO: Protecting SPI0 \
-		                 chip select: %d\n", __func__, status);
+				chip select: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(BOOT_FL_WP, 1);
 
 	davinci_cfg_reg(DM365_GPIO35);
-	status = gpio_request(EN_AUDIO, "Audio Enable towards external connector");
+	status = gpio_request(EN_AUDIO, "Audio Enable to external connector");
 	if (status) {
 		pr_err("%s: failed to request GPIO: Audio Enable to\
-		                 external connector: %d\n", __func__, status);
+				external connector: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(EN_AUDIO, 0);
@@ -705,7 +711,7 @@ static void dingo_gpio_configure(void)
 	status = gpio_request(PENIRQn, "Resistive touch interface irq signal");
 	if (status) {
 		pr_err("%s: failed to request GPIO: Resistive touch \
-			         interface irq signal: %d\n", __func__, status);
+				interface irq signal: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_input(PENIRQn);
@@ -758,7 +764,7 @@ static void dingo_gpio_configure(void)
 	}
 	gpio_direction_output(AUDIO_DEEMP, 1);
 
-/*	davinci_cfg_reg(DM365_GPIO69); */
+	/* davinci_cfg_reg(DM365_GPIO69); */
 	status = gpio_request(AUDIO_RESET, "Audio Reset");
 	if (status) {
 		pr_err("%s: failed to request GPIO: Audio Reset \
@@ -789,12 +795,12 @@ static void dingo_gpio_configure(void)
 	status = gpio_request(ENET_RESETn, "ENET RESET");
 	if (status) {
 		pr_err("%s: failed to request ENET \
-                                 RESET %d\n", __func__, status);
+				RESET %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(ENET_RESETn, 1);
 
-/*	davinci_cfg_reg(DM365_GPIO74); */
+	/* davinci_cfg_reg(DM365_GPIO74); */
 	status = gpio_request(TOUCH_BUSY, "Touch interface busy");
 	if (status) {
 		pr_err("%s: failed to request GPIO: Touch interface \
@@ -857,7 +863,7 @@ static void dingo_gpio_configure(void)
 
 static void dingo_usb_configure(void)
 {
-/*	pr_notice("Launching setup_usb\n"); */
+	/* pr_notice("Launching setup_usb\n"); */
 	setup_usb(500, 8);
 }
 
@@ -951,7 +957,7 @@ static struct spi_board_info dingo_spi3_info[] = {
 	{
 		.modalias   = "tm035kbh02",
 		.platform_data  = &dingo_tm035kbh02_info,
-		.controller_data = LCD_CSn, /* bitbang chip select */
+		.controller_data = (void *)LCD_CSn, /* bitbang chip select */
 		.max_speed_hz   = 600000, /* 100 kHz sample rate */
 		.bus_num = 3,
 		.chip_select = 1,
@@ -973,9 +979,8 @@ struct device my_device;
 
 static __init void dingo_init(void)
 {
-int ret;
 	pr_warning("Dingo_init: START\n");
-	if (dingo_debug>1)
+	if (dingo_debug > 1)
 		pinmux_check();
 	dingo_gpio_configure();
 	davinci_cfg_reg(DM365_UART1_RXD_34);
@@ -994,14 +999,10 @@ int ret;
 	dingo_init_i2c();
 	dingo_emac_configure();
 
-	/*
-	 * DANGEROUS, because spi flash contains bubl bootloader
-	 */
-/*	dm365_init_spi0(BIT(0), dingo_spi0_info, ARRAY_SIZE(dingo_spi0_info)); */
 	dm365_init_spi3(BIT(0), dingo_spi3_info, ARRAY_SIZE(dingo_spi3_info));
 
 	dingo_usb_configure();
-/*	dingo_uart2_configure(); */
+	/* dingo_uart2_configure(); */
 
 	dingo_powerfail_configure();
 	davinci_cfg_reg(DM365_CLKOUT2);
@@ -1025,7 +1026,7 @@ MACHINE_START(DINGO, "bticino DINGO board")
 	.boot_params = (0x80000100),
 	.map_io = dingo_map_io,
 	.init_irq = dingo_gpio_init_irq,
-/*	.init_irq = davinci_irq_init, */
+	/* .init_irq = davinci_irq_init, */
 	.timer = &davinci_timer,
 	.init_machine = dingo_init,
 MACHINE_END
