@@ -34,6 +34,7 @@ struct fb_info;
 struct lcd_properties {
 	/* The maximum value for contrast (read-only) */
 	int max_contrast;
+	int max_brightness;
 };
 
 struct lcd_ops {
@@ -46,6 +47,10 @@ struct lcd_ops {
 	int (*get_contrast)(struct lcd_device *);
 	/* Set LCD panel contrast */
         int (*set_contrast)(struct lcd_device *, int contrast);
+	/* Get the current brightness setting (0-max_contrast) */
+	int (*get_brightness)(struct lcd_device *);
+	/* Set LCD panel brightness */
+	int (*set_brightness)(struct lcd_device *, int contrast);
 	/* Set LCD panel mode (resolutions ...) */
 	int (*set_mode)(struct lcd_device *, struct fb_videomode *);
 	/* Check if given framebuffer device is the one LCD is bound to;

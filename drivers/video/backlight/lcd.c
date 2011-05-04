@@ -164,6 +164,53 @@ static ssize_t lcd_show_max_contrast(struct device *dev,
 	return sprintf(buf, "%d\n", ld->props.max_contrast);
 }
 
+static ssize_t lcd_show_brightness(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int rc = -ENXIO;
+	struct lcd_device *ld = to_lcd_device(dev);
+
+	mutex_lock(&ld->ops_lock);
+	if (ld->ops && ld->ops->get_brightness)
+		rc = sprintf(buf, "%d\n", ld->ops->get_brightness(ld));
+	mutex_unlock(&ld->ops_lock);
+
+	return rc;
+}
+
+static ssize_t lcd_store_brightness(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int rc = -ENXIO;
+	char *endp;
+	struct lcd_device *ld = to_lcd_device(dev);
+	int brightness = simple_strtoul(buf, &endp, 0);
+	size_t size = endp - buf;
+
+	if (*endp && isspace(*endp))
+		size++;
+	if (size != count)
+		return -EINVAL;
+
+	mutex_lock(&ld->ops_lock);
+	if (ld->ops && ld->ops->set_brightness) {
+		pr_debug("lcd: set brightness to %d\n", brightness);
+		ld->ops->set_brightness(ld, brightness);
+		rc = count;
+	}
+	mutex_unlock(&ld->ops_lock);
+
+	return rc;
+}
+
+static ssize_t lcd_show_max_brightness(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lcd_device *ld = to_lcd_device(dev);
+
+	return sprintf(buf, "%d\n", ld->props.max_brightness);
+}
+
 static struct class *lcd_class;
 
 static void lcd_device_release(struct device *dev)
@@ -176,6 +223,8 @@ static struct device_attribute lcd_device_attributes[] = {
 	__ATTR(lcd_power, 0644, lcd_show_power, lcd_store_power),
 	__ATTR(contrast, 0644, lcd_show_contrast, lcd_store_contrast),
 	__ATTR(max_contrast, 0444, lcd_show_max_contrast, NULL),
+	__ATTR(brightness, 0644, lcd_show_brightness, lcd_store_brightness),
+	__ATTR(max_brightness, 0444, lcd_show_max_brightness, NULL),
 	__ATTR_NULL,
 };
 
