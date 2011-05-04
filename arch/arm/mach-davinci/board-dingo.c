@@ -370,17 +370,17 @@ static void dingo_bl_set_intensity(int level)
 		}
 		clk_put(pwm0_clk);
 		tmp = PWM_CONTINUOS << MODE | 1 << P1OUT;
-		__raw_writeb(tmp, base + PWM_CFG);
-		__raw_writew(0X3FF, base + PWM_PER);
-		__raw_writeb(level<<2, base + PWM_PH1D);
-		__raw_writeb(1, base + PWM_START);
+		__raw_writel(tmp, base + PWM_CFG);
+		__raw_writel(0X3FF, base + PWM_PER);
+		__raw_writel(level<<2, base + PWM_PH1D);
+		__raw_writel(1, base + PWM_START);
 		bl_is_on = 1;
 
 		/* wait the soft start completion */
 		udelay (250); 
 		davinci_cfg_reg(DM365_PWM0_G23);
 	} else
-		__raw_writeb(level<<2, base + PWM_PH1D);
+		__raw_writel(level<<2, base + PWM_PH1D);
 
 	return ;
 };
