@@ -925,6 +925,7 @@ static struct tm035kbh02_platform_data dingo_tm035kbh02_info = {
 	.lcd_present = -1,
 	.model = TM035KBH02,
 	.HV_inversion = -1,
+	.time_refr_regs = 10,
 };
 
 int dingo_get_pendown_state(void)
