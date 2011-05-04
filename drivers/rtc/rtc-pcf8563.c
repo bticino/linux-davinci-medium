@@ -43,6 +43,8 @@
 #define PCF8563_SC_LV		0x80 /* low voltage */
 #define PCF8563_MO_C		0x80 /* century */
 
+#define RTC_EN_EXT_CLK  _IOW('p', 0x33, int) /* enable or disable Ext clock */
+
 static struct i2c_driver pcf8563_driver;
 
 struct pcf8563 {
@@ -355,12 +357,39 @@ static int pcf8563_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	return pcf8563_set_datetime(to_i2c_client(dev), tm);
 }
 
+int pcf8563_ioctl(struct device *dev, unsigned int cmd, unsigned long arg)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	unsigned char buf[2];
+	int err;
+
+	if (cmd == RTC_EN_EXT_CLK) {
+		buf[0] = PCF8563_REG_CLKO;
+
+		if (arg)
+			buf[1] = 0x80 | (arg & 0x3);
+		else
+			buf[1] = 0x0;
+
+		err = i2c_master_send(client, buf, 2);
+		if (err != 2) {
+			dev_err(&client->dev,
+				"%s: err=%d addr=%02x, data=%02x\n",
+				__func__, err, buf[0], buf[1]);
+			return -EIO;
+		}
+		return 0;
+	}
+	return -ENOIOCTLCMD;
+}
+
 static const struct rtc_class_ops pcf8563_rtc_ops = {
 	.read_time	= pcf8563_rtc_read_time,
 	.set_time	= pcf8563_rtc_set_time,
 	.read_alarm	= pcf8563_read_alarm,
 	.set_alarm	= pcf8563_set_alarm,
 	.alarm_irq_enable  = pcf8563_alarm_irq_enable,
+	.ioctl		= pcf8563_ioctl,
 };
 
 static int pcf8563_probe(struct i2c_client *client,
@@ -400,6 +429,9 @@ static int pcf8563_probe(struct i2c_client *client,
 		printk("%s error requesting interrupt\n", __func__);
 		return -EIO;
 	}
+
+	/* disable CLOKOUT to lower consumption */
+	pcf8563_ioctl(&client->dev, RTC_EN_EXT_CLK, 0);
 	return 0;
 
 exit_kfree:
