@@ -196,7 +196,7 @@ static struct platform_device davinci_nand_device = {
 	},
 };
 
-void dingo_phy_power(struct phy_device *phydev, int on)
+void dingo_phy_power(int on)
 {
 	pr_notice("%s %d\n", __func__, on);
 	gpio_set_value(ENET_RESETn, on);
