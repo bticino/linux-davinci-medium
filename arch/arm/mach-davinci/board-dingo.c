@@ -136,18 +136,28 @@ static struct mtd_partition dingo_nand_partitions[] = {
 		.offset         = MTDPART_OFS_APPEND,
 		.size           = 2 * NAND_BLOCK_SIZE,
 		.mask_flags     = 0,
-	}, {
+	}, {	/* First copy of kernel */
 		.name           = "kernel",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = SZ_4M,
+		.size           = SZ_5M,
 		.mask_flags     = 0,
-	}, {
+	}, {	/* Recovery copy of kernel */
+		.name           = "kernel_copy",
+		.offset         = MTDPART_OFS_APPEND,
+		.size           = SZ_5M,
+		.mask_flags     = 0,
+	}, {	/* First copy of rootfs */
 		.name           = "rootfs",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = SZ_128M,
+		.size           = SZ_70M,
 		.mask_flags     = 0,
-	}, {
-		.name           = "extra",
+	}, {	/* Recovery copy of rootfs */
+		.name           = "rootfs_copy",
+		.offset         = MTDPART_OFS_APPEND,
+		.size           = SZ_70M,
+		.mask_flags     = 0,
+	}, {	/* Configurations and extras */
+		.name           = "extras",
 		.offset         = MTDPART_OFS_APPEND,
 		.size           = MTDPART_SIZ_FULL,
 		.mask_flags     = 0,
