@@ -76,6 +76,9 @@
 #include <media/davinci/vpfe_capture.h>
 #include <media/davinci/imp_hw_if.h>
 
+#include <linux/pm.h>
+#include <linux/pm_loss.h>
+
 #include <mach/cputype.h>
 
 #include "ccdc_hw_device.h"
@@ -2892,6 +2895,43 @@ static int vpfe_remove(struct platform_device *pdev)
 	kfree(ccdc_cfg);
 	return 0;
 }
+#ifdef CONFIG_PM_LOSS
+static int vpfe_capture_power_changed(struct device *dev,
+				 enum sys_power_state s)
+{
+	int ret;
+	struct vpfe_device *vpfe_dev = dev_get_drvdata(dev);
+	struct vpfe_subdev_info *sdinfo = vpfe_dev->current_subdev;
+
+	if (!sdinfo)
+		return -EINVAL;
+
+	if (!vpfe_dev->started) {
+		pr_debug_pm_loss("vpfe_capture_power_changed(%d) \
+				  BUT NOTHING TO DO\n", s);
+		return 0;
+	}
+
+	sdinfo = vpfe_dev->current_subdev;
+
+	switch (s) {
+	case SYS_PWR_GOOD:
+		pr_debug_pm_loss("vpfe_capture_power_changed(%d)\n", s);
+		ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
+				sdinfo->grp_id, video, s_stream, 1);
+		break;
+	case SYS_PWR_FAILING:
+		pr_debug_pm_loss("vpfe_capture_power_changed(%d)\n", s);
+		ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
+				sdinfo->grp_id, video, s_stream, 0);
+		break;
+	default:
+		BUG();
+		ret = -ENODEV;
+	}
+	return ret;
+}
+#endif
 
 static int
 vpfe_suspend(struct device *dev)
@@ -2910,6 +2950,9 @@ vpfe_resume(struct device *dev)
 static struct dev_pm_ops vpfe_dev_pm_ops = {
 	.suspend = vpfe_suspend,
 	.resume = vpfe_resume,
+#ifdef CONFIG_PM_LOSS
+	.power_changed = vpfe_capture_power_changed,
+#endif
 };
 
 static struct platform_driver vpfe_driver = {
