@@ -463,7 +463,7 @@ enum basi_pwrfail_prio {
 struct pm_loss_default_policy_item basi_pm_loss_policy_items[] = {
 	{
 		.bus_name = "mmc",
-		.bus_priority = BASI_PWR_FAIL_MAX_PRIO,
+		.bus_priority = BASI_PWR_FAIL_PRIO_1,
 	},
 	{
 		.bus_name = "platform",
@@ -512,8 +512,15 @@ static void basi_powerfail_configure(void)
 int platform_pm_loss_power_changed(struct device *dev,
 				   enum sys_power_state s)
 {
-	/* PUT PLATFORM BUS SPECIFIC pm_loss STUFF HERE */
+	int ret = 0;
+
+	/* Calling platform bus pm_loss functions */
 	pr_debug_pm_loss("platform_pm_loss_power_changed(%d)\n", s);
+
+	if (dev->driver && dev->driver->pm &&
+		dev->driver->pm->power_changed)
+		ret = dev->driver->pm->power_changed(dev, s);
+	return ret;
 }
 
 #else /* !CONFIG_PM_LOSS */
