@@ -129,7 +129,6 @@ static void davinci_spi_chipselect(struct spi_device *spi, int value)
 		return;
 	}
 
-
 	/*
 	 * Board specific chip select logic decides the polarity and cs
 	 * line for the controller
@@ -449,9 +448,9 @@ static int davinci_spi_bufs_prep(struct spi_device *spi,
 
 	op_mode = SPIPC0_DIFUN_MASK
 		| SPIPC0_DOFUN_MASK
-		| SPIPC0_CLKFUN_MASK;
-	if (!(spi->mode & SPI_NO_CS))
-		op_mode |= 1 << spi->chip_select;
+		| SPIPC0_CLKFUN_MASK
+		| SPIPC0_EN0FUN_MASK
+		| SPIPC0_EN1FUN_MASK;
 	if (spi->mode & SPI_READY)
 		op_mode |= SPIPC0_SPIENA_MASK;
 
@@ -558,7 +557,7 @@ static int davinci_spi_bufs_pio(struct spi_device *spi, struct spi_transfer *t)
 	if (!spi->controller_data)
 		tmp = 0x1 << (1 - spi->chip_select);
 	else
-		tmp = 3;
+		tmp = CS_DEFAULT;
 
 	data1_reg_val |= tmp << SPIDAT1_CSNR_SHIFT;
 	data1_reg_val |= spi->chip_select << SPIDAT1_DFSEL_SHIFT;
@@ -720,12 +719,19 @@ static int davinci_spi_bufs_dma(struct spi_device *spi, struct spi_transfer *t)
 	count = davinci_spi->count;	/* the number of elements */
 	data1_reg_val = pdata->cs_hold << SPIDAT1_CSHOLD_SHIFT;
 
-	/* CD default = 0xFF */
-	tmp = ~(0x1 << spi->chip_select);
-
-	clear_io_bits(davinci_spi->base + SPIDEF, ~tmp);
+	if (!spi->controller_data)
+		tmp = 0x1 << (1 - spi->chip_select);
+	else
+		tmp = CS_DEFAULT;
 
 	data1_reg_val |= tmp << SPIDAT1_CSNR_SHIFT;
+
+	data1_reg_val |= spi->chip_select << SPIDAT1_DFSEL_SHIFT;
+	/* the number of elements */
+
+	clear_io_bits(davinci_spi->base + SPIDEF, 1<<spi->chip_select);
+
+	data1_reg_val |= spi->chip_select << SPIDAT1_DFSEL_SHIFT;
 
 	/* disable all interrupts for dma transfers */
 	clear_io_bits(davinci_spi->base + SPIINT, SPIINT_MASKALL);
