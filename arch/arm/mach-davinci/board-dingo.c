@@ -321,11 +321,18 @@ static struct platform_device davinci_fb_device = {
 	.resource      = davincifb_resources,
 };
 
+void dingo_kick_battery(void)
+{
+	dingo_bl_set_intensity(0x10);
+}
+
 static struct generic_bl_info dingo_bl_machinfo = {
 	.max_intensity = 0xff,
 	.default_intensity = 0xf0,
 	.limit_mask = 0xff,
 	.set_bl_intensity = dingo_bl_set_intensity,
+	.kick_battery = dingo_kick_battery,
+	.name = "Dingo Backlight",
 };
 
 static struct resource gpio_resources[] = {
