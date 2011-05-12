@@ -952,12 +952,20 @@ int dingo_get_pendown_state(void)
 
 static struct ads7846_platform_data dingo_ads7846_info = {
 	.model = 7843,
+	.x_min = 150,
+	.x_max = 5000,
+	.y_min = 150,
+	.y_max = 5000,
+	.vref_delay_usecs = 100,
+	.x_plate_ohms = 600,
+	.y_plate_ohms = 350,
+	/* .pressure_max = 15000, senseless for ads7843 */
 	.keep_vref_on = 1,
-	.settle_delay_usecs = 1000,
-	.penirq_recheck_delay_usecs = 10,
-	.debounce_tol = 30,
-	.debounce_max = 5,
-	.debounce_rep = 5,
+	.settle_delay_usecs = 150,
+	.penirq_recheck_delay_usecs = 100,
+	.debounce_tol = 250,
+	.debounce_max = 3,
+	.debounce_rep = 1,
 	.vref_mv = 3300,
 	.get_pendown_state = dingo_get_pendown_state,
 };
@@ -966,7 +974,7 @@ static struct spi_board_info dingo_spi3_info[] = {
 	{
 		.modalias = "ads7846",
 		.platform_data = &dingo_ads7846_info,
-		.max_speed_hz = 3000000,        /* 100 kHz sample rate */
+		.max_speed_hz = 2000000, /* Max 2.5MHz for the chip*/
 		.bus_num = 3,
 		.chip_select = 0,
 		.mode = SPI_MODE_0,
