@@ -198,7 +198,6 @@ static struct platform_device davinci_nand_device = {
 
 void dingo_phy_power(int on)
 {
-	pr_notice("%s %d\n", __func__, on);
 	gpio_set_value(ENET_RESETn, on);
 }
 
@@ -1041,7 +1040,7 @@ static __init void dingo_init(void)
 	dm365_init_rtc();
 	dm365_init_adc(&dingo_adc_data);
 
-	if (dingo_debug)
+	if (dingo_debug > 1)
 		pinmux_check();
 	pr_warning("dingo_init: DONE\n");
 }
