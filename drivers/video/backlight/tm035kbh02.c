@@ -185,6 +185,8 @@ int  tm035kbh02_set_power(struct lcd_device *tm035kbh02_lcd_device, int power)
 		lcd.is_suspended = 0;
 		tm035kbh02_enable();
 		if (lcd.time_refr_regs) {
+			if (timer_pending(&lcd_refresh_timer))
+				return 0;
 			init_timer(&lcd_refresh_timer);
 			lcd_refresh_timer.function = refresh_lcd_settings;
 			lcd_refresh_timer.expires =
