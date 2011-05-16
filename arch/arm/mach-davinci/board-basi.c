@@ -68,8 +68,8 @@
 #define DM365_ASYNC_EMIF_CONTROL_BASE   0x01d10000
 #define DM365_ASYNC_EMIF_DATA_CE0_BASE  0x02000000
 #define DM365_ASYNC_EMIF_DATA_CE1_BASE  0x04000000
-#define DM365_EVM_PHY_MASK              (0x2)
-#define DM365_EVM_MDIO_FREQUENCY        (2200000)	/* PHY bus frequency */
+#define BASI_PHY_MASK              (0x2)
+#define BASI_MDIO_FREQUENCY        (2200000)	/* PHY bus frequency */
 #define HW_IN_CLOCKOUT2_UDA_I2S
 
 static int basi_debug = 1;
@@ -185,8 +185,19 @@ static struct vpfe_config vpfe_cfg = {
 	.clocks = {"vpss_master"},
 };
 
+void basi_phy_power(int on)
+{
+	gpio_set_value(ENET_RESETn, on);
+}
+
 static void basi_emac_configure(void)
 {
+	struct davinci_soc_info *soc_info = &davinci_soc_info;
+
+	soc_info->emac_pdata->phy_mask = BASI_PHY_MASK;
+	soc_info->emac_pdata->mdio_max_freq = BASI_MDIO_FREQUENCY;
+	soc_info->emac_pdata->power = basi_phy_power;
+
 	/*
 	 * EMAC pins are multiplexed with GPIO and UART
 	 * Further details are available at the DM365 ARM
