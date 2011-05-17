@@ -117,12 +117,8 @@ static struct v4l2_input tvp5151_inputs[] = {
  */
 static struct vpfe_route tvp5151_routes[] = {
 	{
-//		.input = INPUT_CVBS_VI2B,
-//		.output = OUTPUT_10BIT_422_EMBEDDED_SYNC,
-	},
-{
-//		.input = INPUT_SVIDEO_VI2C_VI1C,
-//		.output = OUTPUT_10BIT_422_EMBEDDED_SYNC,
+		.input = TVP5150_COMPOSITE0,
+		.output = TVP5150_NORMAL,
 	},
 };
 
