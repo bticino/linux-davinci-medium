@@ -1194,7 +1194,12 @@ config CIR
         depends on ARCH_DAVINCI_DM646x
         help
                 DaVinci CIR Driver.
-
+config ZL38005
+        tristate "ZL38005 Zarlink Support"
+        depends on SPI && SYSFS
+        help
+           This option enables device driver support for the Zarlink
+           acoustic echo cancellation device.
 
 source "drivers/s390/char/Kconfig"
 
