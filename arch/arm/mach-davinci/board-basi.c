@@ -824,14 +824,20 @@ static void __init basi_map_io(void)
 	dm365_init();
 }
 
+#ifdef  ENABLING_SPI_FLASH
 static struct spi_eeprom at25640 = {
 	.byte_len = SZ_64K / 8,
 	.name = "at25640",
 	.page_size = 32,
 	.flags = EE_ADDR2,
 };
+#endif
 
 static struct spi_board_info basi_spi_info[] __initconst = {
+	/*
+	 * DANGEROUS, because spi flash contains bubl bootloader
+	 */
+#ifdef  ENABLING_SPI_FLASH
 	{
 		.modalias       = "at25",
 		.platform_data  = &at25640,
@@ -840,6 +846,15 @@ static struct spi_board_info basi_spi_info[] __initconst = {
 		.chip_select    = 0,
 		.mode           = SPI_MODE_0,
 	},
+#endif
+	{
+		.modalias       = "zl38005",
+		.max_speed_hz   = 2 * 1000 * 1000, /* dm365 spi work between 600000 and 50000000 */
+		.bus_num        = 0,
+		.controller_data = ZARLINK_CS,
+		.mode           = SPI_MODE_0,
+	},
+
 };
 
 static struct snd_platform_data dm365_basi_snd_data;
@@ -861,12 +876,7 @@ static __init void basi_init(void)
 	basi_init_i2c();
 	basi_emac_configure();
 
-#ifdef  ENABLING_SPI
-	/*
-	 * DANGEROUS, because spi flash contains bubl bootloader
-	 */
 	dm365_init_spi0(BIT(0), basi_spi_info, ARRAY_SIZE(basi_spi_info));
-#endif
 
 	basi_mmc_configure();
 	basi_usb_configure();
