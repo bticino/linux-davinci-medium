@@ -128,31 +128,31 @@ static struct mtd_partition dingo_nand_partitions[] = {
 		/* U-Boot */
 		.name           = "u-boot",
 		.offset         = 0,
-		.size           = 4 * NAND_BLOCK_SIZE,
+		.size           = 12 * NAND_BLOCK_SIZE,
 		.mask_flags     = MTD_WRITEABLE, /* force read-only */
 	}, {
 		/* U-Boot environment */
-		.name           = "u-boot env",
+		.name           = "u-boot e",
 		.offset         = MTDPART_OFS_APPEND,
 		.size           = 2 * NAND_BLOCK_SIZE,
 		.mask_flags     = 0,
-	}, {	/* First copy of kernel */
-		.name           = "kernel",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = SZ_5M,
-		.mask_flags     = 0,
 	}, {	/* Recovery copy of kernel */
-		.name           = "kernel_copy",
+		.name           = "kernel_c",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = SZ_5M,
-		.mask_flags     = 0,
-	}, {	/* First copy of rootfs */
-		.name           = "rootfs",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = SZ_70M,
+		.size           = SZ_8M,
 		.mask_flags     = 0,
 	}, {	/* Recovery copy of rootfs */
-		.name           = "rootfs_copy",
+		.name           = "rootfs_c",
+		.offset         = MTDPART_OFS_APPEND,
+		.size           = 20 * SZ_1M,
+		.mask_flags     = 0,
+	}, {	/* Primary copy of kernel */
+		.name           = "kernel",
+		.offset         = MTDPART_OFS_APPEND,
+		.size           = SZ_8M,
+		.mask_flags     = 0,
+	}, {	/* Primary copy of rootfs */
+		.name           = "rootfs",
 		.offset         = MTDPART_OFS_APPEND,
 		.size           = SZ_70M,
 		.mask_flags     = 0,
