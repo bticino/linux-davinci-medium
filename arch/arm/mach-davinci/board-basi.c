@@ -872,7 +872,7 @@ static __init void basi_init(void)
 	basi_init_i2c();
 	basi_emac_configure();
 
-	dm365_init_spi0(BIT(0), basi_spi_info, ARRAY_SIZE(basi_spi_info));
+	dm365_init_spi0(0, basi_spi_info, ARRAY_SIZE(basi_spi_info));
 
 	basi_mmc_configure();
 	basi_usb_configure();
