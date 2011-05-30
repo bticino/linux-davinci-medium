@@ -37,6 +37,13 @@
 
 #include "clock.h"
 
+#ifndef DAVINCI_BOARD_MAX_NR_UARTS
+#define DAVINCI_MAX_UARTS DAVINCI_MAX_NR_UARTS
+#else
+#define DAVINCI_MAX_UARTS DAVINCI_BOARD_MAX_NR_UARTS
+#endif
+
+
 static inline unsigned int serial_read_reg(struct plat_serial8250_port *up,
 					   int offset)
 {
@@ -83,7 +90,7 @@ int __init davinci_serial_init(struct davinci_uart_config *info)
 	 * Make sure the serial ports are muxed on at this point.
 	 * You have to mux them off in device drivers later on if not needed.
 	 */
-	for (i = 0; i < DAVINCI_MAX_NR_UARTS; i++, p++) {
+	for (i = 0; i < DAVINCI_MAX_UARTS; i++, p++) {
 		if (!cpu_is_davinci_dm355() &&
 			!cpu_is_davinci_dm365()) {
 			if (!(info->enabled_uarts & (1 << i)))
