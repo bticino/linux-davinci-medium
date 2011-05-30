@@ -50,7 +50,6 @@ static struct timer_list lcd_refresh_timer;
 
 const u8 regs_tm035kbh02[][2] = {
 /* Register address - Register Value - Register LSB Value */
-	{0x00, 0x07 },
 	{0x01, 0x00 },
 	{0x02, 0x03 },
 	{0x03, 0xCC },
@@ -65,6 +64,7 @@ const u8 regs_tm035kbh02[][2] = {
 	{0x10, 0x04 },
 	{0x11, 0x24 },
 	{0x12, 0x24 },
+	{0x00, 0x03 },
 };
 
 void tm035kbh02_disable(void)
@@ -99,9 +99,9 @@ void tm035kbh02_enable(void)
 		/* Power-on sequence */
 		if (lcd.disabled) {
 			gpio_set_value(lcd.reset_n, 0);
-			mdelay(5);
+			mdelay(1);
 			gpio_set_value(lcd.reset_n, 1);
-			mdelay(5);
+			mdelay(40);
 		}
 		for (i = 0; i < len; i++) {
 			loc_buf[1] = (pnt[i][0]<<2) | 0x03 ;
