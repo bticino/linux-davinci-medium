@@ -414,7 +414,7 @@ static void dingo_bl_set_intensity(int level)
 		bl_is_on = 1;
 
 		/* wait the soft start completion */
-		udelay(250);
+		udelay(50);
 		davinci_cfg_reg(DM365_PWM0_G23);
 	} else
 		__raw_writel(level<<2, base + PWM_PH1D);
