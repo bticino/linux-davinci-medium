@@ -254,6 +254,23 @@ static void dingo_emac_configure(void)
 	davinci_cfg_reg(DM365_INT_EMAC_MISCPULSE);
 }
 
+static void dingo_lcd_configure(void)
+{
+	davinci_cfg_reg(DM365_VOUT_COUTL_EN);
+	davinci_cfg_reg(DM365_VOUT_COUTH_EN);
+	davinci_cfg_reg(DM365_VOUT_HVSYNC);
+	davinci_cfg_reg(DM365_VOUT_OE);
+	davinci_cfg_reg(DM365_VCLK);
+	davinci_cfg_reg(DM365_VOUT_B0);
+	davinci_cfg_reg(DM365_VOUT_B1);
+	davinci_cfg_reg(DM365_VOUT_B2);
+	davinci_cfg_reg(DM365_VOUT_R0);
+	davinci_cfg_reg(DM365_VOUT_R1);
+	davinci_cfg_reg(DM365_VOUT_R2);
+	davinci_cfg_reg(DM365_VOUT_G0);
+	davinci_cfg_reg(DM365_VOUT_G1);
+}
+
 static struct davinci_adc_platform_data dingo_adc_data = {
 	.adc_configuration = ADC_CH0_EANBLE | ADC_CH1_EANBLE | ADC_CH2_EANBLE |
 			     ADC_CH3_EANBLE | ADC_CH4_EANBLE | ADC_CH5_EANBLE |
@@ -1011,21 +1028,15 @@ static __init void dingo_init(void)
 	if (dingo_debug > 1)
 		pinmux_check();
 	dingo_gpio_configure();
-	davinci_cfg_reg(DM365_UART1_RXD_34);
-	davinci_cfg_reg(DM365_UART1_TXD_25);
+
 	davinci_serial_init(&uart_config);
 	pr_warning("dingo_init: starting ...\n");
-
-	davinci_cfg_reg(DM365_VOUT_COUTL_EN);
-	davinci_cfg_reg(DM365_VOUT_COUTH_EN);
-	davinci_cfg_reg(DM365_VOUT_HVSYNC);
-	davinci_cfg_reg(DM365_VOUT_OE);
-	davinci_cfg_reg(DM365_VCLK);
 
 	davinci_cfg_reg(DM365_I2C_SDA);
 	davinci_cfg_reg(DM365_I2C_SCL);
 	dingo_init_i2c();
 	dingo_emac_configure();
+	dingo_lcd_configure();
 
 	dm365_init_spi3(BIT(0), dingo_spi3_info, ARRAY_SIZE(dingo_spi3_info));
 
