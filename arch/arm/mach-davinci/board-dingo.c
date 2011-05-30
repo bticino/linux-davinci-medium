@@ -97,6 +97,7 @@
 #define PWM_CONTINUOS		2
 
 #define POWER_FAIL_DEBOUNCE_TO 50
+#define TIME_TO_LATE_INIT 1500
 
 static int dingo_debug = 1;
 module_param(dingo_debug, int, 0644);
@@ -121,7 +122,7 @@ static struct at24_platform_data at24_info = {
 	.wpset = wp_set,
 };
 
-static struct timer_list pf_debounce_timer;
+static struct timer_list pf_debounce_timer, startup_timer;
 
 static struct mtd_partition dingo_nand_partitions[] = {
 	{
@@ -681,15 +682,6 @@ static void dingo_gpio_configure(void)
 	gpio_request(0, "GIO0");
 	gpio_direction_input(0);
 
-	davinci_cfg_reg(DM365_GPIO45);
-	status = gpio_request(BOOT_FL_WP, "Protecting SPI0 chip select");
-	if (status) {
-		pr_err("%s: failed to request GPIO: Protecting SPI0 \
-				chip select: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(BOOT_FL_WP, 1);
-
 	davinci_cfg_reg(DM365_GPIO35);
 	status = gpio_request(EN_AUDIO, "Audio Enable to external connector");
 	if (status) {
@@ -1022,6 +1014,30 @@ static struct snd_platform_data dm365_dingo_snd_data[] = {
 
 struct device my_device;
 
+static void dingo_late_init(unsigned long data)
+{
+	int status;
+
+	del_timer(&startup_timer);
+	davinci_cfg_reg(DM365_GPIO45);
+	status = gpio_request(BOOT_FL_WP, "Protecting SPI0 chip select");
+	if (status) {
+		pr_err("%s: fail GPIO request: Protecting SPI0" \
+				" chip select: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(BOOT_FL_WP, 1);
+
+	davinci_cfg_reg(DM365_UART1_RXD_34);
+	davinci_cfg_reg(DM365_UART1_TXD_25);
+	gpio_direction_output(DEBUG_GPIO1, 1);
+	mdelay(2);
+	gpio_direction_output(DEBUG_GPIO1, 0);
+	gpio_direction_output(DEBUG_GPIO1, 1);
+	mdelay(2);
+	gpio_direction_output(DEBUG_GPIO1, 0);
+}
+
 static __init void dingo_init(void)
 {
 	pr_warning("Dingo_init: START\n");
@@ -1053,6 +1069,12 @@ static __init void dingo_init(void)
 
 	dm365_init_rtc();
 	dm365_init_adc(&dingo_adc_data);
+
+	init_timer(&startup_timer);
+	startup_timer.function = dingo_late_init;
+	startup_timer.expires =
+			jiffies + msecs_to_jiffies(TIME_TO_LATE_INIT);
+	add_timer(&startup_timer);
 
 	if (dingo_debug > 1)
 		pinmux_check();
