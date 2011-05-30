@@ -733,8 +733,10 @@ static void davinci_enc_set_525p(struct vid_enc_mode_info *mode_info)
 
 	if (cpu_is_davinci_dm365()) {
 		dispc_reg_out(VENC_CLKCTL, 0x01);
+#ifdef CONFIG_VIDEO_THS7303
 		ths7303_setval(THS7303_FILTER_MODE_480P_576P);
 		msleep(40);
+#endif
 		__raw_writel(0x081141EF, IO_ADDRESS(DM3XX_VDAC_CONFIG));
 	}
 
@@ -776,8 +778,10 @@ static void davinci_enc_set_625p(struct vid_enc_mode_info *mode_info)
 
 	if (cpu_is_davinci_dm365()) {
 		dispc_reg_out(VENC_CLKCTL, 0x01);
+#ifdef CONFIG_VIDEO_THS7303
 		ths7303_setval(THS7303_FILTER_MODE_480P_576P);
 		msleep(40);
+#endif
 		__raw_writel(0x081141EF, IO_ADDRESS(DM3XX_VDAC_CONFIG));
 	}
 
@@ -1137,8 +1141,10 @@ static void davinci_enc_set_internal_hd(struct vid_enc_mode_info *mode_info)
 	if (davinci_enc_select_venc_clock(VENC_74_25MHZ) < 0)
 		dev_err(venc->vdev, "PLL's doesnot yield required VENC clk\n");
 
+#ifdef CONFIG_VIDEO_THS7303
 	ths7303_setval(THS7303_FILTER_MODE_720P_1080I);
 	msleep(50);
+#endif
 	__raw_writel(0x081141EF, IO_ADDRESS(DM3XX_VDAC_CONFIG));
 	return;
 }
