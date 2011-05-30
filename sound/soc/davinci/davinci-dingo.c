@@ -206,7 +206,7 @@ static struct snd_soc_card dm365_snd_soc_card_dingo[] = {
 };
 
 static struct uda1334_platform_data dingo_uda1334 = {
-	.mute_gpio = DEBUG_GPIO1,
+	.mute_gpio = AUDIO_MUTE,
 	.deemp_gpio = AUDIO_DEEMP,
 	.reset_gpio = AUDIO_RESET,
 	.power = dingo_uda_power,

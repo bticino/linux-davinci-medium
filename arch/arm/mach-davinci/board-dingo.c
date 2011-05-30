@@ -678,22 +678,22 @@ static void dingo_gpio_configure(void)
 	gpio_direction_output(EN_AUDIO, 0);
 
 	davinci_cfg_reg(DM365_GPIO95);
-	status = gpio_request(DEBUG_GPIO1, "DEBUG GPIO on TP30");
+	status = gpio_request(AUDIO_MUTE, "DEBUG GPIO on TP30");
 	if (status) {
-		pr_err("%s: failed to request GPIO: DEBUG GPIO on \
-				 TP30: %d\n", __func__, status);
+		pr_err("%s: fail GPIO request: Audio Mute %d\n",
+				 __func__, status);
+		return;
+	}
+	gpio_direction_output(AUDIO_MUTE, 0);
+
+	davinci_cfg_reg(DM365_GPIO94);
+	status = gpio_request(DEBUG_GPIO1, "DEBUG GPIO on TP31");
+	if (status) {
+		pr_err("%s: fail GPIO request: DEBUG GPIO on "\
+				" TP31: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(DEBUG_GPIO1, 0);
-
-	davinci_cfg_reg(DM365_GPIO94);
-	status = gpio_request(DEBUG_GPIO2, "DEBUG GPIO on TP31");
-	if (status) {
-		pr_err("%s: failed to request GPIO: DEBUG GPIO on \
-				 TP31: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(DEBUG_GPIO2, 0);
 
 	davinci_cfg_reg(DM365_GPIO96);
 	status = gpio_request(LCD_RESETn, "Reset of LCD");
@@ -857,7 +857,6 @@ static void dingo_gpio_configure(void)
 		gpio_export(BOOT_FL_WP, 0); /* danger */
 		gpio_export(EN_AUDIO, 0);
 		gpio_export(DEBUG_GPIO1, 0);
-		gpio_export(DEBUG_GPIO2, 0);
 		gpio_export(LCD_RESETn, 0);
 		gpio_export(LCD_SHTDWNn, 0);
 		gpio_export(PIC_RESET_N, 0);
@@ -871,6 +870,7 @@ static void dingo_gpio_configure(void)
 		gpio_export(LCD_GPIO, 0);
 		gpio_export(AUDIO_DEEMP, 0);
 		gpio_export(AUDIO_RESET, 0);
+		gpio_export(AUDIO_MUTE, 0);
 		gpio_export(TOUCH_BUSY, 0);
 		gpio_export(LCD_CSn, 0);
 		gpio_export(23, 0);

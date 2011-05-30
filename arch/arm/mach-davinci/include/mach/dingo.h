@@ -24,12 +24,7 @@
 /*
  * DEBUG GPIO on TP30
  */
-#define DEBUG_GPIO1		95
-
-/*
- * DEBUG GPIO on TP31
- */
-#define DEBUG_GPIO2		94
+#define DEBUG_GPIO1		94
 
 /*
  * Reset of LCD (Active Low)
@@ -85,6 +80,11 @@
  * Audio Reset
  */
 #define AUDIO_RESET		69
+
+/*
+ * Audio Mute
+ */
+#define AUDIO_MUTE		95
 
 /*
  * EEPROM Write protect
