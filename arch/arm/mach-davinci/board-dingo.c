@@ -165,13 +165,24 @@ static struct mtd_partition dingo_nand_partitions[] = {
 	/* two blocks with bad block table (and mirror) at the end */
 };
 
+static struct davinci_aemif_timing dingo_nandflash_timing = {
+	.wsetup		= 5,
+	.wstrobe	= 10,
+	.whold		= 5,
+	.rsetup		= 5,
+	.rstrobe	= 10,
+	.rhold		= 5,
+	.ta		= 10,
+};
+
 static struct davinci_nand_pdata davinci_nand_data = {
-	.mask_chipsel           = 0, /* BIT(14), enable a second nand flash */
-	.parts                  = dingo_nand_partitions,
-	.nr_parts               = ARRAY_SIZE(dingo_nand_partitions),
-	.ecc_mode               = NAND_ECC_HW,
-	.options                = NAND_USE_FLASH_BBT,
-	.ecc_bits               = 4,
+	.mask_chipsel	= 0, /* BIT(14), enable a second nand flash */
+	.parts		= dingo_nand_partitions,
+	.nr_parts	= ARRAY_SIZE(dingo_nand_partitions),
+	.ecc_mode	= NAND_ECC_HW,
+	.options	= NAND_USE_FLASH_BBT,
+	.ecc_bits	= 4,
+	.timing		= &dingo_nandflash_timing,
 };
 
 static struct resource davinci_nand_resources[] = {
@@ -320,18 +331,12 @@ static struct platform_device davinci_fb_device = {
 	.resource      = davincifb_resources,
 };
 
-void dingo_kick_battery(void)
-{
-	dingo_bl_set_intensity(0x10);
-}
-
 static struct generic_bl_info dingo_bl_machinfo = {
 	.max_intensity = 0xff,
-	.default_intensity = 0xf0,
+	.default_intensity = 0xF0,
 	.limit_mask = 0xff,
 	.set_bl_intensity = dingo_bl_set_intensity,
-	.kick_battery = dingo_kick_battery,
-	.name = "Dingo Backlight",
+	.name = "dingo_backlight",
 };
 
 static struct resource gpio_resources[] = {
@@ -361,7 +366,7 @@ static void dingo_bl_set_intensity(int level)
 	if (!base)
 		base = ioremap(DM365_PWM0_CONTROL_BASE, SZ_1K - 1);
 
-	pr_info("setting backlight to level:%d\n", level);
+	pr_info("set backlight lev:%d\n", level);
 
 	level = level & 0xff;
 
@@ -671,8 +676,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO35);
 	status = gpio_request(EN_AUDIO, "Audio Enable to external connector");
 	if (status) {
-		pr_err("%s: failed to request GPIO: Audio Enable to\
-				external connector: %d\n", __func__, status);
+		pr_err("%s: fail GPIO request: Audio Enable to"\
+				" extern conn: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(EN_AUDIO, 0);
@@ -706,9 +711,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO99);
 	status = gpio_request(PIC_RESET_N, "SCS PIC Reset");
 	if (status) {
-		pr_err("%s: failed to request GPIO: SCS PIC Reset \
-					   : %d\n", __func__,
-					    status);
+		pr_err("%s: fail GPIO request: SCS PIC Reset" \
+					 " : %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(PIC_RESET_N, 1);
@@ -716,9 +720,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO98);
 	status = gpio_request(LCD_SHTDWNn, "LCD Shutdown");
 	if (status) {
-		pr_err("%s: failed to request GPIO: LCD Shutdown \
-				     : %d\n", __func__,
-				      status);
+		pr_err("%s: failed to request GPIO: LCD Shutdown" \
+				"  : %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(LCD_SHTDWNn, 1);
@@ -726,8 +729,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO97);
 	status = gpio_request(PENIRQn, "Resistive touch interface irq signal");
 	if (status) {
-		pr_err("%s: failed to request GPIO: Resistive touch \
-				interface irq signal: %d\n", __func__, status);
+		pr_err("%s: failed to request GPIO: Resistive touch " \
+				"interface irq signal: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_input(PENIRQn);
@@ -756,8 +759,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO26);
 	status = gpio_request(TMK_INTn, "Timer keeper interrupt");
 	if (status) {
-		pr_err("%s: failed to request GPIO: Timer Keeper \
-				 interrupt: %d\n", __func__, status);
+		pr_err("%s: failed to request GPIO: Timer Keeper " \
+				"interrupt: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_input(TMK_INTn);
@@ -765,8 +768,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO36);
 	status = gpio_request(LCD_GPIO, "GIO routed on LCD connector");
 	if (status) {
-		pr_err("%s: failed to request GPIO: GIO routed on \
-				 LCD Connector: %d\n", __func__, status);
+		pr_err("%s: failed to request GPIO: GIO routed on " \
+				"LCD Connector: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_input(LCD_GPIO);
@@ -774,8 +777,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_AEMIF_AR0);
 	status = gpio_request(AUDIO_DEEMP, "Audio Deemphasis");
 	if (status) {
-		pr_err("%s: failed to request GPIO: Audio Deemphasis \
-				 : %d\n", __func__, status);
+		pr_err("%s: failed to request GPIO: Audio Deemphasis " \
+				": %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(AUDIO_DEEMP, 1);
@@ -783,8 +786,8 @@ static void dingo_gpio_configure(void)
 	/* davinci_cfg_reg(DM365_GPIO69); */
 	status = gpio_request(AUDIO_RESET, "Audio Reset");
 	if (status) {
-		pr_err("%s: failed to request GPIO: Audio Reset \
-				 : %d\n", __func__, status);
+		pr_err("%s: failed to request GPIO: Audio Reset " \
+				": %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(AUDIO_RESET, 1);
@@ -792,8 +795,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO40);
 	status = gpio_request(E2_WP, "EEPROM Write protect");
 	if (status) {
-		pr_err("%s: failed to request GPIO: EEPROM Write \
-				 protect: %d\n", __func__, status);
+		pr_err("%s: failed to request GPIO: EEPROM Write " \
+				"protect: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(E2_WP, 1);
@@ -801,8 +804,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO38);
 	status = gpio_request(EN_RTC, "Enable external RTC power supply");
 	if (status) {
-		pr_err("%s: failed to request GPIO: Enable external \
-				 RTC power supply %d\n", __func__, status);
+		pr_err("%s: failed to request GPIO: Enable external " \
+				"RTC power supply %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(EN_RTC, 1);
@@ -810,8 +813,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO44);
 	status = gpio_request(ENET_RESETn, "ENET RESET");
 	if (status) {
-		pr_err("%s: failed to request ENET \
-				RESET %d\n", __func__, status);
+		pr_err("%s: failed to request ENET " \
+				"RESET %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(ENET_RESETn, 1);
@@ -819,8 +822,8 @@ static void dingo_gpio_configure(void)
 	/* davinci_cfg_reg(DM365_GPIO74); */
 	status = gpio_request(TOUCH_BUSY, "Touch interface busy");
 	if (status) {
-		pr_err("%s: failed to request GPIO: Touch interface \
-				 busy: %d\n", __func__, status);
+		pr_err("%s: failed to request GPIO: Touch interface " \
+				"busy: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_input(TOUCH_BUSY);
@@ -828,8 +831,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO68);
 	status = gpio_request(LCD_CSn, "LCD Chip Select for SPI bus");
 	if (status) {
-		pr_err("%s: failed to request GPIO: LCD Chip Select \
-				 for SPI bus: %d\n", __func__, status);
+		pr_err("%s: failed to request GPIO: LCD Chip Select " \
+				"for SPI bus: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_output(LCD_CSn, 1);
@@ -837,8 +840,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO50);
 	status = gpio_request(POWER_FAIL, "Early advise of power down");
 	if (status) {
-		pr_err("%s: failed to request GPIO: early advise of \
-				 power down: %d\n", __func__, status);
+		pr_err("%s: failed to request GPIO: early advise of " \
+				"power down: %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_input(POWER_FAIL);
@@ -847,8 +850,8 @@ static void dingo_gpio_configure(void)
 	davinci_cfg_reg(DM365_GPIO39);
 	status = gpio_request(OC2_VBUS_USB, "OC2_VBUS_USB");
 	if (status) {
-		pr_err("%s: failed to request GPIO: OC2_VBUS_USB \
-				 : %d\n", __func__, status);
+		pr_err("%s: failed to request GPIO: OC2_VBUS_USB " \
+				": %d\n", __func__, status);
 		return;
 	}
 	gpio_direction_input(OC2_VBUS_USB);
