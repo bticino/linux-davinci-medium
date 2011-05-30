@@ -1840,6 +1840,7 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 				tmp >>=1;
 				if (tmp) {
 					winmd |= tmp << OSD_OSDWIN0MD_OHZ0_SHIFT;
+					tmp >>= 1;
 					winmd |= tmp << OSD_OSDWIN0MD_OVZ0_SHIFT;
 				}
 				break;

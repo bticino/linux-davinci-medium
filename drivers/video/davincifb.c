@@ -2141,7 +2141,8 @@ static void parse_win_params(struct vpbe_dm_win_info *win,
 					lconfig->pixfmt = PIXFMT_RGB888;
 				break;
 			case 32:
-				if (cpu_is_davinci_dm355()
+				if ((cpu_is_davinci_dm355() ||
+				     cpu_is_davinci_dm365())
 				    && (win->layer == WIN_OSD0
 					|| win->layer == WIN_OSD1))
 					lconfig->pixfmt = PIXFMT_RGB888;
