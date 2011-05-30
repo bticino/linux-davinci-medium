@@ -654,7 +654,7 @@ static void dingo_gpio_configure(void)
 
 	/* Configure (disable) pull down control */
 	__raw_writel(0, pupdctl0);
-	__raw_writel(0, pupdctl1);
+	__raw_writel(0x40000, pupdctl1); /* EM_WAIT active pull-up */
 
 	gpio_request(0, "GIO0");
 	gpio_direction_input(0);
