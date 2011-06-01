@@ -648,13 +648,11 @@ static struct mmc_blk_data *mmc_blk_alloc(struct mmc_card *card)
 		 * sectors.
 		 */
 		set_capacity(md->disk, card->ext_csd.sectors);
-		printk("--------0-----------\n");
 	} else {
 		/*
 		 * The CSD capacity field is in units of read_blkbits.
 		 * set_capacity takes units of 512 bytes.
 		 */
-		printk("--------1-----------\n");
 		set_capacity(md->disk,
 			(card->csd.capacity << (card->csd.read_blkbits - 9)) * 2);
 	}
