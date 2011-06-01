@@ -77,7 +77,8 @@ static struct v4l2_queryctrl tvp5150_qctrl[] = {
 };
 
 static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable);
-
+static int tvp5150_try_fmt_cap(struct v4l2_subdev *sd,
+				struct v4l2_format *f);
 /**
  * struct tvp5150_std_info - Structure to store standard informations
  * @width: Line width in pixels
@@ -1213,7 +1214,21 @@ static int tvp5150_s_routing(struct v4l2_subdev *sd,
 static int tvp5150_s_fmt(struct v4l2_subdev *sd, struct v4l2_format *fmt)
 {
 	struct v4l2_sliced_vbi_format *svbi;
+	struct v4l2_pix_format *pix;
+	struct tvp5150 *decoder = to_tvp5150(sd);
 	int i;
+	int rval;
+
+	/* capture */
+	if (fmt->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+		printk("%s-%d V4L2_BUF_TYPE_VIDEO_CAPTURE\n", __func__, __LINE__);
+		pix = &fmt->fmt.pix;
+		rval = tvp5150_try_fmt_cap(sd, fmt);
+		if (rval)
+			return rval;
+		decoder->pix = *pix;
+		return 0;
+	}
 
 	/* raw vbi */
 	if (fmt->type == V4L2_BUF_TYPE_VBI_CAPTURE) {
