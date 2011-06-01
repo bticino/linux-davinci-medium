@@ -812,11 +812,7 @@ static struct davinci_uart_config uart_config __initdata = {
 
 static void __init basi_map_io(void)
 {
-	printk("%s - %d: setup input configuration for VPFE input devices\n", __func__,
-				__LINE__);
-
 	dm365_set_vpfe_config(&vpfe_cfg);
-
 	dm365_init();
 }
 
@@ -858,14 +854,12 @@ static struct snd_platform_data dm365_basi_snd_data;
 
 static __init void basi_init(void)
 {
-	pr_warning("basi_init: START\n");
 	if (basi_debug>1)
 		pinmux_check();
 	basi_gpio_configure();
 	davinci_cfg_reg(DM365_UART1_RXD_34);
 	davinci_cfg_reg(DM365_UART1_TXD_25);
 	davinci_serial_init(&uart_config);
-	pr_warning("basi_init: starting\n");
 	mdelay(1);
 	davinci_cfg_reg(DM365_I2C_SDA);
 	davinci_cfg_reg(DM365_I2C_SCL);
@@ -885,7 +879,6 @@ static __init void basi_init(void)
 
 	if (basi_debug)
 		pinmux_check();
-	pr_warning("basi_init: END\n");
 }
 
 MACHINE_START(BASI, "BTicino BASI board")
