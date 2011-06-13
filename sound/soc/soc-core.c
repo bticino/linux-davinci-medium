@@ -987,6 +987,23 @@ static int soc_resume(struct device *dev)
 	return 0;
 }
 
+static int soc_power_changed(struct device *dev,
+				enum sys_power_state s)
+{
+	printk(KERN_INFO "nand_device_power_changed(%d)\n", s);
+	switch (s) {
+	case SYS_PWR_GOOD:
+		soc_resume(dev);
+		break;
+	case SYS_PWR_FAILING:
+		soc_suspend(dev);
+		break;
+	default:
+		BUG();
+	}
+	return 0;
+}
+
 /**
  * snd_soc_suspend_device: Notify core of device suspend
  *
@@ -1311,6 +1328,9 @@ static int soc_poweroff(struct device *dev)
 static struct dev_pm_ops soc_pm_ops = {
 	.suspend = soc_suspend,
 	.resume = soc_resume,
+#ifdef CONFIG_PM_LOSS
+	.power_changed = soc_power_changed,
+#endif
 	.poweroff = soc_poweroff,
 };
 

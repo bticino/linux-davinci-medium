@@ -443,6 +443,7 @@ struct snd_soc_codec_device {
 	int (*remove)(struct platform_device *pdev);
 	int (*suspend)(struct platform_device *pdev, pm_message_t state);
 	int (*resume)(struct platform_device *pdev);
+	int (*power_changed)(struct device *dev, enum sys_power_state s);
 };
 
 /* SoC platform interface */
