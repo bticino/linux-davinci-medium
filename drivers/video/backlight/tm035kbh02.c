@@ -133,6 +133,25 @@ static int tm035kbh02_resume(struct spi_device *spi)
 	return 0;
 }
 
+static int tm035kbh02_power_changed(struct spi_device *spi,
+					enum sys_power_state s)
+{
+	switch (s) {
+	case SYS_PWR_GOOD:
+		lcd.is_suspended = 0;
+		tm035kbh02_enable();
+		break;
+	case SYS_PWR_FAILING:
+		lcd.is_suspended = 1;
+		tm035kbh02_disable();
+		break;
+	default:
+		BUG();
+	}
+
+	return 0;
+}
+
 int  tm035kbh02_set_contrast(struct lcd_device *tm035kbh02_lcd_device,
 			     int contrast)
 {
@@ -298,6 +317,9 @@ static struct spi_driver tm035kbh02_driver = {
 	.remove		= __devexit_p(tm035kbh02_spi_remove),
 	.suspend	= tm035kbh02_suspend,
 	.resume		= tm035kbh02_resume,
+#ifdef CONFIG_PM_LOSS
+	.power_changed	= tm035kbh02_power_changed,
+#endif
 };
 
 static int __init tm035kbh02_init(void)
