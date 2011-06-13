@@ -2813,6 +2813,31 @@ static int __devexit davinci_emac_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int davinci_emac_power_changed(struct device *dev,
+					enum sys_power_state s)
+{
+	struct net_device *ndev = dev_get_drvdata(dev);
+
+	switch (s) {
+	case SYS_PWR_GOOD:
+		netif_start_queue(ndev);
+		break;
+	case SYS_PWR_FAILING:
+		netif_stop_queue(ndev);
+		break;
+	default:
+		BUG();
+	}
+
+	return 0;
+}
+
+static struct dev_pm_ops davinci_emac_pm_ops = {
+#ifdef CONFIG_PM_LOSS
+	.power_changed = davinci_emac_power_changed,
+#endif
+};
+
 /**
  * davinci_emac_driver: EMAC platform driver structure
  *
@@ -2823,6 +2848,7 @@ static struct platform_driver davinci_emac_driver = {
 	.driver = {
 		.name	 = "davinci_emac",
 		.owner	 = THIS_MODULE,
+		.pm	 = &davinci_emac_pm_ops,
 	},
 	.probe = davinci_emac_probe,
 	.remove = __devexit_p(davinci_emac_remove),
