@@ -866,10 +866,56 @@ static int __exit nand_davinci_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int davinci_nand_suspend(struct device *dev)
+{
+	struct davinci_nand_info *info = dev_get_drvdata(dev);
+	int ret = 0;
+	if (info)
+		ret = info->mtd.suspend(&info->mtd);
+	return ret;
+}
+
+static int davinci_nand_resume(struct device *dev)
+{
+	struct davinci_nand_info *info = dev_get_drvdata(dev);
+	if (info)
+		info->mtd.resume(&info->mtd);
+	return 0;
+}
+
+#ifdef CONFIG_PM_LOSS
+
+static int davinci_nand_power_changed(struct device *dev,
+				enum sys_power_state s)
+{
+	printk(KERN_ERR "nand_device_power_changed(%d)\n", s);
+	switch (s) {
+	case SYS_PWR_GOOD:
+		davinci_nand_resume(dev);
+		break;
+	case SYS_PWR_FAILING:
+		davinci_nand_suspend(dev);
+		break;
+	default:
+		BUG();
+	}
+	return 0;
+}
+#endif
+
+static struct dev_pm_ops davinci_nand_pm_ops = {
+	.suspend = davinci_nand_suspend,
+	.resume = davinci_nand_resume,
+#ifdef CONFIG_PM_LOSS
+	.power_changed = davinci_nand_power_changed,
+#endif
+};
+
 static struct platform_driver nand_davinci_driver = {
 	.remove		= __exit_p(nand_davinci_remove),
 	.driver		= {
 		.name	= "davinci_nand",
+		.pm	= &davinci_nand_pm_ops,
 	},
 };
 MODULE_ALIAS("platform:davinci_nand");
