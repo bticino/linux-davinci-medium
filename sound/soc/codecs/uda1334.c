@@ -70,7 +70,7 @@ static int uda1334_startup(struct snd_pcm_substream *substream,
 	if (pd->power)
 		pd->power(1);
 
-	uda1334->running = 0;
+	uda1334->running = 1;
 	return 0;
 }
 
