@@ -130,6 +130,30 @@ static int spi_resume(struct device *dev)
 	return value;
 }
 
+#ifdef CONFIG_PM_LOSS
+static int spi_power_changed(struct device *dev, enum sys_power_state s)
+{
+	int			value = 0;
+	struct spi_driver	*drv = to_spi_driver(dev->driver);
+
+	/* resume may restart the i/o queue */
+	if (drv) {
+		if (drv->power_changed)
+			value = drv->power_changed(to_spi_device(dev), s);
+		else
+			dev_dbg(dev, "... can't manage power_changed,\n");
+	}
+	return value;
+}
+#endif
+const struct dev_pm_ops spi_pm = {
+	.suspend	= spi_suspend,
+	.resume		= spi_resume,
+#ifdef CONFIG_PM_LOSS
+	.power_changed	= spi_power_changed,
+#endif
+};
+
 #else
 #define spi_suspend	NULL
 #define spi_resume	NULL
@@ -142,6 +166,9 @@ struct bus_type spi_bus_type = {
 	.uevent		= spi_uevent,
 	.suspend	= spi_suspend,
 	.resume		= spi_resume,
+#ifdef CONFIG_PM
+	.pm		= &spi_pm,
+#endif
 };
 EXPORT_SYMBOL_GPL(spi_bus_type);
 

@@ -178,6 +178,9 @@ struct spi_driver {
 	void			(*shutdown)(struct spi_device *spi);
 	int			(*suspend)(struct spi_device *spi, pm_message_t mesg);
 	int			(*resume)(struct spi_device *spi);
+#ifdef CONFIG_PM_LOSS
+	int			(*power_changed)(struct spi_device *spi, enum sys_power_state s);
+#endif
 	struct device_driver	driver;
 };
 
