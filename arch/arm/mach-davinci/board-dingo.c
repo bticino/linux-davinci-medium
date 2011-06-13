@@ -60,6 +60,7 @@
 #include <media/soc_camera.h>
 #include <mach/aemif.h>
 #include <video/davincifb.h>
+#include <linux/pm_loss.h>
 
 #include <mach/dingo.h>
 
@@ -617,16 +618,43 @@ static void __init dingo_gpio_init_irq(void)
 	set_irq_chained_handler(IRQ_DM365_GPIO0, dingo_gpio_irq_handler);
 }
 
+/* Power failure stuff */
+#ifdef CONFIG_PM_LOSS
+
+static int powerfail_status;
+
 static irqreturn_t dingo_powerfail_stop(int irq, void *dev_id);
 
-static irqreturn_t dingo_powerfail_start(int irq, void *dev_id)
+static irqreturn_t dingo_powerfail_quick_check_start(int irq, void *dev_id)
 {
 	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_2);
 	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_0);
 
 	/* PowerFail situation - START: power is going away */
+	return IRQ_WAKE_THREAD;
+}
+
+static irqreturn_t dingo_powerfail_start(int irq, void *dev_id)
+{
+	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_2);
+	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	if (powerfail_status)
+		return IRQ_HANDLED;
+	powerfail_status = 1;
+	pm_loss_power_changed(SYS_PWR_FAILING);
+
+	/* PowerFail situation - START: power is going away */
 
 	return IRQ_HANDLED;
+}
+
+static irqreturn_t dingo_powerfail_quick_check_stop(int irq, void *dev_id)
+{
+	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
+
+	/* PowerFail situation - STOP: power is coming back */
+	return IRQ_WAKE_THREAD;
 }
 
 static void debounce(unsigned long data)
@@ -635,12 +663,16 @@ static void debounce(unsigned long data)
 	if (!gpio_get_value(POWER_FAIL))
 		return;
 
+	if (!powerfail_status)
+		return IRQ_HANDLED;
+	powerfail_status = 0;
+	pm_loss_power_changed(SYS_PWR_GOOD);
+
 	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
 	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
 
 	/* PowerFail situation - STOP: power is back */
 }
-
 
 static irqreturn_t dingo_powerfail_stop(int irq, void *dev_id)
 {
@@ -659,15 +691,79 @@ static irqreturn_t dingo_powerfail_stop(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+enum dingo_pwrfail_prio {
+	DINGO_PWR_FAIL_PRIO_0,
+	DINGO_PWR_FAIL_MIN_PRIO = DINGO_PWR_FAIL_PRIO_0,
+	DINGO_PWR_FAIL_PRIO_1,
+	DINGO_PWR_FAIL_PRIO_2,
+	DINGO_PWR_FAIL_PRIO_3,
+	DINGO_PWR_FAIL_MAX_PRIO = DINGO_PWR_FAIL_PRIO_3,
+};
+
+struct pm_loss_default_policy_item dingo_pm_loss_policy_items[] = {
+	{
+		.bus_name = "platform",
+		.bus_priority = DINGO_PWR_FAIL_PRIO_1,
+	},
+};
+
+#define DINGO_POLICY_NAME "dingo-default"
+
+struct pm_loss_default_policy_table dingo_pm_loss_policy_table = {
+	.name = DINGO_POLICY_NAME,
+	.items = dingo_pm_loss_policy_items,
+	.nitems = ARRAY_SIZE(dingo_pm_loss_policy_items),
+};
+
 static void dingo_powerfail_configure(void)
 {
-	int ret;
-	ret = request_irq(IRQ_DM365_GPIO0_2, dingo_powerfail_start, 0,
-			  "pwrfail-on", NULL);
-	ret = request_irq(IRQ_DM365_GPIO0_0, dingo_powerfail_stop, 0,
-			  "pwrfail-off", NULL);
+	int stat;
+	struct pm_loss_policy *p;
+	stat = request_threaded_irq(IRQ_DM365_GPIO0_2,
+				    dingo_powerfail_quick_check_start,
+				    dingo_powerfail_start,
+				    0,
+				    "pwrfail-on", NULL);
+	if (stat < 0)
+		printk(KERN_ERR "request_threaded_irq for IRQ%d (pwrfail-on) "
+		       "failed\n", IRQ_DM365_GPIO0_2);
+	stat = request_threaded_irq(IRQ_DM365_GPIO0_0,
+				    dingo_powerfail_quick_check_stop,
+				    dingo_powerfail_stop, 0,
+				    "pwrfail-off", NULL);
+	if (stat < 0)
+		printk(KERN_ERR "request_threaded_irq for IRQ%d (pwrfail-off) "
+		       "failed\n", IRQ_DM365_GPIO0_0);
 	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	p = pm_loss_setup_default_policy(&dingo_pm_loss_policy_table);
+
+	if (!p)
+		printk(KERN_ERR "Could not register pwr change policy\n");
+
+	if (pm_loss_set_policy(DINGO_POLICY_NAME) < 0)
+		printk(KERN_ERR "Could not set %s power loss policy\n",
+		       DINGO_POLICY_NAME);
+
+	printk(KERN_ERR "%s OK\n", __func__);
 }
+
+int platform_pm_loss_power_changed(struct device *dev,
+                                   enum sys_power_state s)
+{
+	int ret = 0;
+
+	/* Calling platform bus pm_loss functions */
+	pr_debug_pm_loss("platform_pm_loss_power_changed(%d)\n", s);
+
+	if (dev->driver && dev->driver->pm &&
+		dev->driver->pm->power_changed)
+		ret = dev->driver->pm->power_changed(dev, s);
+	return ret;
+}
+
+#else /* !CONFIG_PM_LOSS */
+#define dingo_powerfail_configure()
+#endif
 
 static void dingo_gpio_configure(void)
 {
