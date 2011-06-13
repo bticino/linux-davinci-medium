@@ -16,6 +16,8 @@
 #include <linux/mutex.h>
 #include <linux/fb.h>
 #include <linux/backlight.h>
+#include <linux/pm.h>
+#include <linux/pm_loss.h>
 
 static int genericbl_intensity;
 static struct backlight_device *generic_backlight_device;
@@ -51,6 +53,32 @@ static int genericbl_get_intensity(struct backlight_device *bd)
 {
 	return genericbl_intensity;
 }
+
+#ifdef CONFIG_PM_LOSS
+static int genericbl_power_changed(struct device *dev,
+					enum sys_power_state s)
+{
+	struct backlight_device *bd = dev_get_drvdata(dev);
+	static int genericbl_intensity_bkup;
+
+	pr_debug_pm_loss("%s(%d)\n", __func__, s);
+	switch (s) {
+	case SYS_PWR_FAILING:
+		bl_machinfo->set_bl_intensity(0);
+		genericbl_intensity_bkup = genericbl_intensity;
+		genericbl_intensity = 0;
+		break;
+	case SYS_PWR_GOOD:
+		bl_machinfo->set_bl_intensity(genericbl_intensity_bkup);
+		genericbl_intensity = genericbl_intensity_bkup;
+		genericbl_intensity_bkup = 0;
+		break;
+	default:
+		BUG();
+	}
+}
+#endif
+
 
 /*
  * Called when the battery is low to limit the backlight intensity.
@@ -121,11 +149,18 @@ static int genericbl_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static struct dev_pm_ops genericbl_pm_ops = {
+#ifdef CONFIG_PM_LOSS
+	.power_changed = genericbl_power_changed,
+#endif
+};
+
 static struct platform_driver genericbl_driver = {
 	.probe		= genericbl_probe,
 	.remove		= genericbl_remove,
 	.driver		= {
 		.name	= "generic-bl",
+		.pm	= &genericbl_pm_ops
 	},
 };
 
