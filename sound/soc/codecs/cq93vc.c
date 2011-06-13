@@ -142,6 +142,7 @@ static const struct snd_soc_dapm_route intercon[] = {
 static int cq93vc_mute(struct snd_soc_dai *dai, int mute)
 {
 	struct snd_soc_codec *codec = dai->codec;
+
 	u8 reg = cq93vc_read(codec, DAVINCI_VC_REG09) & ~DAVINCI_VC_REG09_MUTE;
 
 	if (mute)
@@ -149,6 +150,20 @@ static int cq93vc_mute(struct snd_soc_dai *dai, int mute)
 			     reg | DAVINCI_VC_REG09_MUTE);
 	else
 		cq93vc_write(codec, DAVINCI_VC_REG09, reg);
+
+	return 0;
+}
+
+static int cq93vc_power(struct snd_soc_codec *codec, int power)
+{
+
+	u8 reg = cq93vc_read(codec, DAVINCI_VC_REG12) & ~DAVINCI_VC_REG12_PDSP;
+
+	if (power)
+		cq93vc_write(codec, DAVINCI_VC_REG12,
+			     reg | DAVINCI_VC_REG12_PDSP);
+	else
+		cq93vc_write(codec, DAVINCI_VC_REG12, reg);
 
 	return 0;
 }
@@ -299,6 +314,33 @@ struct snd_soc_codec_device soc_codec_dev_cq93vc = {
 };
 EXPORT_SYMBOL_GPL(soc_codec_dev_cq93vc);
 
+#ifdef CONFIG_PM_LOSS
+
+static int cq93vc_power_changed(struct device *dev,
+				enum sys_power_state s)
+{
+	struct davinci_vc *davinci_vc = dev_get_drvdata(dev);
+	struct snd_soc_codec *codec = davinci_vc->cq93vc.codec;
+	switch (s) {
+	case SYS_PWR_GOOD:
+		cq93vc_power(codec, 1);
+		break;
+	case SYS_PWR_FAILING:
+		cq93vc_power(codec, 0);
+		break;
+	default:
+		BUG();
+	}
+	return 0;
+}
+#endif
+
+static struct dev_pm_ops cq93vc_codec_pm_ops = {
+#ifdef CONFIG_PM_LOSS
+	.power_changed = cq93vc_power_changed,
+#endif
+};
+
 static __init int cq93vc_codec_probe(struct platform_device *pdev)
 {
 	struct davinci_vc *davinci_vc = platform_get_drvdata(pdev);
@@ -372,6 +414,7 @@ static struct platform_driver cq93vc_codec_driver = {
 	.driver = {
 		   .name = "cq93vc",
 		   .owner = THIS_MODULE,
+		   .pm = &cq93vc_codec_pm_ops,
 		   },
 	.probe = cq93vc_codec_probe,
 	.remove = __devexit_p(cq93vc_codec_remove),
