@@ -190,10 +190,8 @@ static int tda9885_probe(struct i2c_client *client,
 	} else {
 		/* Copy board specific information here */
 		data->pdata = client->dev.platform_data;
-
 		i2c_set_clientdata(client, data);
-
-			}
+	}
 
 	/* switching off the demodulator */
 	gpio_set_value(data->pdata->power, 0);
