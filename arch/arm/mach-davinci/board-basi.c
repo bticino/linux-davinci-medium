@@ -60,6 +60,7 @@
 #include <media/soc_camera.h>
 #include <media/tvp5150.h>
 #include <linux/i2c/tda9885.h>
+#include <linux/i2c/tvp5150.h>
 #include <mach/aemif.h>
 
 #include <mach/basi.h>
@@ -100,6 +101,11 @@ static struct tda9885_platform_data tda9885_defaults = {
 	.adjust_mode = 0xd0,
 	.data_mode = 0x0b,
 	.power = ABIL_DEM_VIDEO,
+};
+
+static struct tvp5150_platform_data tvp5150_pdata = {
+	.pdn = PDEC_PWRDNn,
+	.resetb = PDEC_RESETn,
 };
 
 /* Inputs available at the TVP5146 */
@@ -149,9 +155,7 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 		},
 		.board_info = {
 			I2C_BOARD_INFO("tvp5150", 0x5d),
-#if 0
-			.platform_data = &tvp5151_pdata,
-#endif
+			.platform_data = &tvp5150_pdata,
 		},
 	},
 	{

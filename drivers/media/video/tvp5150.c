@@ -12,6 +12,8 @@
 #include <media/tvp5150.h>
 #include <media/v4l2-i2c-drv.h>
 #include <media/v4l2-chip-ident.h>
+#include <linux/gpio.h>
+#include <linux/i2c/tvp5150.h>
 
 #include "tvp5150_reg.h"
 
@@ -131,6 +133,7 @@ static struct tvp5150_std_info tvp5150_std_list[] = {
 
 struct tvp5150 {
 	struct v4l2_subdev sd;
+        const struct tvp5150_platform_data *pdata;
 
 	int ver_maj;
 	int ver_min;
@@ -1531,10 +1534,17 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 		/* Power Down Sequence */
 		tvp5150_write(sd, TVP5150_OP_MODE_CTL, 0x01);
 		decoder->streaming = enable;
+
+		/* putting the decoder in power down mode */
+		gpio_set_value(decoder->pdata->pdn, 0);
 		break;
 	}
 	case 1:
 	{
+		/* putting the decoder in operative mode */
+		gpio_set_value(decoder->pdata->pdn, 1);
+		mdelay(1);
+
 		/* Power Up Sequence */
 		tvp5150_write(sd, TVP5150_OP_MODE_CTL, 0x00);
 
@@ -1694,12 +1704,24 @@ static int tvp5150_probe(struct i2c_client *c,
 	     I2C_FUNC_SMBUS_READ_BYTE | I2C_FUNC_SMBUS_WRITE_BYTE_DATA))
 		return -EIO;
 
+        if (!c->dev.platform_data) {
+                v4l2_err(c, "No platform data!!\n");
+                return -ENODEV;
+        }
+
 	core = kzalloc(sizeof(struct tvp5150), GFP_KERNEL);
 	if (!core) {
 		return -ENOMEM;
-	}
-	/* Initialize the tvp5150_decoder with default configuration */
-	*core = tvp5150_dev;
+	} else {
+
+		/* Initialize the tvp5150_decoder with default configuration */
+		*core = tvp5150_dev;
+
+		/* Copy board specific information here */
+		core->pdata = c->dev.platform_data;
+		i2c_set_clientdata(c, core);
+        }
+
 	sd = &core->sd;
 	v4l2_i2c_subdev_init(sd, c, &tvp5150_ops);
 	v4l_info(c, "chip found @ 0x%02x (%s)\n",
@@ -1712,6 +1734,9 @@ static int tvp5150_probe(struct i2c_client *c,
 	core->contrast = 128;
 	core->hue = 0;
 	core->sat = 128;
+
+	/* putting the decoder in power down mode */
+	gpio_set_value(core->pdata->pdn, 0);
 
 	if (debug > 1)
 		tvp5150_log_status(sd);
