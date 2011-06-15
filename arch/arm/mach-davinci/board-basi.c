@@ -72,6 +72,8 @@
 #define BASI_MDIO_FREQUENCY        (2200000)	/* PHY bus frequency */
 #define HW_IN_CLOCKOUT2_UDA_I2S
 
+#define DAVINCI_BOARD_MAX_NR_UARTS 3
+
 static int basi_debug = 1;
 module_param(basi_debug, int, 0644);
 MODULE_PARM_DESC(basi_debug, "Debug level 0-1");
