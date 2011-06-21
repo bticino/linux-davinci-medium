@@ -598,7 +598,6 @@ config VIDEO_DAVINCI_DISPLAY
 config DAVINCI_ENC_MNGR
 	tristate "Davinci Encoder Manager support"
 	depends on ARCH_DAVINCI
-	default y
 	help
 	  Enable support for the DaVinci Encoder Manager. This is responsible
 	  for managing output and video/graphics modes for davinci video drivers.
