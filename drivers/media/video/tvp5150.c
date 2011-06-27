@@ -1543,7 +1543,7 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 	{
 		/* putting the decoder in operative mode */
 		gpio_set_value(decoder->pdata->pdn, 1);
-		mdelay(1);
+		mdelay(25);		/* manual declares for tvp5151 20msec+200usec */
 
 		/* Power Up Sequence */
 		tvp5150_write(sd, TVP5150_OP_MODE_CTL, 0x00);
