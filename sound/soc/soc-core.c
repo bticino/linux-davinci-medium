@@ -990,7 +990,7 @@ static int soc_resume(struct device *dev)
 static int soc_power_changed(struct device *dev,
 				enum sys_power_state s)
 {
-	printk(KERN_INFO "nand_device_power_changed(%d)\n", s);
+	printk(KERN_INFO "soc_power_changed(%d)\n", s);
 	switch (s) {
 	case SYS_PWR_GOOD:
 		soc_resume(dev);
