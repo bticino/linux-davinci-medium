@@ -54,7 +54,7 @@ config SND_DM365_UDA134X_CODEC
 	  Say Y if you want to add support for UDA134X audio codec
 
 config SND_DM365_UDA1334_CODEC
-	bool "Audio Codec - UDA134X"
+	bool "Audio Codec - UDA1334"
 	select SND_DAVINCI_SOC_I2S
 	select SND_SOC_UDA1334
 	help
