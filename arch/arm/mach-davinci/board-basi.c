@@ -564,7 +564,7 @@ static void basi_gpio_configure(void)
 		                 chip select: %d\n", __func__, status);
 		return;
 	}
-	gpio_direction_output(BOOT_FL_WP, 1);
+	gpio_direction_output(BOOT_FL_WP, 0);
 
 	davinci_cfg_reg(DM365_GPIO36);
 	status = gpio_request(EN_AUDIO, "Audio modulator Enable on external connector");
