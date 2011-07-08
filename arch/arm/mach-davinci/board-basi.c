@@ -543,6 +543,16 @@ int platform_pm_loss_power_changed(struct device *dev,
 static void basi_gpio_configure(void)
 {
 	int status;
+	void __iomem *pupdctl0 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x78);
+	void __iomem *pupdctl1 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x7c);
+
+	/*
+	 * Configure (disable) pull down control because can give problems:
+	 * for example it is needed to disable "CIN[7:0] and PCLK Pull down
+	 * enable" in order to read correctly I2CSEL TVP5151 input.
+	 */
+	__raw_writel(0, pupdctl0);
+	__raw_writel(0, pupdctl1);
 
 	gpio_request(0, "GIO0");
 	gpio_direction_input(0);
