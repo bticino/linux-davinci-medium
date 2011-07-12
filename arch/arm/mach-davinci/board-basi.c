@@ -639,7 +639,7 @@ static void basi_gpio_configure(void)
 				 chip select: %d\n", __func__, status);
 		return;
 	}
-	gpio_direction_output(ZARLINK_CS, 0);
+	gpio_direction_output(ZARLINK_CS, 1);
 
 	davinci_cfg_reg(DM365_GPIO38);
 	status = gpio_request(PIC_RESET_N, "PIC AI reset");
