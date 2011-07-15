@@ -48,12 +48,6 @@ static struct platform_device *basi_snd_device[1];
 static int basi_hw_params_cq93(struct snd_pcm_substream *substream,
 			struct snd_pcm_hw_params *params)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *codec_dai = rtd->dai->codec_dai;
-	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
-	int ret = 0;
-	unsigned sysclk;
-
 	/*
 	 * Even if this settings are done in
 	 * dm365.c, it assures that they are
@@ -61,9 +55,6 @@ static int basi_hw_params_cq93(struct snd_pcm_substream *substream,
 	 */
 	davinci_cfg_reg(DM365_EVT2_VC_TX);
 	davinci_cfg_reg(DM365_EVT3_VC_RX);
-
-	/* ASP1 on DM355 EVM is clocked by an external oscillator */
-	sysclk = 27000000;
 
 	return 0;
 }
