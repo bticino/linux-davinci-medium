@@ -40,17 +40,26 @@
 #include "zl38005.h"
 
 #ifdef DEBUG
+
 #define ZL38005 "zl38005:"
-#define pr_debug(a, args...) \
+#define pr_debug_zl1(a, args...) \
+printk(KERN_INFO ZL38005 a, ## args)
+
+#if DEBUG > 1
+#define pr_debug_zl2(a, args...) \
 printk(KERN_INFO ZL38005 a, ## args)
 #else
-#define pr_debug(a, args...)
+#define pr_debug_zl2(a, args...)
+#endif
+
+#else
+#define pr_debug_zl1(a, args...)
+#define pr_debug_zl2(a, args...)
 #endif
 
 MODULE_DESCRIPTION("zl38005 codec driver");
 MODULE_AUTHOR("Raffaele Recalcati <raffaele.recalcati@bticino.it>");
 MODULE_LICENSE("GPL");
-
 
 /* ZL38005 driver private data */
 struct zl38005 {
@@ -89,7 +98,7 @@ static int zl38005_rd_ctrl_reg(struct device *dev, u8 *val)
 	struct zl38005 *zl38005 = dev_get_drvdata(dev);
 
 	cmd = (CMD_VALID | CMD_READ | CMD_LEN_16_BIT | CMD_TYPE_CTRL);
-	pr_debug("TX cmd=%X\n", cmd);
+	pr_debug_zl2("TX cmd=%X\n", cmd);
 	err = spi_write_then_read(zl38005->spi, &cmd, sizeof cmd,
                         rx_buf, 2);
 	if (err < 0) {
@@ -115,8 +124,8 @@ static int zl38005_wr_ctrl_reg(struct device *dev, u8 val, u8 write)
 	spi_message_init(&msg);
 	buf[0] = cmd;
 	buf[1] = val | (write == 1 ? CTRL_OP_WR : CTRL_OP_RD) | CTRL_WIDTH_16;
-	pr_debug("buf[0]=%02X\n", buf[0]);
-	pr_debug("buf[1]=%02X\n", buf[1]);
+	pr_debug_zl2("buf[0]=%02X\n", buf[0]);
+	pr_debug_zl2("buf[1]=%02X\n", buf[1]);
 	spi_message_add_tail(&xfer, &msg);
 	err = spi_sync(zl38005->spi, &msg);
 	if (err < 0) {
@@ -142,9 +151,9 @@ static int zl38005_wr_addr(struct device *dev, u16 val)
 	buf[0] = cmd;
 	buf[1] = ((val >> 8) & 0xff);
 	buf[2] = (val & 0xff);
-	pr_debug("buf[0]=%02X\n", buf[0]);
-	pr_debug("buf[1]=%02X\n", buf[1]);
-	pr_debug("buf[2]=%02X\n", buf[2]);
+	pr_debug_zl2("buf[0]=%02X\n", buf[0]);
+	pr_debug_zl2("buf[1]=%02X\n", buf[1]);
+	pr_debug_zl2("buf[2]=%02X\n", buf[2]);
 	spi_message_add_tail(&xfer, &msg);
 	err = spi_sync(zl38005->spi, &msg);
 	if (err < 0) {
@@ -172,11 +181,11 @@ static int zl38005_wr_data(struct device *dev, u16 val)
 	buf[2] = 0;
 	buf[3] = ((val >> 8) & 0xff);
 	buf[4] = (val & 0xff);
-	pr_debug("buf[0]=%02X\n", buf[0]);
-	pr_debug("buf[1]=%02X\n", buf[1]);
-	pr_debug("buf[2]=%02X\n", buf[2]);
-	pr_debug("buf[3]=%02X\n", buf[3]);
-	pr_debug("buf[4]=%02X\n", buf[4]);
+	pr_debug_zl2("buf[0]=%02X\n", buf[0]);
+	pr_debug_zl2("buf[1]=%02X\n", buf[1]);
+	pr_debug_zl2("buf[2]=%02X\n", buf[2]);
+	pr_debug_zl2("buf[3]=%02X\n", buf[3]);
+	pr_debug_zl2("buf[4]=%02X\n", buf[4]);
 	spi_message_add_tail(&xfer, &msg);
 	err = spi_sync(zl38005->spi, &msg);
 	if (err < 0) {
@@ -193,18 +202,18 @@ static int zl38005_rd_data(struct device *dev, char *pval)
 	u8 rx_buf[5];
 	struct zl38005 *zl38005 = dev_get_drvdata(dev);
 
-	pr_debug("tx cmd=%X\n", cmd);
+	pr_debug_zl2("tx cmd=%X\n", cmd);
 	err = spi_write_then_read(zl38005->spi, &cmd, sizeof cmd,
                         rx_buf, sizeof rx_buf);
 	if (err < 0) {
 		dev_err(dev, "spi_write_then_read failed with %d\n", err);
 		return err;
 	}
-	pr_debug("rx_buf[0]=%X\n", rx_buf[0]);
-	pr_debug("rx_buf[1]=%X\n", rx_buf[1]);
-	pr_debug("rx_buf[2]=%X\n", rx_buf[2]);
-	pr_debug("rx_buf[3]=%X\n", rx_buf[3]);
-	pr_debug("rx_buf[4]=%X\n", rx_buf[4]);
+	pr_debug_zl2("rx_buf[0]=%X\n", rx_buf[0]);
+	pr_debug_zl2("rx_buf[1]=%X\n", rx_buf[1]);
+	pr_debug_zl2("rx_buf[2]=%X\n", rx_buf[2]);
+	pr_debug_zl2("rx_buf[3]=%X\n", rx_buf[3]);
+	pr_debug_zl2("rx_buf[4]=%X\n", rx_buf[4]);
 	memcpy(pval, &rx_buf[3], 2);
 	return 0;
 }
@@ -359,19 +368,17 @@ static int zl38005_ioctl(struct inode *inode, struct file *file,
 	case ZL_WR_REG:
 		if (copy_from_user(&zl38005_ioctl_par, (struct zl38005_ioctl_par *)arg, sizeof(struct zl38005_ioctl_par)))
 			return -EFAULT;
-		deb("ioctl wr ADDR=%X\n", zl38005_ioctl_par.addr);
-		deb("ioctl wr DATA=%X\n", zl38005_ioctl_par.data);
 		ret = zl38005_wr_reg(&zl38005->spi->dev, zl38005_ioctl_par.addr, zl38005_ioctl_par.data);
 	break;
 	case ZL_RD_REG:
 		if (copy_from_user(&zl38005_ioctl_par, (struct zl38005_ioctl_par *)arg, sizeof(struct zl38005_ioctl_par))) {
 			return -EFAULT;
 		}
-		deb("ioctl wr ADDR=%X\n", zl38005_ioctl_par.addr);
+		pr_debug_zl1("ioctl wr ADDR=%X\n", zl38005_ioctl_par.addr);
 		ret = zl38005_rd_reg(&zl38005->spi->dev, (u16)zl38005_ioctl_par.addr, buf);
 		zl38005_ioctl_par.data = (buf[0] << 8) | buf[1];
 		if (!ret) {
-			deb("ioctl rd DATA=%X\n", zl38005_ioctl_par.data);
+			pr_debug_zl1("ioctl rd DATA=%X\n", zl38005_ioctl_par.data);
 			if (copy_to_user((struct zl38005_ioctl_par *)arg, &zl38005_ioctl_par, sizeof(struct zl38005_ioctl_par)))
                                 return -EFAULT;
 		} else
