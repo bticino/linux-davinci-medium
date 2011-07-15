@@ -36,6 +36,7 @@
 #include <mach/mux.h>
 
 #include "../codecs/cq93vc.h"
+#include "../codecs/zl38005.h"
 #include "davinci-pcm.h"
 #include "davinci-i2s.h"
 #include "davinci-vcif.h"
@@ -100,10 +101,16 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 static int basi_cq93_init(struct snd_soc_codec *codec)
 {
+	int err;
+
 	pr_debug("basi_cq93_init(%p)\n", codec);
 	/* Add davinci-evm specific widgets */
 	snd_soc_dapm_new_controls(codec, cq93_dapm_widgets,
 				  ARRAY_SIZE(cq93_dapm_widgets));
+
+	err = zl38005_add_controls(codec);
+	if (err < 0)
+		return err;
 
 	/* Set up davinci-basi specific audio path audio_map */
 	snd_soc_dapm_add_routes(codec, audio_map, ARRAY_SIZE(audio_map));
