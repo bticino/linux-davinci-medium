@@ -2813,27 +2813,29 @@ static int __devexit davinci_emac_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#if defined CONFIG_PM_LOSS && defined CONFIG_PM_LOSS_DAVINCI_EMAC
 static int davinci_emac_power_changed(struct device *dev,
 					enum sys_power_state s)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
-
 	switch (s) {
 	case SYS_PWR_GOOD:
 		netif_start_queue(ndev);
+		emac_dev_open(ndev);
 		break;
 	case SYS_PWR_FAILING:
 		netif_stop_queue(ndev);
+		emac_dev_stop(ndev);
 		break;
 	default:
 		BUG();
 	}
-
 	return 0;
 }
+#endif
 
 static struct dev_pm_ops davinci_emac_pm_ops = {
-#ifdef CONFIG_PM_LOSS
+#if defined CONFIG_PM_LOSS && defined CONFIG_PM_LOSS_DAVINCI_EMAC
 	.power_changed = davinci_emac_power_changed,
 #endif
 };
