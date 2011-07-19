@@ -30,6 +30,26 @@
 #include <sound/tlv.h>
 
 /*
+ * zl38005 register default settings
+ */
+static const u16 zl38005_reg[] = {
+	0x044a, 0x7e1c,
+	0x044b, 0x1072,
+	0x047b, 0x0072,
+	0x0529, 0x7fff,
+	0x044d, 0x8710,
+	0x05e8, 0x0043,
+	0x0451, 0x7fff,
+	0x0450, 0xd3d3,
+	0x044a, 0x7e1c,
+	0x05ec, 0x0043,
+	0x046b, 0x0037,
+	0x0472, 0x7fff,
+	0x0473, 0x7fff,
+	0x0453, 0x7fff,
+};
+
+/*
  * Write to the zl38005 registers
  *
  */
@@ -102,13 +122,25 @@ static const struct snd_kcontrol_new zl38005_snd_controls[] = {
 			zl38005_spi_read, zl38005_spi_write),
 };
 
-/* This function is called from ASoC machine driver */
+/* These functions are called from ASoC machine driver */
 int zl38005_add_controls(struct snd_soc_codec *codec)
 {
 	return snd_soc_add_controls(codec, zl38005_snd_controls,
 			ARRAY_SIZE(zl38005_snd_controls));
 }
 EXPORT_SYMBOL_GPL(zl38005_snd_controls);
+
+/* This function is called from ASoC machine driver */
+int zl38005_init(void)
+{
+	int i, ret = 0;
+
+	for (i = 0; i < ARRAY_SIZE(zl38005_reg); i += 2)
+		if (zl38005_write(zl38005_reg[i], zl38005_reg[i+1]))
+			ret = -1;
+	return ret;
+}
+EXPORT_SYMBOL_GPL(zl38005_init);
 
 MODULE_DESCRIPTION("ASoC ZL38005 driver");
 MODULE_AUTHOR("Raffaele Recalcati");

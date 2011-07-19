@@ -10,5 +10,6 @@
 #define _ZL38005_H
 
 extern int zl38005_add_controls(struct snd_soc_codec *codec);
+extern int zl38005_init(void);
 
 #endif
