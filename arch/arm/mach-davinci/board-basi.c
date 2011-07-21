@@ -250,6 +250,35 @@ static struct platform_device basi_hwmon_device = {
 	.id = 0,
 };
 
+static struct gpio_led basi_gpio_led[] = {
+	{
+		.name                   = "LED_SYSTEM",
+		.gpio                   = LED_1,
+		.active_low             = 1,
+		.default_trigger        = "none",
+		.default_state          = LEDS_GPIO_DEFSTATE_ON,
+	},
+};
+
+static struct gpio_led_platform_data basi_gpio_led_info = {
+	.leds = &basi_gpio_led,
+	.num_leds = 1,
+};
+
+static struct platform_device basi_leds_gpio_device = {
+	.name = "leds-gpio",
+	.dev = {
+		.platform_data = &basi_gpio_led_info,
+		},
+	.id = 0,
+};
+
+static void __init basi_led_init(void)
+{
+	davinci_cfg_reg(DM365_GPIO40);
+	platform_device_register(&basi_leds_gpio_device);
+}
+
 static void pinmux_check(void)
 {
 	void __iomem *pinmux_reg[] = {
@@ -444,7 +473,6 @@ static irqreturn_t basi_powerfail_start(int irq, void *dev_id)
 	pm_loss_power_changed(SYS_PWR_FAILING);
 	return IRQ_HANDLED;
 }
-
 
 static irqreturn_t basi_powerfail_quick_check_stop(int irq, void *dev_id)
 {
@@ -650,15 +678,6 @@ static void basi_gpio_configure(void)
 	}
 	gpio_direction_output(PIC_RESET_N, 0);
 
-	davinci_cfg_reg(DM365_GPIO40);
-	status = gpio_request(LED_1, "LED");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request LED \
-				 %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(LED_1, 1);
-
 	davinci_cfg_reg(DM365_GPIO39);
 	status = gpio_request(OC2_VBUS_USB, "Over Current VBUS");
 	if (status) {
@@ -729,7 +748,6 @@ static void basi_gpio_configure(void)
 
 	if (basi_debug) {
 		gpio_export(BOOT_FL_WP, 0); /* danger */
-		gpio_export(LED_1, 0); /* danger */
 		gpio_export(EN_AUDIO, 0);
 		gpio_export(ABIL_DEM_VIDEO, 0);
 		gpio_export(PDEC_PWRDNn, 0);
@@ -873,6 +891,7 @@ static __init void basi_init(void)
 	if (basi_debug>1)
 		pinmux_check();
 	basi_gpio_configure();
+	basi_led_init();
 	davinci_cfg_reg(DM365_UART1_RXD_34);
 	davinci_cfg_reg(DM365_UART1_TXD_25);
 	davinci_serial_init(&uart_config);
