@@ -109,16 +109,32 @@ static int zl38005_spi_read(struct snd_kcontrol *kcontrol,
 }
 
 /*
- * ATTENZIONE ZARLINK REGISTRI A 16BIT, NON CAPISCO SE ASOC LI SUPPORTA
- * See SOC_SINGLE_EXT in sound/soc/codecs/max9877.c
- * e la max9877_write_regs per l'inizializzazione
+ * Direct call to mute and un-mute MUTE_R bit
+ * It should be better to implement using digital mute ops call
+ * differentiating, as in wm8753_mute, between playback
+ * and record active status.
  */
+int zl38005_mute_r(int on)
+{
+	u16 val;
+	if (zl38005_read(ZL38005_AEC_CTRL0, &val))
+		return -EIO;
+	if (((val >> 7) & 1) == on)
+		return 0;
+	val &= ~(1 << 7);
+	val |= on << 7;
+	if (zl38005_write(ZL38005_AEC_CTRL0, val))
+		return -EIO;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(zl38005_mute_r);
+
 static const struct snd_kcontrol_new zl38005_snd_controls[] = {
-	SOC_SINGLE_EXT("ZL PlayGain", ZL38005_USRGAIN , 0, 0xffff, 0,
+	SOC_SINGLE_EXT("ZL38005 UGAIN", ZL38005_USRGAIN , 0, 0xffff, 0,
 			zl38005_spi_read, zl38005_spi_write),
-	SOC_SINGLE_EXT("ZL RecGain ", ZL38005_SYSGAIN , 8, 0xf, 0,
+	SOC_SINGLE_EXT("ZL38005 SOUTGN", ZL38005_SYSGAIN , 8, 0xf, 0,
 			zl38005_spi_read, zl38005_spi_write),
-	SOC_SINGLE_EXT("ZL PlayMute", ZL38005_AEC_CTRL0 , 7, 1, 0,
+	SOC_SINGLE_EXT("ZL38005 MUTE_R", ZL38005_AEC_CTRL0 , 7, 1, 0,
 			zl38005_spi_read, zl38005_spi_write),
 };
 
