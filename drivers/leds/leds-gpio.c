@@ -16,6 +16,9 @@
 #include <linux/leds.h>
 #include <linux/workqueue.h>
 
+#include <linux/pm.h>
+#include <linux/pm_loss.h>
+
 #include <asm/gpio.h>
 
 struct gpio_led_data {
@@ -135,6 +138,42 @@ static void delete_gpio_led(struct gpio_led_data *led)
 }
 
 #ifdef CONFIG_LEDS_GPIO_PLATFORM
+
+#ifdef CONFIG_PM_LOSS
+static int gpio_leds_power_changed(struct device *dev,
+				 enum sys_power_state s)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct gpio_led_platform_data *pdata = pdev->dev.platform_data;
+	struct gpio_led_data *leds_data = platform_get_drvdata(pdev);
+	int i, ret = -EIO;
+
+	switch (s) {
+	case SYS_PWR_GOOD:
+		pr_debug_pm_loss("%s(%d)\n", __func__, s);
+		for (i = 0; i < pdata->num_leds; i++)
+			ret = gpio_direction_output(leds_data->gpio,
+						    leds_data->active_low ^ 1);
+		break;
+	case SYS_PWR_FAILING:
+		pr_debug_pm_loss("%s(%d)\n", __func__, s);
+		for (i = 0; i < pdata->num_leds; i++) {
+			ret = gpio_direction_output(leds_data->gpio,
+						    leds_data->active_low);
+		}
+		break;
+	default:
+		BUG();
+		ret = -ENODEV;
+	}
+	return ret;
+}
+
+static struct dev_pm_ops gpio_led_dev_pm_ops = {
+	.power_changed = gpio_leds_power_changed,
+};
+#endif
+
 static int __devinit gpio_led_probe(struct platform_device *pdev)
 {
 	struct gpio_led_platform_data *pdata = pdev->dev.platform_data;
@@ -191,6 +230,9 @@ static struct platform_driver gpio_led_driver = {
 	.driver		= {
 		.name	= "leds-gpio",
 		.owner	= THIS_MODULE,
+#ifdef CONFIG_PM_LOSS
+		.pm = &gpio_led_dev_pm_ops,
+#endif
 	},
 };
 
@@ -296,6 +338,7 @@ static struct of_platform_driver of_gpio_leds_driver = {
 	.remove = __devexit_p(of_gpio_leds_remove),
 };
 #endif
+
 
 static int __init gpio_led_init(void)
 {
