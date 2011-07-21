@@ -63,21 +63,36 @@ static struct snd_soc_ops basi_ops_cq93 = {
 	.hw_params = basi_hw_params_cq93,
 };
 
-static int basi_line_evt(struct snd_soc_dapm_widget *w,
+static int basi_audio_enable(struct snd_soc_dapm_widget *w,
 			 struct snd_kcontrol *k, int event)
 {
-	printk(KERN_INFO "basi_line_evt, event = %d\n", event);
 	gpio_set_value(EN_AUDIO, SND_SOC_DAPM_EVENT_ON(event));
 	if (SND_SOC_DAPM_EVENT_ON(event))
 		schedule_timeout_uninterruptible(msecs_to_jiffies(500));
 	return 0;
 }
 
+static int basi_line_event(struct snd_soc_dapm_widget *w,
+			   struct snd_kcontrol *k, int event)
+{
+	basi_audio_enable(w, k, event);
+	zl38005_mute_r(0);
+	return 0;
+};
+
+static int basi_mic_event(struct snd_soc_dapm_widget *w,
+			   struct snd_kcontrol *k, int event)
+{
+	basi_audio_enable(w, k, event);
+	zl38005_mute_r(1);
+	return 0;
+};
+
 /* davinci-basi machine dapm widgets */
 static const struct snd_soc_dapm_widget cq93_dapm_widgets[] = {
 	SND_SOC_DAPM_HP("Speakers out", NULL),
-	SND_SOC_DAPM_LINE("Line Out", basi_line_evt),
-	SND_SOC_DAPM_MIC("Microphone", basi_line_evt),
+	SND_SOC_DAPM_LINE("Line Out", basi_line_event),
+	SND_SOC_DAPM_MIC("Microphone", basi_mic_event),
 };
 
 /* davinci-basi machine connections to the codec pins */
