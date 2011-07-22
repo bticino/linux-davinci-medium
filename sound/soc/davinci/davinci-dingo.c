@@ -128,7 +128,6 @@ static struct snd_soc_ops dingo_ops_cq93 = {
 void dingo_uda_power(int on)
 {
 	gpio_set_value(AUDIO_RESET, !on);
-	gpio_set_value(EN_AUDIO, on);
 }
 
 /* davinci-dingo machine audio_mapnections to the codec pins */
