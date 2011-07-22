@@ -336,7 +336,7 @@ static int uda1334_soc_resume(struct platform_device *pdev)
 	struct uda1334_platform_data *pd = codec->control_data;
 
 	if (!uda1334->running)
-		return 0
+		return 0;
 	if (pd->reset_gpio >= 0)
 		gpio_set_value(pd->reset_gpio, 0);
 	if (pd->power)
