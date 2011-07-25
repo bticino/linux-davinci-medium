@@ -89,6 +89,8 @@ struct zl38005_ioctl_par {
 #define ZL_MAGIC 'G'
 #define ZL_RD_DATA_REG		_IOR(ZL_MAGIC, 0x09, struct zl38005_ioctl_par)
 #define ZL_WR_DATA_REG		_IOR(ZL_MAGIC, 0x0a, struct zl38005_ioctl_par)
+#define ZL_RD_INSTR_REG		_IOR(ZL_MAGIC, 0x0b, struct zl38005_ioctl_par)
+#define ZL_WR_INSTR_REG		_IOR(ZL_MAGIC, 0x0c, struct zl38005_ioctl_par)
 
 static struct zl38005_ioctl_par zl38005_ioctl_par;
 
@@ -389,6 +391,25 @@ static int zl38005_ioctl(struct inode *inode, struct file *file,
 				return -EFAULT;
 		} else
 			return -EAGAIN;
+	break;
+	case ZL_WR_INSTR_REG:
+		if (copy_from_user(&zl38005_ioctl_par, (struct zl38005_ioctl_par *)arg, sizeof(struct zl38005_ioctl_par)))
+		return -EFAULT;
+		pr_debug_zl1("ioctl wr ADDR = %X \n", zl38005_ioctl_par.addr);
+		pr_debug_zl1("ioctl wr DATA = %X \n", zl38005_ioctl_par.data);
+		ret = zl38005_wr_reg(&zl38005->spi->dev, zl38005_ioctl_par.addr, zl38005_ioctl_par.data, IMEM);
+	break;
+	case ZL_RD_INSTR_REG:
+		if (copy_from_user(&zl38005_ioctl_par, (struct zl38005_ioctl_par *)arg, sizeof(struct zl38005_ioctl_par)))
+			return -EFAULT;
+		pr_debug_zl1("ioctl wr ADDR = %X \n", zl38005_ioctl_par.addr);
+		ret = zl38005_rd_reg(&zl38005->spi->dev, (u16)zl38005_ioctl_par.addr,  &zl38005_ioctl_par.data, IMEM);
+		if (!ret) {
+			pr_debug_zl1("ioctl rd DATA=%X\n", zl38005_ioctl_par.data);
+		if (copy_to_user((struct zl38005_ioctl_par *)arg, &zl38005_ioctl_par, sizeof(struct zl38005_ioctl_par)))
+			return -EFAULT;
+		} else
+		return -EAGAIN;
 	break;
 	default:
 		printk(KERN_DEBUG "ioctl: Invalid Command Value");
