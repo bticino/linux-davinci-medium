@@ -21,6 +21,8 @@
  *
  */
 
+/* Includes ------------------------------------------------------------------*/
+
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/init.h>
@@ -43,11 +45,11 @@
 
 #define ZL38005 "zl38005:"
 #define pr_debug_zl1(a, args...) \
-printk(KERN_INFO ZL38005 a, ## args)
+printk(KERN_INFO ZL38005 "%s %d: "s, __func__, __LINE__, ##args);
 
 #if DEBUG > 1
 #define pr_debug_zl2(a, args...) \
-printk(KERN_INFO ZL38005 a, ## args)
+printk(KERN_INFO ZL38005 "%s %d: "s, __func__, __LINE__, ##args);
 #else
 #define pr_debug_zl2(a, args...)
 #endif
@@ -85,58 +87,55 @@ struct zl38005_ioctl_par {
 
 /* ioctl() calls that are permitted to the /dev/zl38005 interface. */
 #define ZL_MAGIC 'G'
-#define ZL_RD_REG             _IOR(ZL_MAGIC, 0x09, struct zl38005_ioctl_par)
-#define ZL_WR_REG             _IOR(ZL_MAGIC, 0x0a, struct zl38005_ioctl_par)
+#define ZL_RD_DATA_REG		_IOR(ZL_MAGIC, 0x09, struct zl38005_ioctl_par)
+#define ZL_WR_DATA_REG		_IOR(ZL_MAGIC, 0x0a, struct zl38005_ioctl_par)
 
 static struct zl38005_ioctl_par zl38005_ioctl_par;
 
-static int zl38005_rd_ctrl_reg(struct device *dev, u8 *val)
+void zl_delay(void){
+	udelay(125);
+}
+
+/* Cmd : Read 16bit Controll Register */
+static int zl38005_rd_ctrl_reg(struct device *dev)
 {
 	int err;
+	struct zl38005 *zl38005 = dev_get_drvdata(dev);
 	u8 cmd;
-	u8 rx_buf[3];
-	struct zl38005 *zl38005 = dev_get_drvdata(dev);
+	u8 rx_buf[3];           /* dummy,Byte_HI,Byte_LO */
+	u16 rd_value = -1 ;
+	int t = 0;
 
-	cmd = (CMD_VALID | CMD_READ | CMD_LEN_16_BIT | CMD_TYPE_CTRL);
-	pr_debug_zl2("TX cmd=%X\n", cmd);
-	err = spi_write_then_read(zl38005->spi, &cmd, sizeof cmd,
-                        rx_buf, 2);
-	if (err < 0) {
-		dev_err(dev, "spi_sync failed with %d\n", err);
-		return err;
+	cmd = CMD_RD_CTRL_BYTE ;
+
+	/* See if there is a pending operation */
+	while ((t < COUNT) && ((rd_value & CTRL_PENDING) == 0)) {
+		err = spi_write_then_read(zl38005->spi, &cmd, sizeof cmd, \
+					rx_buf, sizeof rx_buf);
+		if (err < 0) {
+			dev_err(dev, "spi_sync failed with %d\n", err);
+			return err;
+		}
+		rd_value  = (rx_buf[1]<<8) | rx_buf[2] ; /* Byte_HI, Byte_LO */
+		pr_debug_zl1("TX cmd = %02X\n", cmd);
+		pr_debug_zl1("RX rd_value = %04X \n", rd_value);
+
+		/* suspend and after wait a little bit */
+		schedule();
+		zl_delay();
+		t++;
 	}
-	*val = rx_buf[1];
-	return 0;
-}
-
-static int zl38005_wr_ctrl_reg(struct device *dev, u8 val, u8 write)
-{
-	struct spi_message msg;
-	u8 buf[2];
-	struct spi_transfer xfer = {
-		.len = 2,
-		.tx_buf = buf,
-	};
-	int err;
-	u8 cmd = (CMD_VALID | CMD_WRITE | CMD_LEN_8_BIT | CMD_TYPE_CTRL);
-	struct zl38005 *zl38005 = dev_get_drvdata(dev);
-
-	spi_message_init(&msg);
-	buf[0] = cmd;
-	buf[1] = val | (write == 1 ? CTRL_OP_WR : CTRL_OP_RD) | CTRL_WIDTH_16;
-	pr_debug_zl2("buf[0]=%02X\n", buf[0]);
-	pr_debug_zl2("buf[1]=%02X\n", buf[1]);
-	spi_message_add_tail(&xfer, &msg);
-	err = spi_sync(zl38005->spi, &msg);
-	if (err < 0) {
-		dev_err(dev, "spi_sync failed with %d\n", err);
-		return err;
+	if (t == COUNT) {
+		printk(KERN_ERR "zl38005: TIMEOUT for pending operations\n");
+		return -1;
 	}
 	return 0;
 }
 
-static int zl38005_wr_addr(struct device *dev, u16 val)
+/* Cmd : Write 16bit Controll Register */
+static int zl38005_wr_ctrl_reg(struct device *dev, u16 Ctlr_Byte)
 {
+	struct zl38005 *zl38005 = dev_get_drvdata(dev);
 	struct spi_message msg;
 	u8 buf[3];
 	struct spi_transfer xfer = {
@@ -144,16 +143,15 @@ static int zl38005_wr_addr(struct device *dev, u16 val)
 		.tx_buf = buf,
 	};
 	int err;
-	u8 cmd = (CMD_VALID | CMD_WRITE | CMD_LEN_16_BIT | CMD_TYPE_ADDR_WORD);
-	struct zl38005 *zl38005 = dev_get_drvdata(dev);
 
 	spi_message_init(&msg);
-	buf[0] = cmd;
-	buf[1] = ((val >> 8) & 0xff);
-	buf[2] = (val & 0xff);
-	pr_debug_zl2("buf[0]=%02X\n", buf[0]);
-	pr_debug_zl2("buf[1]=%02X\n", buf[1]);
-	pr_debug_zl2("buf[2]=%02X\n", buf[2]);
+	buf[0] = CMD_WR_CTRL_BYTE ;
+	buf[1] = (Ctlr_Byte >> 8) & 0xFF ;
+	buf[2] = Ctlr_Byte & 0xFF ;
+
+	pr_debug_zl1("TX cmd       = %02X \n", buf[0]);
+	pr_debug_zl1("TX ctrl_byte = %02X %02X \n", buf[1], buf[2]);
+
 	spi_message_add_tail(&xfer, &msg);
 	err = spi_sync(zl38005->spi, &msg);
 	if (err < 0) {
@@ -163,8 +161,65 @@ static int zl38005_wr_addr(struct device *dev, u16 val)
 	return 0;
 }
 
-static int zl38005_wr_data(struct device *dev, u16 val)
+/* Cmd : Write 16bit address */
+static int zl38005_wr_addr(struct device *dev, u16 adr)
 {
+	struct zl38005 *zl38005 = dev_get_drvdata(dev);
+	struct spi_message msg;
+	u8 buf[3];
+	struct spi_transfer xfer = {
+		.len = 3,
+		.tx_buf = buf,
+	};
+	int err;
+
+	spi_message_init(&msg);
+	buf[0] = CMD_WR_ADR;
+	buf[1] = ((adr >> 8) & 0xff);
+	buf[2] = (adr & 0xff);
+	pr_debug_zl1("TX cmd = %02X\n", buf[0]);
+	pr_debug_zl1("TX adr = %02X %02X \n", buf[1], buf[2]);
+
+	spi_message_add_tail(&xfer, &msg);
+	err = spi_sync(zl38005->spi, &msg);
+	if (err < 0) {
+		dev_err(dev, "spi_sync failed with %d\n", err);
+		return err;
+	}
+	return 0;
+}
+
+/* Read 32bit data */
+static int zl38005_rd_data(struct device *dev, int *pval)
+{
+	struct zl38005 *zl38005 = dev_get_drvdata(dev);
+	int err;
+	u8 cmd;
+	u8 rx_buf[5]; /* Buf Rx , 1byte dummy + 4byte data */
+
+	cmd = CMD_RD_DATA_32 ;
+	err = spi_write_then_read(zl38005->spi, &cmd, sizeof cmd, rx_buf, \
+				sizeof rx_buf);
+	if (err < 0) {
+		dev_err(dev, "spi_write_then_read failed with %d\n", err);
+		return err;
+	}
+
+	pr_debug_zl1("TX cmd    = %02X \n", cmd);
+	pr_debug_zl1("RX valore = %02X %02X %02X %02X \n", rx_buf[1], \
+			rx_buf[2], rx_buf[3], rx_buf[4]);
+	*pval = (rx_buf[1] << 24) | (rx_buf[2] << 16) | (rx_buf[3] << 8) \
+		| rx_buf[4];
+
+	pr_debug_zl2("LEGGO   = %08X \n", *pval);
+
+	return 0;
+}
+
+/* Write 32bit data */
+static int zl38005_wr_data(struct device *dev, u32 val)
+{
+	struct zl38005 *zl38005 = dev_get_drvdata(dev);
 	struct spi_message msg;
 	u8 buf[5];
 	struct spi_transfer xfer = {
@@ -172,20 +227,18 @@ static int zl38005_wr_data(struct device *dev, u16 val)
 		.tx_buf = buf,
 	};
 	int err;
-	u8 cmd = (CMD_VALID | CMD_WRITE | CMD_LEN_32_BIT | CMD_TYPE_WR_DATA);
-	struct zl38005 *zl38005 = dev_get_drvdata(dev);
 
 	spi_message_init(&msg);
-	buf[0] = cmd;
-	buf[1] = 0;
-	buf[2] = 0;
-	buf[3] = ((val >> 8) & 0xff);
-	buf[4] = (val & 0xff);
-	pr_debug_zl2("buf[0]=%02X\n", buf[0]);
-	pr_debug_zl2("buf[1]=%02X\n", buf[1]);
-	pr_debug_zl2("buf[2]=%02X\n", buf[2]);
-	pr_debug_zl2("buf[3]=%02X\n", buf[3]);
-	pr_debug_zl2("buf[4]=%02X\n", buf[4]);
+
+	buf[0] = CMD_WR_DATA_32 ;
+	buf[1] = ((val >> 24) & 0xff);	/* byte Hi */
+	buf[2] = ((val >> 16) & 0xff);
+	buf[3] = ((val >> 8)  & 0xff);
+	buf[4] = (val & 0xff);	/* byte Lo */
+
+	pr_debug_zl1("TX cmd    = %02X \n", buf[0]);
+	pr_debug_zl1("TX valore = %02X %02X %02X %02X \n", buf[1], buf[2], \
+					buf[3], buf[4]);
 	spi_message_add_tail(&xfer, &msg);
 	err = spi_sync(zl38005->spi, &msg);
 	if (err < 0) {
@@ -195,111 +248,36 @@ static int zl38005_wr_data(struct device *dev, u16 val)
 	return 0;
 }
 
-static int zl38005_rd_data(struct device *dev, char *pval)
-{
-	int err;
-	u8 cmd = (CMD_VALID | CMD_READ | CMD_LEN_32_BIT | CMD_TYPE_RD_DATA);
-	u8 rx_buf[5];
-	struct zl38005 *zl38005 = dev_get_drvdata(dev);
+/*
+ *
+ * High Level Funcion
+ *
+ */
 
-	pr_debug_zl2("tx cmd=%X\n", cmd);
-	err = spi_write_then_read(zl38005->spi, &cmd, sizeof cmd,
-                        rx_buf, sizeof rx_buf);
-	if (err < 0) {
-		dev_err(dev, "spi_write_then_read failed with %d\n", err);
-		return err;
-	}
-	pr_debug_zl2("rx_buf[0]=%X\n", rx_buf[0]);
-	pr_debug_zl2("rx_buf[1]=%X\n", rx_buf[1]);
-	pr_debug_zl2("rx_buf[2]=%X\n", rx_buf[2]);
-	pr_debug_zl2("rx_buf[3]=%X\n", rx_buf[3]);
-	pr_debug_zl2("rx_buf[4]=%X\n", rx_buf[4]);
-	memcpy(pval, &rx_buf[3], 2);
-	return 0;
-}
-
-static int zl38005_wr_reg(struct device *dev, u16 addr,
-			u16 val)
+/* Read Reg from Instruction Ram (IMEM) or Data Ram (DMEM) */
+static int zl38005_rd_reg(struct device *dev, u16 addr, int *pval, u8 mem)
 {
-	int t = 0;
-	u8 ctrl_val = CTRL_PENDING;
-	u8 v;
+	u16 CtrlByte = 0 ;
+
+	CtrlByte = CTLR_RD_DMEM ;
+	if (mem)
+		CtrlByte = CTLR_RD_IMEM ;
 
 	/* See if there is a pending operation */
-	while (t++ < COUNT) {
-		if (!(zl38005_rd_ctrl_reg(dev, &ctrl_val))) {
-			v = ctrl_val & CTRL_PENDING;
-			if (v == 0)
-				break;
-		}
-		schedule();
-	}
-	if (t == COUNT) {
-		printk(KERN_ERR "zl38005: TIMEOUT for pending operations\n");
-		return -1;
-	}
-
-	/* Write Address */
-	if (zl38005_wr_addr(dev, addr))
+	if (zl38005_rd_ctrl_reg(dev))
 		return -ENODEV;
-
-	/* Write Data */
-	if (zl38005_wr_data(dev, val))
-		return -ENODEV;
-
-	/* Writing Ctrl reg */
-	if (zl38005_wr_ctrl_reg(dev, CTRL_PENDING, 1))
-		return -ENODEV;
-
-	return 0;
-}
-
-int zl38005_write(u16 addr, u16 val)
-{
-	struct zl38005          *zl38005 = &zl38005_data;
-
-	return zl38005_wr_reg(&zl38005->spi->dev, addr, val);
-}
-EXPORT_SYMBOL(zl38005_write);
-
-int zl38005_rd_reg(struct device *dev, u16 addr,
-			u8 *pval)
-{
-	int t = 0;
-	u8 ctrl_val = CTRL_PENDING;
-	u8 v;
-
-	/* See if there is a pending operation */
-	while (t++ < COUNT) {
-		if (!(zl38005_rd_ctrl_reg(dev, &ctrl_val))) {
-			v = ctrl_val & CTRL_PENDING;
-			if (v == 0)
-				break;
-		}
-		schedule();
-	}
-	if (t == COUNT)
-		return -1;
 
 	/* Write Address */
 	if (zl38005_wr_addr(dev, addr))
 		return -ENODEV;
 
 	/* Writing Ctrl reg */
-	if (zl38005_wr_ctrl_reg(dev, CTRL_PENDING, 0))
+	if (zl38005_wr_ctrl_reg(dev, CtrlByte))
 		return -ENODEV;
 
 	/* See if there is a pending operation */
-	while (t++ < COUNT) {
-		if (!(zl38005_rd_ctrl_reg(dev, &ctrl_val))) {
-			v = ctrl_val & CTRL_PENDING;
-			if (v == 0)
-				break;
-		}
-		schedule();
-	}
-	if (t == COUNT)
-		return -1;
+	if (zl38005_rd_ctrl_reg(dev))
+		return -ENODEV;
 
 	/* Read Data */
 	if (zl38005_rd_data(dev, pval))
@@ -310,35 +288,56 @@ int zl38005_rd_reg(struct device *dev, u16 addr,
 
 int zl38005_read(u16 addr, u16 *val)
 {
-	u8 buf[2];
 	struct zl38005          *zl38005 = &zl38005_data;
 	pr_debug_zl2("addr=%04X\n", addr);
-        if (zl38005_rd_reg(&zl38005->spi->dev, addr, buf))
+	if (zl38005_rd_reg(&zl38005->spi->dev, addr, (int *)val, DMEM))
 		return -ENODEV;
-	*val = (buf[0] << 8) | buf[1];
 	pr_debug_zl2("val=%04X\n", *val);
 	return 0;
 }
 EXPORT_SYMBOL(zl38005_read);
 
-static int zl38005_spi_port_test(struct device *dev)
+/* Write Reg in Instruction Ram (IMEM) or Data Ram (DMEM) */
+static int zl38005_wr_reg(struct device *dev, u16 addr, u32 val, u8 mem)
 {
-	int t = 0;
-	u8 buf[2];
+	u16 CtrlByte = 0 ;
 
-	zl38005_wr_reg(dev, REG_0403, REG_0403_ACK);
-	while (t++ < COUNT) {
-		zl38005_wr_reg(dev, REG_0402, TX_START);
-		if (!(zl38005_rd_reg(dev, REG_0403, buf)) && (buf[0] == RX_START_OK))
-			break;
-	}
+	CtrlByte = CTLR_WR_DMEM ;
+	if (mem)
+		CtrlByte = CTLR_WR_IMEM ;
 
-	if (t < COUNT)
-		return 0;
-	else
-		return -1;
+	/* See if there is a pending operation */
+	if (zl38005_rd_ctrl_reg(dev))
+		return -ENODEV;
+
+	/* Write Address */
+	if (zl38005_wr_addr(dev, addr))
+		return -ENODEV;
+
+	/* Write Data */
+	if (zl38005_wr_data(dev, val))
+		return -ENODEV;
+
+	/* Writing Ctrl reg */
+	if (zl38005_wr_ctrl_reg(dev, CtrlByte))
+		return -ENODEV;
+
+	return 0;
 }
 
+int zl38005_write(u16 addr, u16 val)
+{
+	struct zl38005		*zl38005 = &zl38005_data;
+
+	return zl38005_wr_reg(&zl38005->spi->dev, addr, val, DMEM);
+}
+EXPORT_SYMBOL(zl38005_write);
+
+/*
+ *
+ * Driver Funcion
+ *
+ */
 static int zl38005_open(struct inode *inode, struct file *filp)
 {
 	if (module_usage_count) {
@@ -362,25 +361,32 @@ static int zl38005_ioctl(struct inode *inode, struct file *file,
 {
 	struct zl38005		*zl38005 = &zl38005_data;
 	int ret;
-	u8 buf[2];
 
 	switch (cmd) {
-	case ZL_WR_REG:
-		if (copy_from_user(&zl38005_ioctl_par, (struct zl38005_ioctl_par *)arg, sizeof(struct zl38005_ioctl_par)))
+	case ZL_WR_DATA_REG:
+		if (copy_from_user(&zl38005_ioctl_par, \
+			(struct zl38005_ioctl_par *)arg,\
+			 sizeof(struct zl38005_ioctl_par)))
 			return -EFAULT;
-		ret = zl38005_wr_reg(&zl38005->spi->dev, zl38005_ioctl_par.addr, zl38005_ioctl_par.data);
+		pr_debug_zl1("ioctl wr ADDR = %X \n", zl38005_ioctl_par.addr);
+		pr_debug_zl1("ioctl wr DATA = %X \n", zl38005_ioctl_par.data);
+		ret = zl38005_wr_reg(&zl38005->spi->dev, \
+			zl38005_ioctl_par.addr, zl38005_ioctl_par.data, DMEM);
 	break;
-	case ZL_RD_REG:
-		if (copy_from_user(&zl38005_ioctl_par, (struct zl38005_ioctl_par *)arg, sizeof(struct zl38005_ioctl_par))) {
+	case ZL_RD_DATA_REG:
+		if (copy_from_user(&zl38005_ioctl_par, \
+			(struct zl38005_ioctl_par *)arg,\
+			 sizeof(struct zl38005_ioctl_par)))
 			return -EFAULT;
-		}
-		pr_debug_zl1("ioctl wr ADDR=%X\n", zl38005_ioctl_par.addr);
-		ret = zl38005_rd_reg(&zl38005->spi->dev, (u16)zl38005_ioctl_par.addr, buf);
-		zl38005_ioctl_par.data = (buf[0] << 8) | buf[1];
+		pr_debug_zl1("ioctl wr ADDR = %X \n", zl38005_ioctl_par.addr);
+		ret = zl38005_rd_reg(&zl38005->spi->dev, \
+		 (u16)zl38005_ioctl_par.addr, &zl38005_ioctl_par.data, DMEM);
 		if (!ret) {
-			pr_debug_zl1("ioctl rd DATA=%X\n", zl38005_ioctl_par.data);
-			if (copy_to_user((struct zl38005_ioctl_par *)arg, &zl38005_ioctl_par, sizeof(struct zl38005_ioctl_par)))
-                                return -EFAULT;
+			pr_debug_zl1("ioctl rd DATA = %X \n ", \
+				zl38005_ioctl_par.data);
+			if (copy_to_user((struct zl38005_ioctl_par *)arg,\
+			 &zl38005_ioctl_par, sizeof(struct zl38005_ioctl_par)))
+				return -EFAULT;
 		} else
 			return -EAGAIN;
 	break;
@@ -419,14 +425,6 @@ static int zl38005_spi_probe(struct spi_device *spi)
 	zl38005->spi = spi;
 	spi_set_drvdata(spi, zl38005);
 
-#if 0
-	/* Trying to see if zl38005 is live */
-	if (zl38005_spi_port_test(&spi->dev)) {
-		dev_err(&spi->dev, "ZL38005 spi port test NOT passed\n");
-	}
-
-	dev_info(&spi->dev, "ZL38005 spi port test passed\n");
-#endif
 	return 0;
 }
 
