@@ -65,7 +65,7 @@
 #define CTRL_WIDTH_32	(3<<1)
 #define CTRL_PENDING	(1<<3) /* 1-> Start/pending , 0-> Access Complete */
 
-#define COUNT		5
+#define RETRY_COUNT	10
 
 /* Reg.. */
 #define REG_0402	0x0402
@@ -76,5 +76,39 @@
 
 #define ZL38005_RX_BUF_SIZE	4
 #define ZL38005_TX_BUF_SIZE	4
+
+typedef union
+{
+	unsigned short Buff[16];
+	struct{
+		unsigned short MagicWord;
+		unsigned short FlashSpeed;
+		unsigned short FWR_Ver;
+		unsigned short FlashADD_CfgRecord_LO;
+		unsigned short FlashADD_CfgRecord_HI;
+		unsigned short Reserved1;
+		unsigned short Reserved2;
+		unsigned short Reserved3;
+		unsigned short FlashADD_SecondFwrImg_LO;
+		unsigned short FlashADD_SecondFwrImg_HI;
+		unsigned short IMEM_StartAddress;
+		unsigned short IMEM_Size;
+		unsigned short DMEM_StartAddress;
+		unsigned short DMEM_Size;
+		unsigned short IMEM_Cks;
+		unsigned short DMEM_Cks;
+	} FIH ; /* ZL Fwr Image Header */
+}t_FwrImageHeader;
+
+typedef union
+{
+	unsigned short Buff[4];
+	struct{
+		unsigned short MagicWord;
+		unsigned short StartAddress;
+		unsigned short Size;
+		unsigned short Cks;
+	} CFGRecord ; /* ZL Fwr Image Header */
+}t_CFGR;
 
 #endif /* __ZL38005_H */
