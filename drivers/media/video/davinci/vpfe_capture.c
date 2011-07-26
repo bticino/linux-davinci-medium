@@ -2907,8 +2907,6 @@ static int vpfe_capture_power_changed(struct device *dev,
 		return -EINVAL;
 
 	if (!vpfe_dev->started) {
-		v4l2_info(&vpfe_dev->v4l2_dev, "vpfe_capture_power_changed nothing to do\n");
-
 		pr_debug_pm_loss("vpfe_capture_power_changed(%d) \
 				  BUT NOTHING TO DO\n", s);
 		return 0;
@@ -2918,13 +2916,11 @@ static int vpfe_capture_power_changed(struct device *dev,
 
 	switch (s) {
 	case SYS_PWR_GOOD:
-		v4l2_info(&vpfe_dev->v4l2_dev, "vpfe_capture_power_changed GOOD\n");
 		pr_debug_pm_loss("vpfe_capture_power_changed(%d)\n", s);
 		ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
 				sdinfo->grp_id, video, s_stream, 1);
 		break;
 	case SYS_PWR_FAILING:
-		v4l2_info(&vpfe_dev->v4l2_dev, "vpfe_capture_power_changed FAILING\n");
 		pr_debug_pm_loss("vpfe_capture_power_changed(%d)\n", s);
 		ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
 				sdinfo->grp_id, video, s_stream, 0);
