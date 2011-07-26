@@ -63,28 +63,17 @@ static struct snd_soc_ops basi_ops_cq93 = {
 	.hw_params = basi_hw_params_cq93,
 };
 
-static int basi_audio_enable(struct snd_soc_dapm_widget *w,
-			 struct snd_kcontrol *k, int event)
-{
-	gpio_set_value(EN_AUDIO, SND_SOC_DAPM_EVENT_ON(event));
-	if (SND_SOC_DAPM_EVENT_ON(event))
-		schedule_timeout_uninterruptible(msecs_to_jiffies(500));
-	return 0;
-}
-
 static int basi_line_event(struct snd_soc_dapm_widget *w,
 			   struct snd_kcontrol *k, int event)
 {
-	basi_audio_enable(w, k, event);
-	zl38005_mute_r(0);
+	zl38005_mute_r(SND_SOC_DAPM_EVENT_ON(event) ? 0 : 1);
 	return 0;
 };
 
 static int basi_mic_event(struct snd_soc_dapm_widget *w,
 			   struct snd_kcontrol *k, int event)
 {
-	basi_audio_enable(w, k, event);
-	zl38005_mute_r(1);
+	zl38005_mute_r(SND_SOC_DAPM_EVENT_ON(event) ? 1 : 0);
 	return 0;
 };
 
