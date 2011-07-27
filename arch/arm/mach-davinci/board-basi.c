@@ -629,6 +629,14 @@ static void basi_gpio_configure(void)
 					    status);
 		return;
 	}
+
+	/*
+	 * The I2CSEL tvp5151 input is sampled when its resetb input is down,
+	 * assigning the i2c address.
+	 */
+	gpio_direction_output(PDEC_RESETn, 0);
+
+	mdelay(10);
 	gpio_direction_output(PDEC_RESETn, 1);
 
 	davinci_cfg_reg(DM365_GPIO97);
