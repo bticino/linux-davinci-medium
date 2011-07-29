@@ -70,6 +70,8 @@ static int zl38005_spi_write(struct snd_kcontrol *kcontrol,
 
 	if (zl38005_read(reg, &valt))
 		return -EIO;
+	if (zl38005_read(reg, &valt))
+		return -EIO;
 
 	if (((valt >> shift) & mask) == val)
 		return 0;
@@ -99,6 +101,8 @@ static int zl38005_spi_read(struct snd_kcontrol *kcontrol,
 
 	if (zl38005_read(reg, &val))
 		return -1;
+	if (zl38005_read(reg, &val))
+		return -EIO;
 
 	ucontrol->value.integer.value[0] = ((val >> shift) & mask);
 
@@ -117,6 +121,8 @@ static int zl38005_spi_read(struct snd_kcontrol *kcontrol,
 int zl38005_mute_r(int on)
 {
 	u16 val;
+	if (zl38005_read(ZL38005_AEC_CTRL0, &val))
+		return -EIO;
 	if (zl38005_read(ZL38005_AEC_CTRL0, &val))
 		return -EIO;
 	if (((val >> 7) & 1) == on)
