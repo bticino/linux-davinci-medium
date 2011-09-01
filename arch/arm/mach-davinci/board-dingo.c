@@ -1058,21 +1058,19 @@ int dingo_get_pendown_state(void)
 }
 
 static struct ads7846_platform_data dingo_ads7846_info = {
-	.model = 7843,
-	.x_min = 150,
-	.x_max = 5000,
-	.y_min = 150,
-	.y_max = 5000,
-	.vref_delay_usecs = 100,
+	.model = 7846,
+	.x_max = 0x0fff,
+	.y_max = 0x0fff,
 	.x_plate_ohms = 600,
 	.y_plate_ohms = 350,
-	/* .pressure_max = 15000, senseless for ads7843 */
 	.keep_vref_on = 1,
 	.settle_delay_usecs = 150,
 	.penirq_recheck_delay_usecs = 100,
-	.debounce_tol = 250,
-	.debounce_max = 3,
-	.debounce_rep = 1,
+
+	.debounce_tol = (~0),
+	.debounce_max = 10,
+	.debounce_rep = 3,
+
 	.vref_mv = 3300,
 	.get_pendown_state = dingo_get_pendown_state,
 };
