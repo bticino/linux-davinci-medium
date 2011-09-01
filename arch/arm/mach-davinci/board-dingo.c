@@ -664,7 +664,7 @@ static void debounce(unsigned long data)
 		return;
 
 	if (!powerfail_status)
-		return IRQ_HANDLED;
+		return;
 	powerfail_status = 0;
 	pm_loss_power_changed(SYS_PWR_GOOD);
 
