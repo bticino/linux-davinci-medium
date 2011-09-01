@@ -59,6 +59,7 @@
 #include <mach/adc.h>
 #include <media/soc_camera.h>
 #include <mach/aemif.h>
+#include <mach/adc.h>
 #include <video/davincifb.h>
 #include <linux/pm_loss.h>
 
@@ -103,6 +104,9 @@
 static int dingo_debug = 1;
 module_param(dingo_debug, int, 0644);
 MODULE_PARM_DESC(dingo_debug, "Debug level 0-1");
+
+extern unsigned int system_rev;
+extern int lookup_resistors(int cnt);
 
 static void dingo_bl_set_intensity(int level);
 
@@ -1110,7 +1114,9 @@ struct device my_device;
 
 static void dingo_late_init(unsigned long data)
 {
+	void __iomem *adc_mem;
 	int status;
+	u32 regval, index;
 
 	del_timer(&startup_timer);
 	davinci_cfg_reg(DM365_GPIO45);
@@ -1121,6 +1127,22 @@ static void dingo_late_init(unsigned long data)
 		return;
 	}
 	gpio_direction_output(BOOT_FL_WP, 1);
+
+	/* setting /proc/cpuinfo hardware_version information */
+
+	index = 1;
+
+	adc_mem = ioremap(DM365_ADCIF_BASE, SZ_1K);
+	__raw_writel(1 << index, adc_mem + CHSEL);
+	regval = ADCTL_SCNIEN | ADCTL_SCNFLG;
+	__raw_writel(regval, adc_mem + ADCTL);
+	regval |= ADCTL_START;
+	__raw_writel(regval, adc_mem + ADCTL);
+	do { } while (__raw_readl(adc_mem + ADCTL) & ADCTL_START);
+	regval = __raw_readl(adc_mem + AD_DAT(index));
+
+	system_rev = lookup_resistors(regval);
+	/* system_serial_low & system_serial_high can also be set here*/
 
 	davinci_cfg_reg(DM365_UART1_RXD_34);
 	davinci_cfg_reg(DM365_UART1_TXD_25);
