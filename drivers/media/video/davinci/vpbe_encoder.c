@@ -288,7 +288,7 @@ static struct vid_enc_mode_info vpbe_encoder_modes[VPBE_ENCODER_MAX_NUM_STD] = {
 	 .lower_margin = 10,
 	 .hsync_len = 1,
 	 .vsync_len = 1,
-	 .pixclock = 152500,
+	 .pixclock = 127500,
 	 .flags = 0},
 
 };
@@ -876,6 +876,7 @@ static int vpbe_encoder_start_display(struct vid_encoder_device *enc)
 	venc_reg_out(VENC_VIDCTL, 0x0);
 
 	pllfreq = 1000000000 / mode_info.pixclock;
+	pllfreq *= 1000;
 
 	clk6 = clk_get(NULL, "pll1_sysclk6");
 	if (clk_set_rate(clk6, pllfreq))
