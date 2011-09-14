@@ -16,6 +16,6 @@
 #define ZL38005_USRGAIN		0x046B
 
 int zl38005_write(u16 addr, u16 val);
-int zl38005_read(u16 addr, u16 *val);
+int zl38005_read(u16 addr, int *val);
 
 #endif

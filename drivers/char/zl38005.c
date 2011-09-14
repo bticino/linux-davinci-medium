@@ -84,9 +84,9 @@ struct zl38005 {
 /* For registeration of charatcer device */
 static struct cdev c_dev;
 
-int module_usage_count;
+static int module_usage_count;
 
-struct zl38005 zl38005_data;
+static struct zl38005 zl38005_data;
 
 static DEFINE_MUTEX(zl38005_list_lock);
 static LIST_HEAD(zl38005_list);
@@ -106,7 +106,7 @@ struct zl38005_ioctl_par {
 
 static struct zl38005_ioctl_par zl38005_ioctl_par;
 
-struct file_data {
+static struct file_data {
 	t_FwrImageHeader	* FWR_Header;
 	unsigned int		* IMEM_DataBuffer;
 	unsigned short		* DMEM_DataBuffer;
@@ -114,7 +114,7 @@ struct file_data {
 	unsigned short		* CFG_DataBuffer;
 } file_data;
 
-void zl_delay(void){
+static void zl_delay(void){
 	udelay(125);
 }
 
@@ -310,11 +310,11 @@ static int zl38005_rd_reg(struct device *dev, u16 addr, int *pval, u8 mem)
 	return 0;
 }
 
-int zl38005_read(u16 addr, u16 *val)
+int zl38005_read(u16 addr, int *val)
 {
 	struct zl38005          *zl38005 = &zl38005_data;
 	pr_debug_zl2("addr=%04X\n", addr);
-	if (zl38005_rd_reg(&zl38005->spi->dev, addr, (int *)val, DMEM))
+	if (zl38005_rd_reg(&zl38005->spi->dev, addr, val, DMEM))
 		return -ENODEV;
 	pr_debug_zl2("val=%04X\n", *val);
 	return 0;

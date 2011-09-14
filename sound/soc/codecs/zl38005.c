@@ -63,7 +63,7 @@ static int zl38005_spi_write(struct snd_kcontrol *kcontrol,
 	unsigned int mask = mc->max;
 	unsigned int invert = mc->invert;
 	unsigned int val = (ucontrol->value.integer.value[0] & mask);
-	u16 valt;
+	int valt;
 
 	if (invert)
 		val = mask - val;
@@ -95,7 +95,7 @@ static int zl38005_spi_read(struct snd_kcontrol *kcontrol,
 	unsigned int shift = mc->shift;
 	unsigned int mask = mc->max;
 	unsigned int invert = mc->invert;
-	u16 val;
+	int val;
 
 	if (zl38005_read(reg, &val))
 		return -1;
@@ -116,7 +116,7 @@ static int zl38005_spi_read(struct snd_kcontrol *kcontrol,
  */
 int zl38005_mute_r(int on)
 {
-	u16 val;
+	int val;
 	if (zl38005_read(ZL38005_AEC_CTRL0, &val))
 		return -EIO;
 	if (((val >> 7) & 1) == on)
@@ -149,11 +149,17 @@ EXPORT_SYMBOL_GPL(zl38005_snd_controls);
 /* This function is called from ASoC machine driver */
 int zl38005_init(void)
 {
-	int i, ret = 0;
+	int i, ret = 0, valt;
 
 	for (i = 0; i < ARRAY_SIZE(zl38005_reg); i += 2)
 		if (zl38005_write(zl38005_reg[i], zl38005_reg[i+1]))
 			ret = -1;
+	for (i = 0; i < ARRAY_SIZE(zl38005_reg); i += 2) {
+		zl38005_read(zl38005_reg[i], &valt);
+		if (valt != zl38005_reg[i + 1])
+			pr_info("ZL38005 ERR: REG=%04X VAL=%04X REREAD=%04X\n",
+				 zl38005_reg[i], zl38005_reg[i + 1], valt);
+	}
 	return ret;
 }
 EXPORT_SYMBOL_GPL(zl38005_init);
