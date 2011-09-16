@@ -25,6 +25,7 @@
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/pm.h>
+#include <linux/pm_loss.h>
 #include <linux/bitops.h>
 #include <linux/debugfs.h>
 #include <linux/platform_device.h>
@@ -35,6 +36,7 @@
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
+
 
 static DEFINE_MUTEX(pcm_mutex);
 static DEFINE_MUTEX(io_mutex);
@@ -990,7 +992,8 @@ static int soc_resume(struct device *dev)
 static int soc_power_changed(struct device *dev,
 				enum sys_power_state s)
 {
-	printk(KERN_INFO "soc_power_changed(%d)\n", s);
+	pr_debug_pm_loss("soc_power_changed(%d)\n", s);
+
 	switch (s) {
 	case SYS_PWR_GOOD:
 		soc_resume(dev);
