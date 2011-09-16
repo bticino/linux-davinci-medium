@@ -104,8 +104,6 @@ static int basi_cq93_init(struct snd_soc_codec *codec)
 				  ARRAY_SIZE(cq93_dapm_widgets));
 
 	err = zl38005_init();
-	if (err < 0)
-		return err;
 
 	err = zl38005_add_controls(codec);
 	if (err < 0)
