@@ -190,6 +190,7 @@ static struct vpfe_config vpfe_cfg = {
 void basi_phy_power(int on)
 {
 	gpio_set_value(ENET_RESETn, on);
+	udelay(100);
 }
 
 static void basi_emac_configure(void)
