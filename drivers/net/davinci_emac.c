@@ -2347,14 +2347,31 @@ static void emac_adjust_link(struct net_device *ndev)
  */
 static int emac_devioctl(struct net_device *ndev, struct ifreq *ifrq, int cmd)
 {
-	dev_warn(&ndev->dev, "DaVinci EMAC: ioctl not supported\n");
+	struct emac_priv *priv = netdev_priv(ndev);
+	struct mii_ioctl_data *data = if_mii(ifrq);
+	int result;
 
 	if (!(netif_running(ndev)))
 		return -EINVAL;
 
-	/* TODO: Add phy read and write and private statistics get feature */
+	result = 0;
+	switch (cmd) {
+	case SIOCGMIIPHY:
+	/* Read MII PHY register. */
+	case SIOCGMIIREG:
+		if (data->reg_num >= 0x1f)
+			result = -EIO;
+		else
+			data->val_out = emac_mii_read(priv->mii_bus,
+						      data->phy_id,
+						      data->reg_num);
+		break;
+	default:
+		dev_warn(&ndev->dev, "DaVinci EMAC: ioctl not supported\n");
+		result = -EOPNOTSUPP;
+	}
 
-	return -EOPNOTSUPP;
+	return result;
 }
 
 /**
