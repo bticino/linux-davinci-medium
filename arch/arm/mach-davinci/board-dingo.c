@@ -216,6 +216,7 @@ static struct platform_device davinci_nand_device = {
 void dingo_phy_power(int on)
 {
 	gpio_set_value(ENET_RESETn, on);
+	udelay(100);
 }
 
 static void dingo_emac_configure(void)
