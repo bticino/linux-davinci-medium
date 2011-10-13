@@ -40,6 +40,11 @@
 #include "davinci-pcm.h"
 #include "davinci-i2s.h"
 #include "davinci-vcif.h"
+#include <sound/davinci_basi_asoc.h>
+#include <linux/pm_loss.h>
+#include <linux/delay.h>
+
+static struct basi_asoc_platform_data basi_asoc_priv;
 
 static struct platform_device *basi_snd_device[1];
 
@@ -103,6 +108,8 @@ static int basi_cq93_init(struct snd_soc_codec *codec)
 	snd_soc_dapm_new_controls(codec, cq93_dapm_widgets,
 				  ARRAY_SIZE(cq93_dapm_widgets));
 
+	basi_asoc_priv.ext_codec_power(1); /* zl38005 is the ext codec */
+	mdelay(100);
 	err = zl38005_init();
 
 	err = zl38005_add_controls(codec);
@@ -159,9 +166,15 @@ static int basi_asoc_probe(struct platform_device *pdev)
 {
 	int ret;
 	int id = pdev->id;
+	struct basi_asoc_platform_data *pdata = pdev->dev.platform_data;
 
 	if (!machine_is_basi() || (id > 1))
 		return -ENODEV;
+
+	if ((!pdata->ext_codec_power) || (!pdata->ext_circuit_power))
+		return -EINVAL;
+
+	memcpy(&basi_asoc_priv, pdata, sizeof(basi_asoc_priv));
 
 	basi_snd_device[id] = platform_device_alloc("soc-audio", id);
 	if (!basi_snd_device[id])
@@ -185,12 +198,46 @@ static int __devexit basi_asoc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_LOSS
+static int basi_asoc_power_changed(struct device *dev,
+				 enum sys_power_state s)
+{
+	int ret = -EIO;
+
+	switch (s) {
+	case SYS_PWR_GOOD:
+		pr_debug_pm_loss("%s(%d)\n", __func__, s);
+		basi_asoc_priv.ext_codec_power(1);
+		basi_asoc_priv.ext_circuit_power(1);
+		mdelay(10);
+		ret = zl38005_init();
+		break;
+	case SYS_PWR_FAILING:
+		pr_debug_pm_loss("%s(%d)\n", __func__, s);
+		basi_asoc_priv.ext_codec_power(0);
+		basi_asoc_priv.ext_circuit_power(0);
+		break;
+	default:
+		BUG();
+		ret = -ENODEV;
+	}
+	return ret;
+}
+
+static struct dev_pm_ops basi_asoc_dev_pm_ops = {
+	.power_changed = basi_asoc_power_changed,
+};
+#endif
+
 static struct platform_driver basi_asoc_driver = {
 	.probe = basi_asoc_probe,
 	.remove = __devexit_p(basi_asoc_remove),
 	.driver = {
 		.name = "basi-asoc",
 		.owner = THIS_MODULE,
+#ifdef CONFIG_PM_LOSS
+		.pm = &basi_asoc_dev_pm_ops,
+#endif
 	},
 };
 
