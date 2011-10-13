@@ -89,7 +89,7 @@
 /*
  * Zarlink reset
  */
-#define ZARLINK_RESET		69
+#define ZARLINK_RESET		46
 
 /*
  * Push button in

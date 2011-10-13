@@ -62,6 +62,7 @@
 #include <linux/i2c/tda9885.h>
 #include <linux/i2c/tvp5150.h>
 #include <mach/aemif.h>
+#include <sound/davinci_basi_asoc.h>
 
 #include <mach/basi.h>
 #include <mach/aemif.h>
@@ -678,6 +679,15 @@ static void basi_gpio_configure(void)
 	}
 	gpio_direction_output(ZARLINK_CS, 1);
 
+	davinci_cfg_reg(DM365_GPIO46);
+	status = gpio_request(ZARLINK_RESET, "Zarlink reset");
+	if (status) {
+		printk(KERN_ERR "%s: failed to request GPIO Zarlink \
+				 chip select: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(ZARLINK_RESET, 0); /* OFF*/
+
 	davinci_cfg_reg(DM365_GPIO38);
 	status = gpio_request(PIC_RESET_N, "PIC AI reset");
 	if (status) {
@@ -766,9 +776,7 @@ static void basi_gpio_configure(void)
 		gpio_export(REG_ERR_AVn, 0);
 		gpio_export(EN_RTC, 0);
 		gpio_export(ZARLINK_CS, 0);
-/*
- * ZARLINK_RESET todo
- */
+		gpio_export(ZARLINK_RESET, 0);
 		gpio_export(PB_IN, 0);
 		gpio_export(OC2_VBUS_USB, 0);
 		gpio_export(SD_CARD_DET, 0);
@@ -816,10 +824,31 @@ static void basi_usb_configure(void)
 	setup_usb(500, 8);
 }
 
+void basi_en_audio_power(int on)
+{
+	gpio_set_value(EN_AUDIO, on);
+}
+
+void basi_zarlink_reset(int on)
+{
+	gpio_set_value(ZARLINK_RESET, on);
+
+	if (on)
+		udelay(100);
+}
+
+static struct basi_asoc_platform_data basi_asoc_info = {
+	.ext_codec_power = basi_zarlink_reset,
+	.ext_circuit_power = basi_en_audio_power,
+};
+
 static struct platform_device basi_asoc_device[] = {
 	{
 		.name = "basi-asoc",
 		.id = 0,
+		.dev = {
+			.platform_data  = &basi_asoc_info,
+		},
 	},
 };
 
