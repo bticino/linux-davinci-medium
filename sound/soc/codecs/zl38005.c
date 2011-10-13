@@ -32,7 +32,7 @@
 /*
  * zl38005 register default settings
  */
-static const u16 zl38005_reg[] = {
+static u16 zl38005_reg[] = {
 	0x044a, 0x7e1c,
 	0x044b, 0x1072,
 	0x047b, 0x0072,
@@ -63,7 +63,7 @@ static int zl38005_spi_write(struct snd_kcontrol *kcontrol,
 	unsigned int mask = mc->max;
 	unsigned int invert = mc->invert;
 	unsigned int val = (ucontrol->value.integer.value[0] & mask);
-	int valt;
+	int valt, i;
 
 	if (invert)
 		val = mask - val;
@@ -80,6 +80,12 @@ static int zl38005_spi_write(struct snd_kcontrol *kcontrol,
 	if (zl38005_write(reg, valt))
 		return -EIO;
 
+	for (i = 0; i < ARRAY_SIZE(zl38005_reg); i += 2)
+		if (reg == zl38005_reg[i]) {
+			zl38005_reg[i + 1] = valt;
+			break;
+		}
+
 	return 0;
 }
 
@@ -89,6 +95,8 @@ static int zl38005_spi_write(struct snd_kcontrol *kcontrol,
 static int zl38005_spi_read(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
+	int i;
+
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	unsigned int reg = mc->reg;
@@ -105,6 +113,13 @@ static int zl38005_spi_read(struct snd_kcontrol *kcontrol,
 	if (invert)
 		ucontrol->value.integer.value[0] =
 			mask - ucontrol->value.integer.value[0];
+
+	for (i = 0; i < ARRAY_SIZE(zl38005_reg); i += 2)
+		if (reg == zl38005_reg[i]) {
+			zl38005_reg[i + 1] = val;
+			break;
+		}
+
 	return 0;
 }
 
@@ -160,6 +175,7 @@ int zl38005_init(void)
 			pr_info("ZL38005 ERR: REG=%04X VAL=%04X REREAD=%04X\n",
 				 zl38005_reg[i], zl38005_reg[i + 1], valt);
 	}
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(zl38005_init);
