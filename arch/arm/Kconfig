@@ -26,6 +26,14 @@ config ARM
 	  Europe.  There is an ARM Linux project with a web page at
 	  <http://www.arm.linux.org.uk/>.
 
+config COMPLETELY_SILENT
+	bool
+	default y
+	help
+	  The minimal messages "Uncompressing kernel .... done, booting the kernel."
+	  are suppressed. This option is useful in order to use the uart for other
+	  purposes.
+
 config HAVE_PWM
 	bool
 

@@ -296,7 +296,9 @@ void flush_window(void)
 	bytes_out += (ulg)outcnt;
 	output_ptr += (ulg)outcnt;
 	outcnt = 0;
+#ifndef CONFIG_COMPLETELY_SILENT
 	putstr(".");
+#endif
 }
 
 #ifndef arch_error
@@ -328,9 +330,13 @@ decompress_kernel(ulg output_start, ulg free_mem_ptr_p, ulg free_mem_ptr_end_p,
 	arch_decomp_setup();
 
 	makecrc();
+#ifndef CONFIG_COMPLETELY_SILENT
 	putstr("Uncompressing Linux...");
+#endif
 	gunzip();
+#ifndef CONFIG_COMPLETELY_SILENT
 	putstr(" done, booting the kernel.\n");
+#endif
 	return output_ptr;
 }
 #else
