@@ -1332,7 +1332,8 @@ static struct dev_pm_ops soc_pm_ops = {
 	.suspend = soc_suspend,
 	.resume = soc_resume,
 #ifdef CONFIG_PM_LOSS
-	.power_changed = soc_power_changed,
+/* due to problems with mplayer do not call this function
+	.power_changed = soc_power_changed, */
 #endif
 	.poweroff = soc_poweroff,
 };
