@@ -612,8 +612,7 @@ static void __init dingo_gpio_init_irq(void)
 	davinci_irq_init();
 	/* setup extra Basi irqs on GPIO0*/
 	for (irq = IRQ_DM365_GPIO0_0;
-	    irq < IRQ_DM365_GPIO0_0 + ARRAY_SIZE(dingo_irq_on_gpio0);) {
-		irq++;
+	    irq <= IRQ_DM365_GPIO0_0 + ARRAY_SIZE(dingo_irq_on_gpio0); irq++) {
 		set_irq_chip(irq, &dingo_gpio0_irq_chip);
 		set_irq_handler(irq, handle_level_irq);
 		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
