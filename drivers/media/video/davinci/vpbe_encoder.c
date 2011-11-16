@@ -288,7 +288,7 @@ static struct vid_enc_mode_info vpbe_encoder_modes[VPBE_ENCODER_MAX_NUM_STD] = {
 	 .lower_margin = 10,
 	 .hsync_len = 1,
 	 .vsync_len = 1,
-	 .pixclock = 127500,
+	 .pixclock = 125000,
 	 .flags = 0},
 
 };
