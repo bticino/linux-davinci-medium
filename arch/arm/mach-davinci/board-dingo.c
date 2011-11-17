@@ -1068,12 +1068,13 @@ static struct ads7846_platform_data dingo_ads7846_info = {
 	.x_plate_ohms = 600,
 	.y_plate_ohms = 350,
 	.keep_vref_on = 1,
-	.settle_delay_usecs = 150,
+	.settle_delay_usecs = 500,
 	.penirq_recheck_delay_usecs = 100,
 
-	.debounce_tol = (~0),
-	.debounce_max = 10,
+	.debounce_tol = 50,
+	.debounce_max = 20,
 	.debounce_rep = 3,
+	.pressure_max = 1024,
 
 	.vref_mv = 3300,
 	.get_pendown_state = dingo_get_pendown_state,
