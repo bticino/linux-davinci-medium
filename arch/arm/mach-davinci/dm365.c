@@ -39,6 +39,7 @@
 #include <mach/adc.h>
 #include <video/davinci_osd.h>
 #include <video/davinci_vpbe.h>
+#include <media/davinci/dm365_ccdc.h>
 
 #include "clock.h"
 #include "mux.h"
@@ -1452,15 +1453,18 @@ static struct platform_device vpfe_capture_dev = {
 	},
 };
 
-static void dm365_isif_setup_pinmux(void)
+struct ccdc_platform_data dm365_ccdc_platform_data;
+
+static void dm365_isif_setup_pinmux(enum ccdc_bus_width bw)
 {
 	davinci_cfg_reg(DM365_VIN_CAM_WEN);
 	davinci_cfg_reg(DM365_VIN_CAM_VD);
 	davinci_cfg_reg(DM365_VIN_CAM_HD);
-#ifdef DM365_ISIF_16BIT
-	davinci_cfg_reg(DM365_VIN_YIN4_7_EN);
-	davinci_cfg_reg(DM365_VIN_YIN0_3_EN);
-#endif
+	if (bw == DM365_ISIF_16BIT) {
+		davinci_cfg_reg(DM365_VIN_YIN4_7_EN);
+		davinci_cfg_reg(DM365_VIN_YIN0_3_EN);
+	} else if (bw == DM365_ISIF_10BIT)
+		davinci_cfg_reg(DM365_VIN_YIN0_1_EN);
 }
 
 static struct resource isif_resource[] = {
@@ -1491,9 +1495,15 @@ static struct platform_device dm365_isif_dev = {
 	.dev = {
 		.dma_mask               = &vpfe_capture_dma_mask,
 		.coherent_dma_mask      = DMA_BIT_MASK(32),
-		.platform_data		= dm365_isif_setup_pinmux,
 	},
 };
+
+void dm365_init_isif(enum ccdc_bus_width bw)
+{
+	dm365_ccdc_platform_data.setup_pinmux = dm365_isif_setup_pinmux;
+	dm365_ccdc_platform_data.bus_width = bw;
+	dm365_isif_dev.dev.platform_data = &dm365_ccdc_platform_data;
+}
 
 static int __init dm365_init_devices(void)
 {

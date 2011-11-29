@@ -16,6 +16,7 @@
 #include <linux/platform_device.h>
 #include <mach/hardware.h>
 #include <media/davinci/vpfe_capture.h>
+#include <media/davinci/dm365_ccdc.h>
 #include <mach/emac.h>
 #include <mach/asp.h>
 #include <mach/adc.h>
@@ -44,6 +45,7 @@ void __init dm365_init_rtc(void);
 void __init dm365_init_adc(struct davinci_adc_platform_data *pdata);
 void __init dm365_init_ks(struct davinci_ks_platform_data *pdata);
 void dm365_set_vpfe_config(struct vpfe_config *cfg);
+void dm365_init_isif(enum ccdc_bus_width bw);
 
 struct spi_board_info;
 void dm365_init_spi0(unsigned chipselect_mask,

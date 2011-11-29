@@ -1679,11 +1679,12 @@ static struct ccdc_hw_device ccdc_hw_dev = {
 
 static int __init dm365_ccdc_probe(struct platform_device *pdev)
 {
-	void (*setup_pinmux)(void);
+	void (*setup_pinmux)(enum ccdc_bus_width);
 	static resource_size_t  res_len;
 	struct resource	*res;
 	void *__iomem addr;
 	int status = 0, i;
+	struct ccdc_platform_data *pdata;
 
 	/**
 	 * first try to register with vpfe. If not correct platform, then we
@@ -1729,17 +1730,19 @@ static int __init dm365_ccdc_probe(struct platform_device *pdev)
 		i++;
 	}
 
+	pdata = pdev->dev.platform_data;
 	/* Platform data holds setup_pinmux function ptr */
-	if (NULL == pdev->dev.platform_data) {
+	if ((NULL == pdata) || (NULL == pdata->setup_pinmux)) {
 		status = -ENODEV;
 		goto fail_platform_data;
 	}
-	setup_pinmux = pdev->dev.platform_data;
+
+	setup_pinmux = pdata->setup_pinmux;
 	/*
 	 * setup Mux configuration for ccdc which may be different for
 	 * different SoCs using this CCDC
 	 */
-	setup_pinmux();
+	setup_pinmux(pdata->bus_width);
 
 	printk(KERN_NOTICE "%s is registered with vpfe.\n",
 		ccdc_hw_dev.name);
