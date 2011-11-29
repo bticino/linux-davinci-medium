@@ -2481,6 +2481,31 @@ static int vpfe_g_parm(struct file *file, void *priv,
 	return 0;
 }
 
+int vpfe_enum_framesizes(struct file *file, void *fh,
+			struct v4l2_frmsizeenum *fsize)
+{
+	if (fsize->index >= ARRAY_SIZE(vpfe_standards))
+		return -EINVAL;
+
+	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+	fsize->discrete.width = vpfe_standards[fsize->index].width;
+	fsize->discrete.height = vpfe_standards[fsize->index].height;
+	return 0;
+}
+
+static int vpfe_enum_frameintervals(struct file *filp, void *priv,
+			struct v4l2_frmivalenum *fival)
+{
+	if (fival->index > 0)
+		return -EINVAL;
+
+	fival->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+	fival->discrete.numerator = 1;
+	fival->discrete.denominator = 30;
+
+	return 0;
+}
+
 /* vpfe capture ioctl operations */
 static const struct v4l2_ioctl_ops vpfe_ioctl_ops = {
 	.vidioc_querycap	 = vpfe_querycap,
@@ -2508,6 +2533,8 @@ static const struct v4l2_ioctl_ops vpfe_ioctl_ops = {
 	.vidioc_s_crop		 = vpfe_s_crop,
 	.vidioc_s_parm		 = vpfe_s_parm,
 	.vidioc_g_parm		 = vpfe_g_parm,
+	.vidioc_enum_framesizes  = vpfe_enum_framesizes,
+	.vidioc_enum_frameintervals = vpfe_enum_frameintervals,
 };
 
 static struct vpfe_device *vpfe_initialize(void)
