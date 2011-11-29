@@ -83,7 +83,7 @@
 
 #include "ccdc_hw_device.h"
 
-#define HD_IMAGE_SIZE		(1920 * 1080 * 2)
+#define HD_IMAGE_SIZE		(1280 * 720 * 2)
 #define PAL_IMAGE_SIZE		(720 * 576 * 2)
 #define SECOND_IMAGE_SIZE_MAX	(640 * 480 * 2)
 
@@ -145,8 +145,8 @@ struct ccdc_config {
 static struct vpfe_config_params config_params = {
 	.min_numbuffers = 3,
 	.numbuffers = 3,
-	.min_bufsize = 1280 * 720 * 2,
-	.device_bufsize = 1920 * 1080 * 2,
+	.min_bufsize = 160 * 100 * 2,
+	.device_bufsize = 1280 * 720 * 2,
 };
 
 /* ccdc device registered */
