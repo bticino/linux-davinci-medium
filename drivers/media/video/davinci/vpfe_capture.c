@@ -583,6 +583,7 @@ static int vpfe_initialize_device(struct vpfe_device *vpfe_dev)
 
 	/* set first input of current subdevice as the current input */
 	vpfe_dev->current_input = 0;
+	ret = ccdc_dev->hw_ops.set_hw_if_params(&vpfe_dev->current_subdev->ccdc_if_params);
 	/*
 	 * set default standard. For camera device, we cannot set standard.
 	 * So we set it to -1. Otherwise, first entry in the standard is the
@@ -671,6 +672,9 @@ static int vpfe_initialize_device(struct vpfe_device *vpfe_dev)
 	}
 
 	ret = ccdc_dev->hw_ops.open(vpfe_dev->pdev);
+	if (ret)
+		goto unlock_out;
+
 	if (!ret)
 		vpfe_dev->initialized = 1;
 unlock_out:
