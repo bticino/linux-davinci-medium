@@ -38,3 +38,4 @@ obj-$(CONFIG_MACH_DAVINCI_DA850_EVM)	+= board-da850-evm.o
 obj-$(CONFIG_MACH_BASI)			+= board-basi.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_DINGO)		+= board-dingo.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_LAGO)			+= board-lago.o bt_nexmed-hwmon.o
+obj-$(CONFIG_MACH_OWL)			+= board-owl.o bt_nexmed-hwmon.o

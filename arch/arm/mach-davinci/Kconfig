@@ -117,6 +117,13 @@ config MACH_LAGO
 	  Configure this option to specify whether the board used
 	   is a bticino LAGO based on DM365 SOC
 
+config MACH_OWL
+	bool "Bticino OWL based ON TI DM365 SOC"
+	depends on ARCH_DAVINCI_DM365
+	help
+	  Configure this option to specify whether the board used
+	   is a bticino OWL based on DM365 SOC
+
 config MACH_DAVINCI_DA830_EVM
 	bool "TI DA830/OMAP-L137 Reference Platform"
 	default ARCH_DAVINCI_DA830
