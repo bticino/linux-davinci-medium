@@ -919,8 +919,10 @@ static int set_nf_params(struct device *dev, unsigned int id,
 		memcpy((void *)nf,
 		       (void *)&dm365_nf_defaults,
 		       sizeof(struct prev_nf));
-		memset((void *)nf->thr, 0, IPIPE_NF_THR_TABLE_SIZE);
-		memset((void *)nf->str, 0, IPIPE_NF_THR_TABLE_SIZE);
+		memcpy((void *)nf->thr, (void *)&dm365_nf_defaults.thr,
+						IPIPE_NF_THR_TABLE_SIZE);
+		memcpy((void *)nf->str, (void *)&dm365_nf_defaults.str,
+						IPIPE_NF_THR_TABLE_SIZE);
 	} else {
 		if (len != sizeof(struct prev_nf)) {
 			dev_err(dev,
