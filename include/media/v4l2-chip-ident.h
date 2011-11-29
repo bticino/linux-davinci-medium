@@ -274,6 +274,12 @@ enum {
 
 	/* module m52790: just ident 52790 */
 	V4L2_IDENT_M52790 = 52790,
+
+	/* module ov9712: just ident ov9712 */
+	V4L2_IDENT_OV9712 = 52791,
+
+	/* module ov9712: just ident ov9715 */
+	V4L2_IDENT_OV9715 = 52792,
 };
 
 #endif
