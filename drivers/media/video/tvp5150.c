@@ -1043,7 +1043,7 @@ static int tvp5150_detect(struct v4l2_subdev *sd,
 	decoder->ver_maj = rom_ver_maj;
 	decoder->ver_min = rom_ver_min;
 
-	v4l2_info(sd, "%s (Version - 0x%.2x,0x%.2x) found at 0x%x (%s)\n",
+	v4l2_dbg(1, debug, sd, "%s (Version - 0x%.2x,0x%.2x) found at 0x%x (%s)\n",
 			client->name, decoder->ver_maj, decoder->ver_min,
 			client->addr << 1, client->adapter->name);
 	return 0;
@@ -1556,7 +1556,6 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 		}
 
 		/* TODO FIXING TVP5150 support */
-		printk("Thinking it is TVP5151!!!\n");
 		tvp5150_write_inittab(sd, tvp5151_init_enable);
 		if (err) {
 			v4l2_err(sd, "Unable to configure decoder\n");
