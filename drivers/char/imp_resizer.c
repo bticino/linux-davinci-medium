@@ -289,7 +289,7 @@ static int rsz_doioctl(struct inode *inode, struct file *file,
 			struct rsz_channel_config *user_config =
 			    (struct rsz_channel_config *)arg;
 
-			dev_err(rsz_device, "RSZ_G_CONFIG:%d:%d:%d\n",
+			dev_dbg(rsz_device, "RSZ_G_CONFIG:%d:%d:%d\n",
 				user_config->oper_mode, user_config->chain,
 				user_config->len);
 			if (ISNULL(user_config->config)) {
