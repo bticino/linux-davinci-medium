@@ -406,16 +406,20 @@ static int ipipe_setup_resizer(struct ipipe_params *params)
 
 	regw_rsz(params->rsz_en[0], RSZ_EN_A);
 	if (params->rsz_en[0]) {
+#ifdef CONFIG_IMP_DEBUG
 		printk(KERN_DEBUG
 		       "ipipe_set_resizer, resizer - A enabled\n");
+#endif
 		/*setting rescale parameters */
 		rsz_set_rsz_regs(RSZ_A, params);
 	}
 
 	regw_rsz(params->rsz_en[1], RSZ_EN_B);
 	if (params->rsz_en[1]) {
+#ifdef CONFIG_IMP_DEBUG
 		printk(KERN_DEBUG
 		       "ipipe_set_resizer, resizer - B enabled\n");
+#endif
 		rsz_set_rsz_regs(RSZ_B, params);
 	}
 	utemp = regr_rsz(RSZ_SRC_MODE);
