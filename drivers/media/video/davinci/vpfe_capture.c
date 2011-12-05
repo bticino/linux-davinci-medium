@@ -647,17 +647,17 @@ static int vpfe_initialize_device(struct vpfe_device *vpfe_dev)
 		(imp_hw_if->get_preview_oper_mode() == IMP_MODE_CONTINUOUS)) {
 		if (imp_hw_if->get_previewer_config_state()
 			== STATE_CONFIGURED) {
-			v4l2_info(&vpfe_dev->v4l2_dev, "IPIPE Chained\n");
+			v4l2_dbg(1, debug, &vpfe_dev->v4l2_dev, "IPIPE Chained\n");
 			vpfe_dev->imp_chained = 1;
 			vpfe_dev->out_from = VPFE_IMP_PREV_OUT;
 			if (imp_hw_if->get_resizer_config_state()
 				== STATE_CONFIGURED) {
-				v4l2_info(&vpfe_dev->v4l2_dev,
+				v4l2_dbg(1, debug, &vpfe_dev->v4l2_dev,
 					 "Resizer present\n");
 				vpfe_dev->rsz_present = 1;
 				vpfe_dev->out_from = VPFE_IMP_RSZ_OUT;
 				if (imp_hw_if->get_output_state(1)) {
-					v4l2_info(&vpfe_dev->v4l2_dev,
+					v4l2_dbg(1, debug, &vpfe_dev->v4l2_dev,
 						  "second output present\n");
 					vpfe_dev->second_output = 1;
 					vpfe_dev->second_out_img_sz =
@@ -1261,7 +1261,7 @@ static const struct vpfe_pixel_format *
 
 	min_width /= vpfe_pix_fmt->bpp;
 
-	v4l2_info(&vpfe_dev->v4l2_dev, "width = %d, height = %d, bpp = %d\n",
+	v4l2_dbg(1, debug, &vpfe_dev->v4l2_dev, "width = %d, height = %d, bpp = %d\n",
 		  pixfmt->width, pixfmt->height, vpfe_pix_fmt->bpp);
 
 	pixfmt->width = clamp((pixfmt->width), min_width, max_width);
@@ -1283,7 +1283,7 @@ static const struct vpfe_pixel_format *
 	else
 		pixfmt->sizeimage = pixfmt->bytesperline * pixfmt->height;
 
-	v4l2_info(&vpfe_dev->v4l2_dev, "adjusted width = %d, height ="
+	v4l2_dbg(1, debug, &vpfe_dev->v4l2_dev, "adjusted width = %d, height ="
 		 " %d, bpp = %d, bytesperline = %d, sizeimage = %d\n",
 		 pixfmt->width, pixfmt->height, vpfe_pix_fmt->bpp,
 		 pixfmt->bytesperline, pixfmt->sizeimage);
