@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32.17-davinci1
-# Mon Nov 21 12:58:14 2011
+# Mon Dec  5 07:11:40 2011
 #
 CONFIG_ARM=y
 CONFIG_COMPLETELY_SILENT=y
@@ -1690,7 +1690,7 @@ CONFIG_BRANCH_PROFILE_NONE=y
 CONFIG_HAVE_ARCH_KGDB=y
 # CONFIG_KGDB is not set
 # CONFIG_ARM_UNWIND is not set
-# CONFIG_DEBUG_USER is not set
+CONFIG_DEBUG_USER=y
 # CONFIG_DEBUG_ERRORS is not set
 # CONFIG_DEBUG_STACK_USAGE is not set
 # CONFIG_DEBUG_LL is not set
