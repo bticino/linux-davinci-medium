@@ -1612,7 +1612,7 @@ static int vpfe_enum_input(struct file *file, void *priv,
 					&subdev,
 					&index,
 					inp->index) < 0) {
-		v4l2_err(&vpfe_dev->v4l2_dev, "input information not found"
+		v4l2_dbg(1, debug, &vpfe_dev->v4l2_dev, "input information not found"
 			 " for the subdev\n");
 		return -EINVAL;
 	}
