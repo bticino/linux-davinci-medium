@@ -59,9 +59,6 @@ static int tda9885_querystd(struct v4l2_subdev *sd, v4l2_std_id *std)
 	};
 
 	v4l2_dbg(1, debug, sd, "Switching ON the demodulator\n");
-	/* Power up */
-	gpio_set_value(t->pdata->power, 1);
-	mdelay(1);
 
 	/*
 	 * This chip is very simple, just write first the base address
@@ -86,8 +83,6 @@ static int tda9885_querystd(struct v4l2_subdev *sd, v4l2_std_id *std)
 	break;
 	}
 
-	/* Power down */
-	gpio_set_value(t->pdata->power, 0);
 	return 0;
 }
 
@@ -146,6 +141,14 @@ static int tda9885_s_stream(struct v4l2_subdev *sd, int enable)
 	return ret;
 }
 
+static int tda9885_s_power(struct v4l2_subdev *sd, int power)
+{
+	struct tda9885 *t = to_state(sd);
+
+	return tda9885_s_stream(sd, power);
+}
+
+
 static const struct v4l2_subdev_video_ops tda9885_video_ops = {
 	.s_stream = tda9885_s_stream,
 	.querystd = tda9885_querystd,
@@ -153,6 +156,7 @@ static const struct v4l2_subdev_video_ops tda9885_video_ops = {
 
 static const struct v4l2_subdev_core_ops tda9885_core_ops = {
 	.g_ctrl = tda9885_g_ctrl,
+	.s_power = tda9885_s_power,
 };
 
 static const struct v4l2_subdev_ops tda9885_ops = {
@@ -193,9 +197,6 @@ static int tda9885_probe(struct i2c_client *client,
 		i2c_set_clientdata(client, data);
 	}
 
-	/* switching off the demodulator */
-	gpio_set_value(data->pdata->power, 0);
-
 	/* Register with V4L2 layer as slave device */
 	sd = &data->sd;
 	v4l2_i2c_subdev_init(sd, client, &tda9885_ops);
@@ -208,6 +209,9 @@ static int tda9885_probe(struct i2c_client *client,
 	v4l2_dbg(1, debug, sd, "power gpio is %d\n",
 		data->pdata->power);
 	v4l2_info(sd, "%s decoder driver registered (ver. %s)\n", sd->name, DRIVER_VERSION);
+
+	/* Power Down */
+	gpio_set_value(data->pdata->power, 0);
 
 	return 0;
 
@@ -222,7 +226,6 @@ static int tda9885_remove(struct i2c_client *client)
 
 	v4l2_device_unregister_subdev(sd);
 
-	/* it should be already off */
 	gpio_set_value(t->pdata->power, 0);
 	kfree(to_state(sd));
 	return 0;

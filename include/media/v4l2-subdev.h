@@ -118,6 +118,7 @@ struct v4l2_subdev_core_ops {
 	int (*g_register)(struct v4l2_subdev *sd, struct v4l2_dbg_register *reg);
 	int (*s_register)(struct v4l2_subdev *sd, struct v4l2_dbg_register *reg);
 #endif
+	int (*s_power)(struct v4l2_subdev *sd, int on);
 };
 
 /* s_mode: switch the tuner to a specific tuner mode. Replacement of s_radio.

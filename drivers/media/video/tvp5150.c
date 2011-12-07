@@ -1224,7 +1224,6 @@ static int tvp5150_s_fmt(struct v4l2_subdev *sd, struct v4l2_format *fmt)
 
 	/* capture */
 	if (fmt->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		printk("%s-%d V4L2_BUF_TYPE_VIDEO_CAPTURE\n", __func__, __LINE__);
 		pix = &fmt->fmt.pix;
 		rval = tvp5150_try_fmt_cap(sd, fmt);
 		if (rval)
@@ -1348,6 +1347,14 @@ static int tvp5150_s_register(struct v4l2_subdev *sd, struct v4l2_dbg_register *
 }
 #endif
 
+static int tvp5150_s_power(struct v4l2_subdev *sd, int power)
+{
+	struct tvp5150 *decoder = to_tvp5150(sd);
+
+	gpio_set_value(decoder->pdata->pdn, power);
+	return 0;
+}
+
 static int tvp5150_g_tuner(struct v4l2_subdev *sd, struct v4l2_tuner *vt)
 {
 	int status = tvp5150_read(sd, 0x88);
@@ -1391,7 +1398,6 @@ tvp5150_try_fmt_cap(struct v4l2_subdev *sd, struct v4l2_format *f)
 
 	if (f == NULL)
 		return -EINVAL;
-printk("%s-%d\n", __func__, __LINE__);
 
 	if (f->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		/* only capture is supported */
@@ -1403,7 +1409,6 @@ printk("%s-%d\n", __func__, __LINE__);
 	current_std = tvp5150_get_current_std(sd);
 	if (current_std == STD_INVALID)
 		return -EINVAL;
-printk("%s-%d\n", __func__, __LINE__);
 
 	decoder->current_std = current_std;
 	pix->width = decoder->std_list[current_std].width;
@@ -1415,7 +1420,6 @@ printk("%s-%d\n", __func__, __LINE__);
 			break;
 	}
 
-printk("%s-%d\n", __func__, __LINE__);
 	if (ifmt == decoder->num_fmts)
 		/* None of the format matched, select default */
 		ifmt = 0;
@@ -1427,9 +1431,7 @@ printk("%s-%d\n", __func__, __LINE__);
 	pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
 	pix->priv = 0;
 
-printk("%s-%d\n", __func__, __LINE__);
-	//v4l2_dbg(1, debug, sd, "Try FMT: pixelformat - %s, bytesperline - %d"
-	printk("Try FMT: pixelformat - %s, bytesperline - %d"
+	v4l2_dbg(1, debug, sd, "Try FMT: pixelformat - %s, bytesperline - %d"
 			"Width - %d, Height - %d",
 			decoder->fmt_list[ifmt].description, pix->bytesperline,
 			pix->width, pix->height);
@@ -1535,16 +1537,10 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 		tvp5150_write(sd, TVP5150_OP_MODE_CTL, 0x01);
 		decoder->streaming = enable;
 
-		/* putting the decoder in power down mode */
-		gpio_set_value(decoder->pdata->pdn, 0);
 		break;
 	}
 	case 1:
 	{
-		/* putting the decoder in operative mode */
-		gpio_set_value(decoder->pdata->pdn, 1);
-		mdelay(25);		/* manual declares for tvp5151 20msec+200usec */
-
 		/* Power Up Sequence */
 		tvp5150_write(sd, TVP5150_OP_MODE_CTL, 0x00);
 
@@ -1588,6 +1584,7 @@ static const struct v4l2_subdev_core_ops tvp5150_core_ops = {
 	.g_register = tvp5150_g_register,
 	.s_register = tvp5150_s_register,
 #endif
+	.s_power = tvp5150_s_power,
 };
 
 static const struct v4l2_subdev_tuner_ops tvp5150_tuner_ops = {
@@ -1733,9 +1730,6 @@ static int tvp5150_probe(struct i2c_client *c,
 	core->contrast = 128;
 	core->hue = 0;
 	core->sat = 128;
-
-	/* putting the decoder in power down mode */
-	gpio_set_value(core->pdata->pdn, 0);
 
 	if (debug > 1)
 		tvp5150_log_status(sd);
