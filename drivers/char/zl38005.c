@@ -118,6 +118,8 @@ static void zl_delay(void){
 	udelay(125);
 }
 
+static int zl_checkConnection(struct device *dev);
+
 /* Cmd : Read 16bit Controll Register */
 static int zl38005_rd_ctrl_reg(struct device *dev)
 {
@@ -313,6 +315,10 @@ static int zl38005_rd_reg(struct device *dev, u16 addr, int *pval, u8 mem)
 int zl38005_read(u16 addr, int *val)
 {
 	struct zl38005          *zl38005 = &zl38005_data;
+
+	if (zl_checkConnection(&zl38005->spi->dev))
+		return -ENODEV;
+
 	pr_debug_zl2("addr=%04X\n", addr);
 	if (zl38005_rd_reg(&zl38005->spi->dev, addr, val, DMEM))
 		return -ENODEV;
@@ -355,6 +361,9 @@ int zl38005_write(u16 addr, u16 val)
 {
 	struct zl38005		*zl38005 = &zl38005_data;
 
+	if (zl_checkConnection(&zl38005->spi->dev))
+		return -ENODEV;
+
 	return zl38005_wr_reg(&zl38005->spi->dev, addr, val, DMEM);
 }
 EXPORT_SYMBOL(zl38005_write);
@@ -372,11 +381,11 @@ static int zl_checkConnection(struct device *dev)
 	u16 Retry = 0;
 
 	/* Start Tx and verifi Ack */
-	while ( Ack != 0x5E01){
-		zl38005_wr_reg(dev, 0x0403, 0x0000, DMEM);  /* Clear Ack */
-		zl38005_wr_reg(dev, 0x0402, 0x7E01, DMEM);
+	while (Ack != RX_START_OK) {
+		zl38005_wr_reg(dev, REG_0403, 0x0000, DMEM);  /* Clear Ack */
+		zl38005_wr_reg(dev, REG_0402, TX_START, DMEM);
 		zl_delay();
-		zl38005_rd_reg(dev, 0x0403, &Ack, DMEM);
+		zl38005_rd_reg(dev, REG_0403, &Ack, DMEM);
 		/* pr_debug_zl2("Ack = %X \n", Ack); */
 		Retry++;
 		if (Retry == RETRY_COUNT){
@@ -386,7 +395,7 @@ static int zl_checkConnection(struct device *dev)
 	}
 	return 0;
 }
-/*----------------------------------------------------------------------------*/
+
 
 /*
  *  set the STOP bit in register 0x0401 and to go back to boot mode
