@@ -99,6 +99,11 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{ "MICIN", NULL, "Microphone" },
 };
 
+static void ext_codec_power_work(struct work_struct *work)
+{
+	zl38005_init();
+}
+
 static int basi_cq93_init(struct snd_soc_codec *codec)
 {
 	int err;
@@ -108,9 +113,10 @@ static int basi_cq93_init(struct snd_soc_codec *codec)
 	snd_soc_dapm_new_controls(codec, cq93_dapm_widgets,
 				  ARRAY_SIZE(cq93_dapm_widgets));
 
+	INIT_DELAYED_WORK(&basi_asoc_priv.delayed_work, ext_codec_power_work);
 	basi_asoc_priv.ext_codec_power(1); /* zl38005 is the ext codec */
-	mdelay(100);
-	err = zl38005_init();
+	mdelay(100); /* zl38005 startup need at least 83msec */
+	zl38005_init();
 
 	err = zl38005_add_controls(codec);
 	if (err < 0)
@@ -206,16 +212,15 @@ static int basi_asoc_power_changed(struct device *dev,
 
 	switch (s) {
 	case SYS_PWR_GOOD:
-		pr_debug_pm_loss("%s(%d)\n", __func__, s);
 		basi_asoc_priv.ext_codec_power(1);
 		basi_asoc_priv.ext_circuit_power(1);
-		mdelay(10);
-		ret = zl38005_init();
+		schedule_delayed_work(&basi_asoc_priv.delayed_work,
+				      msecs_to_jiffies(100));
 		break;
 	case SYS_PWR_FAILING:
-		pr_debug_pm_loss("%s(%d)\n", __func__, s);
 		basi_asoc_priv.ext_codec_power(0);
 		basi_asoc_priv.ext_circuit_power(0);
+		ret = cancel_delayed_work(&basi_asoc_priv.delayed_work);
 		break;
 	default:
 		BUG();

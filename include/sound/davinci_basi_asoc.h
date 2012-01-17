@@ -17,6 +17,9 @@ struct basi_asoc_platform_data {
 
 	/* a power switch for analog audio path */
 	void (*ext_circuit_power) (int);
+
+	/* delayed work for long delay */
+	struct delayed_work delayed_work;
 };
 
 #endif
