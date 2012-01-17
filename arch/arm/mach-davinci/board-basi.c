@@ -832,9 +832,6 @@ void basi_en_audio_power(int on)
 void basi_zarlink_reset(int on)
 {
 	gpio_set_value(ZARLINK_RESET, on);
-
-	if (on)
-		udelay(100);
 }
 
 static struct basi_asoc_platform_data basi_asoc_info = {
