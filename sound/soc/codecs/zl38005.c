@@ -29,6 +29,7 @@
 #include "zl38005.h"
 #include <sound/tlv.h>
 
+
 /*
  * zl38005 register default settings
  */
@@ -41,7 +42,6 @@ static u16 zl38005_reg[] = {
 	0x05e8, 0x0043,
 	0x0451, 0x7fff,
 	0x0450, 0xd3d3,
-	0x044a, 0x7e1c,
 	0x05ec, 0x0043,
 	0x046b, 0x0037,
 	0x0472, 0x7fff,
@@ -131,7 +131,8 @@ static int zl38005_spi_read(struct snd_kcontrol *kcontrol,
  */
 int zl38005_mute_r(int on)
 {
-	int val;
+	int val, i;
+
 	if (zl38005_read(ZL38005_AEC_CTRL0, &val))
 		return -EIO;
 	if (((val >> 7) & 1) == on)
@@ -140,6 +141,12 @@ int zl38005_mute_r(int on)
 	val |= on << 7;
 	if (zl38005_write(ZL38005_AEC_CTRL0, val))
 		return -EIO;
+	for (i = 0; i < ARRAY_SIZE(zl38005_reg); i += 2)
+		if (ZL38005_AEC_CTRL0 == zl38005_reg[i]) {
+			zl38005_reg[i + 1] = val;
+			break;
+		}
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(zl38005_mute_r);
@@ -166,14 +173,19 @@ int zl38005_init(void)
 {
 	int i, ret = 0, valt;
 
-	for (i = 0; i < ARRAY_SIZE(zl38005_reg); i += 2)
+	zl38005_check_conn();
+
+	for (i = 0; i < ARRAY_SIZE(zl38005_reg); i += 2) {
 		if (zl38005_write(zl38005_reg[i], zl38005_reg[i+1]))
 			ret = -1;
+	}
 	for (i = 0; i < ARRAY_SIZE(zl38005_reg); i += 2) {
-		zl38005_read(zl38005_reg[i], &valt);
-		if (valt != zl38005_reg[i + 1])
-			pr_info("ZL38005 ERR: REG=%04X VAL=%04X REREAD=%04X\n",
-				 zl38005_reg[i], zl38005_reg[i + 1], valt);
+		if (!zl38005_read(zl38005_reg[i], &valt)) {
+			if (valt != zl38005_reg[i + 1])
+				pr_info("ZL38005 ERR: REG=%04X VAL=%04X REREAD=%04X\n",
+					 zl38005_reg[i], zl38005_reg[i + 1], valt);
+		} else
+				pr_info("ZL38005 READ: error\n");
 	}
 
 	return ret;

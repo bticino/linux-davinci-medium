@@ -115,7 +115,7 @@ static struct file_data {
 } file_data;
 
 static void zl_delay(void){
-	udelay(125);
+	udelay(500);
 }
 
 static int zl_checkConnection(struct device *dev);
@@ -133,7 +133,7 @@ static int zl38005_rd_ctrl_reg(struct device *dev)
 	cmd = CMD_RD_CTRL_BYTE ;
 
 	/* See if there is a pending operation */
-	while ((t < RETRY_COUNT) && ((rd_value & CTRL_PENDING) != 0)) {
+	while (t < RETRY_COUNT) {
 		err = spi_write_then_read(zl38005->spi, &cmd, sizeof cmd, \
 					rx_buf, sizeof rx_buf);
 		if (err < 0) {
@@ -144,13 +144,17 @@ static int zl38005_rd_ctrl_reg(struct device *dev)
 		pr_debug_zl1("TX cmd = %02X\n", cmd);
 		pr_debug_zl1("RX rd_value = %04X \n", rd_value);
 
-		/* suspend and after wait a little bit */
-		schedule();
-		//zl_delay();
+		if ((rd_value & CTRL_PENDING) == 0)
+			break;
+		else {
+			zl_delay();
+			/* suspend and after wait a little bit */
+			schedule();
+		}
 		t++;
 	}
 	if (t == RETRY_COUNT) {
-		pr_debug_zl2("zl38005: TIMEOUT for pending operations\n");
+		pr_debug_zl2("zl38005: TIMEOUT for pending operations %d\n", t);
 		/*printk(KERN_ERR "zl38005: TIMEOUT for pending
 					* operations\n");*/
 		return -1;
@@ -290,7 +294,6 @@ static int zl38005_rd_reg(struct device *dev, u16 addr, int *pval, u8 mem)
 	/* See if there is a pending operation */
 	if (zl38005_rd_ctrl_reg(dev))
 		return -ENODEV;
-
 	/* Write Address */
 	if (zl38005_wr_addr(dev, addr))
 		return -ENODEV;
@@ -315,9 +318,6 @@ static int zl38005_rd_reg(struct device *dev, u16 addr, int *pval, u8 mem)
 int zl38005_read(u16 addr, int *val)
 {
 	struct zl38005          *zl38005 = &zl38005_data;
-
-	if (zl_checkConnection(&zl38005->spi->dev))
-		return -ENODEV;
 
 	pr_debug_zl2("addr=%04X\n", addr);
 	if (zl38005_rd_reg(&zl38005->spi->dev, addr, val, DMEM))
@@ -361,9 +361,6 @@ int zl38005_write(u16 addr, u16 val)
 {
 	struct zl38005		*zl38005 = &zl38005_data;
 
-	if (zl_checkConnection(&zl38005->spi->dev))
-		return -ENODEV;
-
 	return zl38005_wr_reg(&zl38005->spi->dev, addr, val, DMEM);
 }
 EXPORT_SYMBOL(zl38005_write);
@@ -389,13 +386,19 @@ static int zl_checkConnection(struct device *dev)
 		/* pr_debug_zl2("Ack = %X \n", Ack); */
 		Retry++;
 		if (Retry == RETRY_COUNT){
-			pr_debug_zl2("Connection Fail , Retry = %d \n", Retry);
+			pr_debug_zl2("%s-%d: Conn Fail , Retry = %d \n", __FILE__, __LINE__, Retry);
 			return -1;
 		}
 	}
 	return 0;
 }
 
+int zl38005_check_conn(void)
+{
+	struct zl38005		*zl38005 = &zl38005_data;
+	return zl_checkConnection(&zl38005->spi->dev);
+}
+EXPORT_SYMBOL(zl38005_check_conn);
 
 /*
  *  set the STOP bit in register 0x0401 and to go back to boot mode

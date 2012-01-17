@@ -17,5 +17,6 @@
 
 int zl38005_write(u16 addr, u16 val);
 int zl38005_read(u16 addr, int *val);
+int zl38005_check_conn(void);
 
 #endif
