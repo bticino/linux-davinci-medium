@@ -44,6 +44,7 @@ struct ads7846_platform_data {
 	u16	debounce_tol;		/* tolerance used for filtering */
 	u16	debounce_rep;		/* additional consecutive good readings
 					 * required after the first two */
+	u32	sampling_period;	/* ns between a sample and the next. Default: 5ms */
 	int	gpio_pendown;		/* the GPIO used to decide the pendown
 					 * state if get_pendown_state == NULL
 					 */
