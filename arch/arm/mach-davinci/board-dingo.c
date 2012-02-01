@@ -1074,6 +1074,7 @@ static struct ads7846_platform_data dingo_ads7846_info = {
 	.debounce_tol = 50,
 	.debounce_max = 20,
 	.debounce_rep = 3,
+	.sampling_period = 50 * 1000 * 1000,
 	.pressure_max = 1024,
 
 	.vref_mv = 3300,
