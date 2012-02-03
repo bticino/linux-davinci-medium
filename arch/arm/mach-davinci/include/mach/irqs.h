@@ -247,6 +247,7 @@
 #define IRQ_DM365_GPIO0_2	66
 #define IRQ_DM365_GPIO0_3	67
 #define IRQ_DM365_GPIO0_4	68
+#define IRQ_DM365_GPIO0_5	69
 
 /* DA8XX interrupts */
 #define IRQ_DA8XX_COMMTX		0
