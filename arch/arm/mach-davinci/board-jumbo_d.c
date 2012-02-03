@@ -584,23 +584,43 @@ int platform_pm_loss_power_changed(struct device *dev,
 #define jumbo_powerfail_configure()
 #endif
 
-int inline gpio_configure_out (int DM365_Pin,int Name,int DefVualue)
+/*
+ *	Macro : gpio_configure_out
+ */
+int inline gpio_configure_out (int DM365_Pin,int Name,int DefVualue, char* str)
 {
 	int status;
-	char str[128];
-
 	davinci_cfg_reg(DM365_Pin);
-	sprintf(str, "poGPIO_%i", Name);
 	status = gpio_request(Name, str);
 	if (status) {
-		printk(KERN_ERR "%s: Failed to request poGPIO_%i \
-				 det: %d\n", __func__, Name, status);
+		printk(KERN_ERR "%s: Failed to request GPIO %s \
+				 det: %d\n", __func__, str, status);
 		return status;
 	}
 	gpio_direction_output(Name, DefVualue);
 	return status;
 }
 
+/*
+ *	Macro : gpio_configure_in
+ */
+int inline gpio_configure_in (int DM365_Pin,int Name, char* str)
+{
+	int status;
+	davinci_cfg_reg(DM365_Pin);
+	status = gpio_request(Name, str);
+	if (status) {
+		printk(KERN_ERR "%s: Failed to request GPIO %s \
+				 det: %d\n", __func__, str, status);
+		return status;
+	}
+	gpio_direction_input(Name);
+	return status;
+}
+
+/*
+ *	jumbo_gpio_configure
+ */
 static void jumbo_gpio_configure(void)
 {
 	int status;
@@ -615,256 +635,61 @@ static void jumbo_gpio_configure(void)
 	__raw_writel(0, pupdctl0);
 	__raw_writel(0, pupdctl1);
 
+	/*  -- Configure Input ---------------------------------------------- */
 	gpio_request(0, "GIO0"); /* pi_INTERRUPT */
 	gpio_direction_input(0);
 
-	davinci_cfg_reg(DM365_GPIO50);
-	status = gpio_request(piPOWER_FAILn, "piPOWER_FAILn");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO POWER \
-				 FAIL: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_input(piPOWER_FAILn);
+	gpio_configure_in (DM365_GPIO50, piPOWER_FAILn, "piPOWER_FAILn");
+	gpio_configure_in (DM365_GPIO64_57, piINT_UART_An, "piINT_UART_An");
+	gpio_configure_in (DM365_GPIO64_57, piTMK_INTn, "piTMK_INTn");
+	gpio_configure_in (DM365_GPIO26, piINT_UART_Bn, "piINT_UART_Bn");
+	gpio_configure_in (DM365_GPIO100, piGPIO_INTn, "piGPIO_INTn");
+	gpio_configure_in (DM365_GPIO101, piOCn, "Over Current VBUS");
+	gpio_configure_in (DM365_GPIO96, piSD_DETECTn, "SD detec");
+	gpio_configure_in (DM365_GPIO88, pi_GPIO_2, "pi_GPIO_2");
+	gpio_configure_in (DM365_GPIO89, pi_GPIO_1, "pi_GPIO_1");
 
-	/*-- GPIO64_57 -------------------------------------------------------*/
-        davinci_cfg_reg(DM365_GPIO64_57);
-        status = gpio_request(piINT_UART_An, "piINT_UART_An");
-        if (status) {
-                printk(KERN_ERR "%s: failed to request GPIO POWER \
-                                 FAIL: %d\n", __func__, status);
-                return;
-        }
-        gpio_direction_input(piINT_UART_An);
+	/* -- Configure Output -----------------------------------------------*/
 
-        //davinci_cfg_reg(DM365_GPIO64_57);
-        status = gpio_request(piTMK_INTn, "TMK_INTn");
-        if (status) {
-                printk(KERN_ERR "%s: failed to request GPIO POWER \
-                                 FAIL: %d\n", __func__, status);
-                return;
-        }
-        gpio_direction_input(piTMK_INTn);
-
-        //davinci_cfg_reg(DM365_GPIO64_57);
-	status = gpio_request(poEN_MOD_DIFF_SONORA, "Audio modulator Enable  \
-						on external connector");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO: \
-				Audio modulator Enable on external \
-				connector: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(poEN_MOD_DIFF_SONORA, 0);
-
-        //davinci_cfg_reg(DM365_GPIO64_57);
-	status = gpio_request(poENABLE_VIDEO_IN, "Enable video demodulator");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO: Enable video \
-				 demodulator: %d\n", __func__, status);
-		return;
-	}
+	gpio_configure_out (DM365_GPIO64_57, poEN_MOD_DIFF_SONORA, 0,
+				"Audio modulator Enable on external connector");
 	/* enabled, to allow i2c attach */
-	gpio_direction_output(poENABLE_VIDEO_IN, 1);
-
-        //davinci_cfg_reg(DM365_GPIO64_57);
-	status = gpio_request(poZARLINK_CS, "Zarlink chip select");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO Zarlink \
-				 chip select: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(poZARLINK_CS, 1);
-
-        //davinci_cfg_reg(DM365_GPIO64_57);
-	status = gpio_request(poEMMC_RESETn, "eMMC reset(n)");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request eMMC \
-				 reset %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(poEMMC_RESETn, 1);
-	/*-- End of GPIO64_57 ------------------------------------------------*/
-
-        davinci_cfg_reg(DM365_GPIO26);
-        status = gpio_request(piINT_UART_Bn, "piINT_UART_Bn");
-        if (status) {
-                printk(KERN_ERR "%s: failed to request GPIO POWER \
-                                 FAIL: %d\n", __func__, status);
-                return;
-        }
-        gpio_direction_input(piINT_UART_Bn);
-
-        davinci_cfg_reg(DM365_GPIO100);
-        status = gpio_request(piGPIO_INTn, "GPIO_INTn");
-        if (status) {
-                printk(KERN_ERR "%s: failed to request GPIO POWER \
-                                 FAIL: %d\n", __func__, status);
-                return;
-        }
-        gpio_direction_input(piGPIO_INTn);
-
-	davinci_cfg_reg(DM365_GPIO44);
-	status = gpio_request(poENET_RESETn, "poENET RESET");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request ENET \
-				 RESET %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(poENET_RESETn, 1);
-
-	davinci_cfg_reg(DM365_GPIO51);
-	status = gpio_request(poRES_EXTUART, "poRES_EXTUART");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO RES \
-				 EXTUART: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(poRES_EXTUART, 0);
-
-	davinci_cfg_reg(DM365_GPIO45);
-	status = gpio_request(poBOOT_FL_WPn, "Protecting SPI chip select");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO: Protecting SPI \
-		                 chip select: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(poBOOT_FL_WPn, 1); /* TODO Verify*/
-
-	davinci_cfg_reg(DM365_GPIO103);
-	status = gpio_request(poPDEC_PWRDNn, "Pal-Decoder power down");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO: Pal-Decoder \
-			         power down: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(poPDEC_PWRDNn, 1);
-
-	davinci_cfg_reg(DM365_GPIO102);
-	status = gpio_request(poPDEC_RESETn, "PAL decoder Reset");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO PAL \
-					   decoder reset: %d\n", __func__,
-					    status);
-		return;
-	}
-	/*
+	gpio_configure_out (DM365_GPIO64_57, poENABLE_VIDEO_IN, 1,
+				"Enable video demodulator");
+	gpio_configure_out (DM365_GPIO64_57, poZARLINK_CS, 1,
+				"Zarlink chip select");
+	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
+	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
+	gpio_configure_out (DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXTUART");
+	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, /* TODO Verify*/
+				"Protecting SPI chip select");
+	gpio_configure_out (DM365_GPIO103, poPDEC_PWRDNn, 1,
+				"Pal-Decoder power down");
+	gpio_configure_out (DM365_GPIO102, poPDEC_RESETn, 0,
+				"PAL decoder Reset");
+        /*
 	 * The I2CSEL tvp5151 input is sampled when its resetb input is down,
-	 * assigning the i2c address.
+         * assigning the i2c address.
 	 */
-	gpio_direction_output(poPDEC_RESETn, 0);
-	mdelay(10);
-	gpio_direction_output(poPDEC_RESETn, 1);
+        mdelay(10);
+        gpio_direction_output(poPDEC_RESETn, 1);
 
-	davinci_cfg_reg(DM365_GPIO80);
-	status = gpio_request(poE2_WPn, "Eeprom write protect");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO eeprom \
-				      write protect: %d\n", __func__,
-				      status);
-		return;
-	}
-	gpio_direction_output(poE2_WPn, 0);
+	gpio_configure_out (DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
+	gpio_configure_out (DM365_GPIO72, poZARLINK_RESET, 0, "Zarlink reset");
+	gpio_configure_out (DM365_GPIO99, poPIC_RESETn, 0,
+				"PIC AV and PIC AI reset");
+	gpio_configure_out (DM365_GPIO28, poRESET_CONFn, 0, "poRESET_CONFn");
+	gpio_configure_out (DM365_GPIO64_57, po_ENABLE_VIDEO_OUT, 0,
+				"po_ENABLE_VIDEO_OUT");
+	gpio_configure_out (DM365_GPIO68, po_EN_FONICA, 0, "po_EN_FONICA");
+	gpio_configure_out (DM365_GPIO86, po_NAND_WPn, 0, "po_NAND_WPn,");
+	gpio_configure_out (DM365_GPIO90, po_AUDIO_RESET, 1, "po_AUDIO_RESET");
+	gpio_configure_out (DM365_GPIO91, po_AUDIO_DEEMP, 0, "po_AUDIO_DEEMP");
+	gpio_configure_out (DM365_GPIO92, po_AUDIO_MUTE, 0, "po_AUDIO_MUTE");
+	gpio_configure_out (DM365_GPIO97, po_EN_SW_USB, 0, "po_EN_SW_USB");
+	gpio_configure_out (DM365_GPIO98, po_EN_PWR_USB, 0, "po_EN_PWR_USB");
 
-	davinci_cfg_reg(DM365_GPIO72);
-	status = gpio_request(poZARLINK_RESET, "Zarlink reset");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO Zarlink \
-				 chip select: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(poZARLINK_RESET, 0); /* OFF*/
-
-	davinci_cfg_reg(DM365_GPIO99);
-	status = gpio_request(poPIC_RESETn, "PIC AV & AI reset");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request PIC AV & AI \
-				 reset: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(poPIC_RESETn, 0);
-
-	davinci_cfg_reg(DM365_GPIO101);
-	status = gpio_request(piOCn, "Over Current VBUS");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request Over Current \
-				 VBUS: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_input(piOCn);
-
-	davinci_cfg_reg(DM365_GPIO96);
-	status = gpio_request(piSD_DETECTn, "True When SD is detected");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request always true \
-				 eMMC det: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_input(piSD_DETECTn);
-
-	davinci_cfg_reg(DM365_GPIO28);
-	status = gpio_request(poRESET_CONFn, " poRESET_CONFn ");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request always true \
-				 eMMC det: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(poRESET_CONFn, 0);
-
-	//davinci_cfg_reg(DM365_GPIO64_57);
-	status = gpio_request(po_ENABLE_VIDEO_OUT, " po_ENABLE_VIDEO_OUT ");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request always true \
-				 eMMC det: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(po_ENABLE_VIDEO_OUT, 0);
-
-	davinci_cfg_reg(DM365_GPIO68);
-	status = gpio_request(po_EN_FONICA, " po_EN_FONICA ");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request always true \
-				 eMMC det: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(po_EN_FONICA, 0);
-
-	davinci_cfg_reg(DM365_GPIO86);
-	status = gpio_request(po_NAND_WPn, " po_NAND_WPn ");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request always true \
-				 eMMC det: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(po_NAND_WPn, 0);
-
-	davinci_cfg_reg(DM365_GPIO88);
-	status = gpio_request(pi_GPIO_2, "pi_GPIO_2");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request pi_GPIO_1 \
-				 VBUS: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_input(pi_GPIO_2);
-
-	davinci_cfg_reg(DM365_GPIO89);
-	status = gpio_request(pi_GPIO_1, "pi_GPIO_1");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request pi_GPIO_2 \
-				 VBUS: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_input(pi_GPIO_1);
-
-	gpio_configure_out (DM365_GPIO90, po_AUDIO_RESET, 1);
-	gpio_configure_out (DM365_GPIO91, po_AUDIO_DEEMP, 0);
-	gpio_configure_out (DM365_GPIO92, po_AUDIO_MUTE, 0);
-	gpio_configure_out (DM365_GPIO97, po_EN_SW_USB, 0);
-	gpio_configure_out (DM365_GPIO98, po_EN_PWR_USB, 0);
-
-	/*
-	 *	Export For Debug
-	 */
+	/* -- Export For Debug -----------------------------------------------*/
 
 	if (jumbo_debug) {
 		gpio_export(piPOWER_FAILn, 0);
@@ -1043,12 +868,12 @@ static __init void jumbo_init(void)
 		pinmux_check();
 	jumbo_gpio_configure();
 //	jumbo_led_init();
-//	davinci_cfg_reg(DM365_UART1_RXD_34); /* pic uart */
-//	davinci_cfg_reg(DM365_UART1_TXD_25);
+	davinci_cfg_reg(DM365_UART1_RXD_34); /* pic uart */
+	davinci_cfg_reg(DM365_UART1_TXD_25);
 	davinci_serial_init(&uart_config);
 	mdelay(1);
-//	davinci_cfg_reg(DM365_I2C_SDA);
-//	davinci_cfg_reg(DM365_I2C_SCL);
+	davinci_cfg_reg(DM365_I2C_SDA);
+	davinci_cfg_reg(DM365_I2C_SCL);
 	jumbo_init_i2c();
 	jumbo_emac_configure();
 
