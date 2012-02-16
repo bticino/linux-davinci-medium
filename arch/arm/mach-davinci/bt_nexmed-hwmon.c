@@ -68,8 +68,8 @@ char* boards[]={
 	"DINGO",
 	"OWL",
 	"STORK",
-	"JUMBO-1",
-	"JUMBO-2",
+	"JUMBO_D",
+	"JUMBO_I",
 	"ARGES",
 };
 

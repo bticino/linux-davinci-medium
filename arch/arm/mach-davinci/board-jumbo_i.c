@@ -300,6 +300,17 @@ static void pinmux_check(void)
 static struct plat_serial8250_port jumbo_dm365_serial_platform_data[] = {
 	{
 		.mapbase        = DM365_ASYNC_EMIF_DATA_CE1_BASE,
+		.irq            = IRQ_DM365_GPIO0_3,
+		.type           = PORT_16550A,
+		.flags          = UPF_BOOT_AUTOCONF | UPF_IOREMAP
+				| UART_CONFIG_TYPE | UPF_SKIP_TEST
+				| UPF_FIXED_TYPE,
+		.iotype         = UPIO_MEM,
+		.regshift       = 0,
+		.uartclk        = 8000000,
+	},
+	{
+		.mapbase        = DM365_ASYNC_EMIF_DATA_CE1_BASE + 0x80,
 		.irq            = IRQ_DM365_GPIO0_1,
 		.type           = PORT_16550A,
 		.flags          = UPF_BOOT_AUTOCONF | UPF_IOREMAP
@@ -335,7 +346,7 @@ static struct platform_device jumbo_dm365_serial_device = {
 	},
 };
 
-static void jumbo_uart2_configure(void)
+static void jumbo_uart_configure(void)
 {
 	struct clk *aemif_clk;
 	struct davinci_aemif_timing t;
@@ -343,6 +354,7 @@ static void jumbo_uart2_configure(void)
 	int ret;
 	base = ioremap(DM365_ASYNC_EMIF_CONTROL_BASE, SZ_4K - 1);
 
+//	printk("%s %d/n", __func__, __LINE__);
 	aemif_clk = clk_get(NULL, "aemif");
 	if (IS_ERR(aemif_clk)) {
 		printk(KERN_ERR "couldn't get AEMIF CLOCK!!! \
@@ -377,6 +389,7 @@ static void jumbo_uart2_configure(void)
 	davinci_cfg_reg(DM365_AEMIF_CE1);
 	davinci_cfg_reg(DM365_EM_WE_OE);
 
+//	printk("%s %d\n", __func__, __LINE__);
 	davinci_cfg_reg(DM365_GPIO51);
 	gpio_direction_output(poRES_EXTUART, 0);
 
@@ -384,7 +397,8 @@ static void jumbo_uart2_configure(void)
 	platform_device_register(&jumbo_dm365_serial_device);
 }
 
-static struct irq_on_gpio0 {
+//static struct irq_on_gpio0 {
+struct irq_on_gpio0 {
 	unsigned int gpio;
 	unsigned int irq;
 };
@@ -623,7 +637,6 @@ int inline gpio_configure_in (int DM365_Pin,int Name, char* str)
  */
 static void jumbo_gpio_configure(void)
 {
-	int status;
 	void __iomem *pupdctl0 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x78);
 	void __iomem *pupdctl1 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x7c);
 
@@ -651,8 +664,8 @@ static void jumbo_gpio_configure(void)
 
 	/* -- Configure Output -----------------------------------------------*/
 
-	gpio_configure_out (DM365_GPIO64_57, poEN_MOD_DIFF_SONORA, 0,
-				"Audio modulator Enable on external connector");
+	/* gpio_configure_out (DM365_GPIO64_57, poEN_MOD_DIFF_SONORA, 0,
+				"Audio modulator Enable on external connector"); */ /*TODO */
 	/* enabled, to allow i2c attach */
 	gpio_configure_out (DM365_GPIO64_57, poENABLE_VIDEO_IN, 1,
 				"Enable video demodulator");
@@ -676,7 +689,7 @@ static void jumbo_gpio_configure(void)
 
 	gpio_configure_out (DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
 	gpio_configure_out (DM365_GPIO72, poZARLINK_RESET, 0, "Zarlink reset");
-	gpio_configure_out (DM365_GPIO99, poPIC_RESETn, 0,
+	gpio_configure_out (DM365_GPIO99, poPIC_RESETn, 1,
 				"PIC AV and PIC AI reset");
 	gpio_configure_out (DM365_GPIO28, poRESET_CONFn, 0, "poRESET_CONFn");
 	gpio_configure_out (DM365_GPIO64_57, po_ENABLE_VIDEO_OUT, 0,
@@ -695,7 +708,7 @@ static void jumbo_gpio_configure(void)
 		gpio_export(piPOWER_FAILn, 0);
 		gpio_export(piINT_UART_An, 0);
 		gpio_export(piTMK_INTn, 0);
-		gpio_export(poEN_MOD_DIFF_SONORA, 0);
+		/*gpio_export(poEN_MOD_DIFF_SONORA, 0); *//*TODO*/
 		gpio_export(poENABLE_VIDEO_IN, 0);
 		gpio_export(poZARLINK_CS, 0);
 		gpio_export(poEMMC_RESETn, 0);
@@ -767,7 +780,7 @@ static void jumbo_usb_configure(void)
 
 void jumbo_en_audio_power(int on)
 {
-	gpio_set_value(poEN_MOD_DIFF_SONORA, on);
+	/* gpio_set_value(poEN_MOD_DIFF_SONORA, on); */ /*TODO*/
 }
 
 void jumbo_zarlink_reset(int on)
@@ -793,6 +806,7 @@ static struct platform_device jumbo_asoc_device[] = {
 static struct i2c_board_info __initdata jumbo_i2c_info[] = {
 	{
 		I2C_BOARD_INFO("pcf8563", 0x51),
+		.irq = IRQ_DM365_GPIO0_4,
 	},
 	{
 		I2C_BOARD_INFO("24c256", 0x53),
@@ -817,7 +831,7 @@ static struct platform_device *jumbo_devices[] __initdata = {
 };
 
 static struct davinci_uart_config uart_config __initdata = {
-	.enabled_uarts = (1 << 0) | (1 << 1) | (1 << 2),
+	.enabled_uarts = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3),
 };
 
 static void __init jumbo_map_io(void)
@@ -867,32 +881,33 @@ static __init void jumbo_init(void)
 	if (jumbo_debug>1)
 		pinmux_check();
 	jumbo_gpio_configure();
-//	jumbo_led_init();
-	davinci_cfg_reg(DM365_UART1_RXD_34); /* pic uart */
+	jumbo_led_init();
+	davinci_cfg_reg(DM365_UART1_RXD_34); /* uart for expansion */
 	davinci_cfg_reg(DM365_UART1_TXD_25);
-	davinci_serial_init(&uart_config);
+	davinci_serial_init(&uart_config);   /* 2 usart for pic */
 	mdelay(1);
 	davinci_cfg_reg(DM365_I2C_SDA);
 	davinci_cfg_reg(DM365_I2C_SCL);
+
 	jumbo_init_i2c();
 	jumbo_emac_configure();
 
 //	dm365_init_spi0(0, jumbo_spi_info, ARRAY_SIZE(jumbo_spi_info));
 
 //	- funzione eliminata - jumbo_mmc_configure();
-//	jumbo_usb_configure();
-//	jumbo_uart2_configure();
+	jumbo_usb_configure();
+	jumbo_uart_configure();
 //	jumbo_powerfail_configure();
-//	dm365_init_vc(&dm365_jumbo_snd_data);
-//	platform_add_devices(jumbo_devices, ARRAY_SIZE(jumbo_devices));
-//	dm365_init_rtc();
-//	dm365_init_adc(&jumbo_adc_data);
+	dm365_init_vc(&dm365_jumbo_snd_data);
+	platform_add_devices(jumbo_devices, ARRAY_SIZE(jumbo_devices));
+	dm365_init_rtc();
+	dm365_init_adc(&jumbo_adc_data);
 
 	if (jumbo_debug)
 		pinmux_check();
 }
 
-MACHINE_START(JUMBO_I, "BTicino Jumbo_d board")
+MACHINE_START(JUMBO_I, "BTicino Jumbo_i board")
 	.phys_io = IO_PHYS,
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),
