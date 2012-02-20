@@ -354,7 +354,6 @@ static void jumbo_uart_configure(void)
 	int ret;
 	base = ioremap(DM365_ASYNC_EMIF_CONTROL_BASE, SZ_4K - 1);
 
-//	printk("%s %d/n", __func__, __LINE__);
 	aemif_clk = clk_get(NULL, "aemif");
 	if (IS_ERR(aemif_clk)) {
 		printk(KERN_ERR "couldn't get AEMIF CLOCK!!! \
@@ -389,7 +388,6 @@ static void jumbo_uart_configure(void)
 	davinci_cfg_reg(DM365_AEMIF_CE1);
 	davinci_cfg_reg(DM365_EM_WE_OE);
 
-//	printk("%s %d\n", __func__, __LINE__);
 	davinci_cfg_reg(DM365_GPIO51);
 	gpio_direction_output(poRES_EXTUART, 0);
 
@@ -397,8 +395,7 @@ static void jumbo_uart_configure(void)
 	platform_device_register(&jumbo_dm365_serial_device);
 }
 
-//static struct irq_on_gpio0 {
-struct irq_on_gpio0 {
+static struct irq_on_gpio0 {
 	unsigned int gpio;
 	unsigned int irq;
 };
@@ -666,41 +663,43 @@ static void jumbo_gpio_configure(void)
 
 	/* gpio_configure_out (DM365_GPIO64_57, poEN_MOD_DIFF_SONORA, 0,
 				"Audio modulator Enable on external connector"); */ /*TODO */
+
+	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
+	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
+	gpio_configure_out (DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXT_UART");
+	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, /* TODO Verify*/
+				"Protecting SPI chip select");
+	gpio_configure_out (DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
+	gpio_configure_out (DM365_GPIO99, poPIC_RESETn, 1,
+				"PIC AV and PIC AI reset");
+	gpio_configure_out (DM365_GPIO28, poRESET_CONFn, 0, "poRESET_CONFn");
+	gpio_configure_out (DM365_GPIO86, po_NAND_WPn, 0, "po_NAND_WPn,");
+	gpio_configure_out (DM365_GPIO97, po_EN_SW_USB, 0, "po_EN_SW_USB");
+	gpio_configure_out (DM365_GPIO98, po_EN_PWR_USB, 0, "po_EN_PWR_USB");
+
 	/* enabled, to allow i2c attach */
 	gpio_configure_out (DM365_GPIO64_57, poENABLE_VIDEO_IN, 1,
 				"Enable video demodulator");
-	gpio_configure_out (DM365_GPIO64_57, poZARLINK_CS, 1,
-				"Zarlink chip select");
-	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
-	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
-	gpio_configure_out (DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXTUART");
-	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, /* TODO Verify*/
-				"Protecting SPI chip select");
 	gpio_configure_out (DM365_GPIO103, poPDEC_PWRDNn, 1,
 				"Pal-Decoder power down");
-	gpio_configure_out (DM365_GPIO102, poPDEC_RESETn, 0,
-				"PAL decoder Reset");
         /*
 	 * The I2CSEL tvp5151 input is sampled when its resetb input is down,
          * assigning the i2c address.
 	 */
+	gpio_configure_out (DM365_GPIO102, poPDEC_RESETn, 0,
+				"PAL decoder Reset");
         mdelay(10);
         gpio_direction_output(poPDEC_RESETn, 1);
-
-	gpio_configure_out (DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
-	gpio_configure_out (DM365_GPIO72, poZARLINK_RESET, 0, "Zarlink reset");
-	gpio_configure_out (DM365_GPIO99, poPIC_RESETn, 1,
-				"PIC AV and PIC AI reset");
-	gpio_configure_out (DM365_GPIO28, poRESET_CONFn, 0, "poRESET_CONFn");
 	gpio_configure_out (DM365_GPIO64_57, po_ENABLE_VIDEO_OUT, 0,
 				"po_ENABLE_VIDEO_OUT");
-	gpio_configure_out (DM365_GPIO68, po_EN_FONICA, 0, "po_EN_FONICA");
-	gpio_configure_out (DM365_GPIO86, po_NAND_WPn, 0, "po_NAND_WPn,");
+
 	gpio_configure_out (DM365_GPIO90, po_AUDIO_RESET, 1, "po_AUDIO_RESET");
 	gpio_configure_out (DM365_GPIO91, po_AUDIO_DEEMP, 0, "po_AUDIO_DEEMP");
 	gpio_configure_out (DM365_GPIO92, po_AUDIO_MUTE, 0, "po_AUDIO_MUTE");
-	gpio_configure_out (DM365_GPIO97, po_EN_SW_USB, 0, "po_EN_SW_USB");
-	gpio_configure_out (DM365_GPIO98, po_EN_PWR_USB, 0, "po_EN_PWR_USB");
+	gpio_configure_out (DM365_GPIO68, po_EN_FONICA, 1, "po_EN_FONICA");
+	gpio_configure_out (DM365_GPIO64_57, poZARLINK_CS, 1,"poZARLINK_CS");
+	gpio_configure_out (DM365_GPIO72, poZARLINK_RESET, 0,
+					"poZARLINK_RESET");
 
 	/* -- Export For Debug -----------------------------------------------*/
 
@@ -778,14 +777,14 @@ static void jumbo_usb_configure(void)
 	setup_usb(500, 8);
 }
 
-void jumbo_en_audio_power(int on)
+void inline jumbo_en_audio_power(int value)
 {
-	/* gpio_set_value(poEN_MOD_DIFF_SONORA, on); */ /*TODO*/
+	gpio_set_value(po_EN_FONICA, value);
 }
 
-void jumbo_zarlink_reset(int on)
+void inline jumbo_zarlink_reset(int value)
 {
-	gpio_set_value(poZARLINK_RESET, on);
+	gpio_set_value(poZARLINK_RESET, value);
 }
 
 static struct jumbo_asoc_platform_data jumbo_asoc_info = {
@@ -795,7 +794,7 @@ static struct jumbo_asoc_platform_data jumbo_asoc_info = {
 
 static struct platform_device jumbo_asoc_device[] = {
 	{
-		.name = "jumbo-asoc",
+		.name = "jumbo_i-asoc",
 		.id = 0,
 		.dev = {
 			.platform_data  = &jumbo_asoc_info,
@@ -892,7 +891,7 @@ static __init void jumbo_init(void)
 	jumbo_init_i2c();
 	jumbo_emac_configure();
 
-//	dm365_init_spi0(0, jumbo_spi_info, ARRAY_SIZE(jumbo_spi_info));
+	dm365_init_spi0(0, jumbo_spi_info, ARRAY_SIZE(jumbo_spi_info)); /* Zarlink SPI*/
 
 //	- funzione eliminata - jumbo_mmc_configure();
 	jumbo_usb_configure();
