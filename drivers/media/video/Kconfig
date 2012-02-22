@@ -550,6 +550,17 @@ config VIDEO_UPD64083
 	  To compile this driver as a module, choose M here: the
 	  module will be called upd64083.
 
+comment "Video modulation chips"
+
+config VIDEO_MC44CC373
+	tristate "MC44CC373 Video Modulator"
+	depends on I2C
+	help
+	  Support for TI MC44CC373 video modulator
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called mc44cc373.
+
 endmenu # encoder / decoder chips
 
 config DISPLAY_DAVINCI_DM646X_EVM

@@ -23,6 +23,7 @@
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/i2c/at24.h>
+#include <linux/i2c/mc44cc373.h>
 #include <linux/leds.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
@@ -95,6 +96,7 @@ static struct at24_platform_data at24_info = {
 	.wpset = wp_set,
 };
 
+/* Video Demolutator */
 static struct tda9885_platform_data tda9885_defaults = {
 	.switching_mode = 0xf2,
 	.adjust_mode = 0xd0,
@@ -737,45 +739,15 @@ static void jumbo_gpio_configure(void)
 	}
 }
 
-/*
-static int jumbo_mmc_get_ro(int module)
-{
-	return gpio_get_value( "pin non presente" );
-}
-
-static struct davinci_mmc_config jumbo_mmc_config = {
-	// .get_cd is not defined since it seems it useless... the MMC
-	// controller detects anyway the card! O_o
-
-	.get_ro		= jumbo_mmc_get_ro,
-	.wires		= 4,
-	.max_freq	= 50000000,
-	.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
-	.version	= MMC_CTLR_VERSION_2,
-};
-
-static void jumbo_mmc_configure(void)
-{
-	int ret;
-
-	davinci_cfg_reg(DM365_MMCSD0);
-	davinci_cfg_reg(DM365_GPIO43); // Not connected to the eMMC
-
-	ret = gpio_request( pin non presente, "MMC WP");
-	if (ret)
-		pr_warning("jumbo: cannot request GPIO %d!\n", "pin non presente"  );
-	gpio_direction_input( "pin non presente" );
-	davinci_setup_mmc(0, &jumbo_mmc_config);
-
-	return;
-}
-*/
+/*----------------------------------------------------------------------------*/
 
 static void jumbo_usb_configure(void)
 {
 	pr_notice("Launching setup_usb\n");
 	setup_usb(500, 8);
 }
+
+/*----------------------------------------------------------------------------*/
 
 void inline jumbo_en_audio_power(int value)
 {
@@ -802,14 +774,34 @@ static struct platform_device jumbo_asoc_device[] = {
 	},
 };
 
+static struct snd_platform_data dm365_jumbo_snd_data;
+
+/*----------------------------------------------------------------------------*/
+
+static u8 mc44cc373_pars[] = {0xBA, 0x18, 0x26, 0xE8};
+
+static struct mc44cc373_platform_data mc44cc373_pdata = {
+	.num_par = 4,
+	.pars = mc44cc373_pars,
+	.power = po_ENABLE_VIDEO_OUT,
+};
+
+/* I2C 7bit Adr */
 static struct i2c_board_info __initdata jumbo_i2c_info[] = {
-	{
+	{	/* RTC */
 		I2C_BOARD_INFO("pcf8563", 0x51),
 		.irq = IRQ_DM365_GPIO0_4,
 	},
-	{
+	{	/* EEprom */
 		I2C_BOARD_INFO("24c256", 0x53),
 		.platform_data = &at24_info,
+	},
+	{	/*Video HD*/
+		I2C_BOARD_INFO("ths7303", 0x2c),
+	},
+	{	/*Video Modulator*/
+		I2C_BOARD_INFO("mc44cc373", 0x65),
+		.platform_data = &mc44cc373_pdata,
 	},
 };
 
@@ -824,20 +816,28 @@ static void __init jumbo_init_i2c(void)
 	i2c_register_board_info(1, jumbo_i2c_info, ARRAY_SIZE(jumbo_i2c_info));
 }
 
+/*----------------------------------------------------------------------------*/
+
 static struct platform_device *jumbo_devices[] __initdata = {
 	&jumbo_asoc_device[0],
 	&jumbo_hwmon_device,
 };
 
+/*----------------------------------------------------------------------------*/
+
 static struct davinci_uart_config uart_config __initdata = {
 	.enabled_uarts = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3),
 };
+
+/*----------------------------------------------------------------------------*/
 
 static void __init jumbo_map_io(void)
 {
 	dm365_set_vpfe_config(&vpfe_cfg);
 	dm365_init();
 }
+
+/*----------------------------------------------------------------------------*/
 
 #ifdef  ENABLING_SPI_FLASH
 static struct spi_eeprom at25640 = {
@@ -849,22 +849,22 @@ static struct spi_eeprom at25640 = {
 #endif
 
 static struct spi_board_info jumbo_spi_info[] __initconst = {
+#ifdef  ENABLING_SPI_FLASH
 	/*
 	 * DANGEROUS, because spi flash contains bubl bootloader
 	 */
-#ifdef  ENABLING_SPI_FLASH
 	{
 		.modalias       = "at25",
 		.platform_data  = &at25640,
-		.max_speed_hz   = 20 * 1000 * 1000,     /* at 3v3 */
+		.max_speed_hz   = 20 * 1000 * 1000, /* at 3v3 */
 		.bus_num        = 0,
 		.chip_select    = 0,
 		.mode           = SPI_MODE_0,
 	},
 #endif
-	{
+	{	/* dm365 spi work between 600000 and 50000000 */
 		.modalias       = "zl38005",
-		.max_speed_hz   = 2 * 1000 * 1000, /* dm365 spi work between 600000 and 50000000 */
+		.max_speed_hz   = 2 * 1000 * 1000,
 		.bus_num        = 0,
 		.controller_data = poZARLINK_CS,
 		.mode           = SPI_MODE_0,
@@ -872,33 +872,38 @@ static struct spi_board_info jumbo_spi_info[] __initconst = {
 
 };
 
-static struct snd_platform_data dm365_jumbo_snd_data;
-
+/*----------------------------------------------------------------------------*/
 
 static __init void jumbo_init(void)
 {
 	if (jumbo_debug>1)
 		pinmux_check();
+
 	jumbo_gpio_configure();
 	jumbo_led_init();
-	davinci_cfg_reg(DM365_UART1_RXD_34); /* uart for expansion */
+	/* uart for expansion */
+	davinci_cfg_reg(DM365_UART1_RXD_34);
 	davinci_cfg_reg(DM365_UART1_TXD_25);
-	davinci_serial_init(&uart_config);   /* 2 usart for pic */
+	/* 2 usart for pic */
+	davinci_serial_init(&uart_config);
 	mdelay(1);
+
+	/* I2C */
 	davinci_cfg_reg(DM365_I2C_SDA);
 	davinci_cfg_reg(DM365_I2C_SCL);
-
 	jumbo_init_i2c();
+
 	jumbo_emac_configure();
+	/* SPI for Zarlink*/
+	dm365_init_spi0(0, jumbo_spi_info, ARRAY_SIZE(jumbo_spi_info));
 
-	dm365_init_spi0(0, jumbo_spi_info, ARRAY_SIZE(jumbo_spi_info)); /* Zarlink SPI*/
-
-//	- funzione eliminata - jumbo_mmc_configure();
 	jumbo_usb_configure();
 	jumbo_uart_configure();
-//	jumbo_powerfail_configure();
+/*TODO*/	jumbo_powerfail_configure();
+
 	dm365_init_vc(&dm365_jumbo_snd_data);
 	platform_add_devices(jumbo_devices, ARRAY_SIZE(jumbo_devices));
+
 	dm365_init_rtc();
 	dm365_init_adc(&jumbo_adc_data);
 
@@ -915,3 +920,6 @@ MACHINE_START(JUMBO_I, "BTicino Jumbo_i board")
 	.timer = &davinci_timer,
 	.init_machine = jumbo_init,
 MACHINE_END
+
+/* End Of File */
+
