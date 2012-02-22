@@ -62,7 +62,7 @@
 #include <mach/aemif.h>
 #include <sound/davinci_jumbo_asoc.h>
 
-#include <mach/jumbo_d.h>
+#include <mach/jumbo-d.h>
 #include <mach/aemif.h>
 
 #define DM365_ASYNC_EMIF_CONTROL_BASE   0x01d10000
@@ -892,7 +892,7 @@ static __init void jumbo_init(void)
 		pinmux_check();
 }
 
-MACHINE_START(JUMBO_D, "BTicino Jumbo_d board")
+MACHINE_START(JUMBO-D, "BTicino Jumbo-d board")
 	.phys_io = IO_PHYS,
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),

@@ -37,5 +37,5 @@ obj-$(CONFIG_MACH_DAVINCI_DA830_EVM)	+= board-da830-evm.o
 obj-$(CONFIG_MACH_DAVINCI_DA850_EVM)	+= board-da850-evm.o
 obj-$(CONFIG_MACH_BASI)			+= board-basi.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_DINGO)		+= board-dingo.o bt_nexmed-hwmon.o
-obj-$(CONFIG_MACH_JUMBO_D)		+= board-jumbo_d.o bt_nexmed-hwmon.o
-obj-$(CONFIG_MACH_JUMBO_I)		+= board-jumbo_i.o bt_nexmed-hwmon.o
+obj-$(CONFIG_MACH_JUMBO-D)		+= board-jumbo-d.o bt_nexmed-hwmon.o
+obj-$(CONFIG_MACH_JUMBO-I)		+= board-jumbo-i.o bt_nexmed-hwmon.o

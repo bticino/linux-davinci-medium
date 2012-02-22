@@ -62,7 +62,7 @@
 #include <mach/aemif.h>
 #include <sound/davinci_jumbo_asoc.h>
 
-#include <mach/jumbo_i.h>
+#include <mach/jumbo-i.h>
 #include <mach/aemif.h>
 
 #define DM365_ASYNC_EMIF_CONTROL_BASE   0x01d10000
@@ -794,7 +794,7 @@ static struct jumbo_asoc_platform_data jumbo_asoc_info = {
 
 static struct platform_device jumbo_asoc_device[] = {
 	{
-		.name = "jumbo_i-asoc",
+		.name = "jumbo-i-asoc",
 		.id = 0,
 		.dev = {
 			.platform_data  = &jumbo_asoc_info,
@@ -906,7 +906,7 @@ static __init void jumbo_init(void)
 		pinmux_check();
 }
 
-MACHINE_START(JUMBO_I, "BTicino Jumbo_i board")
+MACHINE_START(JUMBO-I, "BTicino Jumbo_i board")
 	.phys_io = IO_PHYS,
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),

@@ -36,27 +36,38 @@ config SND_DAVINCI_SOC_BASI
 	  Say Y if you want to add support for SoC audio on
 	  Bticino basi board.
 
-config SND_DAVINCI_SOC_JUMBO_I
-	tristate "SoC Audio support for DM365 jumbo_i board"
-	depends on SND_DAVINCI_SOC && MACH_JUMBO_I
+config SND_DAVINCI_SOC_JUMBO-I
+	tristate "SoC Audio support for DM365 jumbo-i board"
+	depends on SND_DAVINCI_SOC && MACH_JUMBO-I
 	select SND_DM365_VOICE_CODEC
 	select SND_SOC_CQ0093VC
 	select SND_SOC_ZL38005
 	select SND_DAVINCI_SOC_VCIF
 	help
 	  Say Y if you want to add support for SoC audio on
-	  Bticino jumbo_i board.
+	  Bticino jumbo-i board.
+
+config SND_DAVINCI_SOC_JUMBO-D
+	tristate "SoC Audio support for DM365 jumbo-d board"
+	depends on SND_DAVINCI_SOC && MACH_JUMBO-D
+	select SND_DM365_VOICE_CODEC
+	select SND_SOC_CQ0093VC
+	select SND_SOC_ZL38005
+	select SND_DAVINCI_SOC_VCIF
+	help
+	  Say Y if you want to add support for SoC audio on
+	  Bticino jumbo-d board.
 
 config SND_DAVINCI_SOC_DINGO
-        tristate "SoC Audio support for DM365 dingo board"
-        depends on SND_DAVINCI_SOC && MACH_DINGO
-        select SND_DM365_VOICE_CODEC
-        select SND_SOC_CQ0093VC
-        select SND_DAVINCI_SOC_VCIF
-        select SND_DM365_UDA1334_CODEC
-        help
-          Say Y if you want to add support for SoC audio on
-          Bticino dingo board.
+	tristate "SoC Audio support for DM365 dingo board"
+	depends on SND_DAVINCI_SOC && MACH_DINGO
+	select SND_DM365_VOICE_CODEC
+	select SND_SOC_CQ0093VC
+	select SND_DAVINCI_SOC_VCIF
+	select SND_DM365_UDA1334_CODEC
+	help
+	  Say Y if you want to add support for SoC audio on
+	  Bticino dingo board.
 
 config SND_DM365_UDA134X_CODEC
 	bool "Audio Codec - UDA134X"
