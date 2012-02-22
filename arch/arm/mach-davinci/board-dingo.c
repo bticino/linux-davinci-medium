@@ -99,6 +99,7 @@
 #define PWM_CONTINUOS		2
 
 #define POWER_FAIL_DEBOUNCE_TO 50
+#define GPIO_DEBOUNCE_TO 10
 #define TIME_TO_LATE_INIT 1500
 
 static int dingo_debug = 1;
@@ -584,22 +585,78 @@ static struct irq_chip dingo_gpio0_irq_chip = {
 	.set_wake	= dingo_set_wake_irq_gpio0,
 };
 
+static struct manage_gpio_interrupts {
+	struct work_struct work;
+	unsigned int pending_interrupts;
+} manage_gpio_interrupts;
+
+static struct manage_gpio_interrupts manage_gpio_int;
+
+static void debounce_gpio_int(unsigned long data)
+{
+	gpio_set_value(DEBUG_GPIO1, 1);
+	udelay(50);
+	gpio_set_value(DEBUG_GPIO1, 0);
+	unsigned int shift, cnt;
+
+	if (gpio_get_value(0)) {
+		del_timer(&pf_debounce_timer);
+		manage_gpio_int.pending_interrupts = 0;
+		return;
+	}
+	for (cnt = 0; cnt < ARRAY_SIZE(dingo_irq_on_gpio0); cnt++) {
+		shift = 1<<(dingo_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0);
+		if (!gpio_get_value(dingo_irq_on_gpio0[cnt].gpio) &&
+		   (dingo_gpio0_irq_enabled & shift) &&
+		   !(manage_gpio_int.pending_interrupts & shift)) {
+			manage_gpio_int.pending_interrupts |= shift;
+			generic_handle_irq(dingo_irq_on_gpio0[cnt].irq);
+		}
+		if (gpio_get_value(dingo_irq_on_gpio0[cnt].gpio) &&
+		   (dingo_gpio0_irq_enabled & shift) &&
+		   (manage_gpio_int.pending_interrupts & shift)
+		   ) {
+			manage_gpio_int.pending_interrupts &= ~shift;
+		}
+	}
+	mod_timer(&pf_debounce_timer, jiffies +
+		msecs_to_jiffies(GPIO_DEBOUNCE_TO));
+}
+
+static void debounce_gpio_interrupts(struct work_struct *work)
+{
+	del_timer(&pf_debounce_timer);
+	init_timer(&pf_debounce_timer);
+	pf_debounce_timer.function = debounce_gpio_int;
+	pf_debounce_timer.expires =
+			jiffies + msecs_to_jiffies(GPIO_DEBOUNCE_TO);
+	add_timer(&pf_debounce_timer);
+
+}
+
 static void dingo_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 {
 	unsigned int cnt;
+	unsigned int shift;
 
 	desc->chip->ack(irq);
-	if ((dingo_gpio0_irq_enabled & 0x01) && (gpio_get_value(0))) {
-		/* enabled interrupt when lines are all high */
-		generic_handle_irq(IRQ_DM365_GPIO0_0);
-	} else if (!gpio_get_value(0)) {
-		udelay(50);
+	udelay(50);
+	if (gpio_get_value(0)) {
+		del_timer(&pf_debounce_timer);
+		manage_gpio_int.pending_interrupts = 0;
+		if (dingo_gpio0_irq_enabled & 0x01)
+			generic_handle_irq(IRQ_DM365_GPIO0_0);
+	} else {
 		for (cnt = 0; cnt < ARRAY_SIZE(dingo_irq_on_gpio0); cnt++) {
+			shift =
+			   1<<(dingo_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0);
 			if (!gpio_get_value(dingo_irq_on_gpio0[cnt].gpio) &&
-			   (dingo_gpio0_irq_enabled & (1<<
-			   (dingo_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0)))
-			   )
+			   (dingo_gpio0_irq_enabled & shift)) {
 				generic_handle_irq(dingo_irq_on_gpio0[cnt].irq);
+				manage_gpio_int.pending_interrupts |= shift;
+				schedule_work(&manage_gpio_int.work);
+			} else
+				manage_gpio_int.pending_interrupts &= ~shift;
 		}
 	}
 	desc->chip->unmask(irq);
@@ -618,6 +675,7 @@ static void __init dingo_gpio_init_irq(void)
 		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
 	}
 
+	INIT_WORK(&manage_gpio_int.work, debounce_gpio_interrupts);
 	set_irq_type(IRQ_DM365_GPIO0, IRQ_TYPE_EDGE_BOTH);
 	set_irq_chained_handler(IRQ_DM365_GPIO0, dingo_gpio_irq_handler);
 }
@@ -680,11 +738,12 @@ static void debounce(unsigned long data)
 
 static irqreturn_t dingo_powerfail_stop(int irq, void *dev_id)
 {
-	/*
 	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
 	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
-	*/
+	powerfail_status = 0;
+	pm_loss_power_changed(SYS_PWR_GOOD);
 
+	return IRQ_HANDLED;
 	/* PowerFail situation - STOP: power is coming back */
 	init_timer(&pf_debounce_timer);
 	pf_debounce_timer.function = debounce;
