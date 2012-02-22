@@ -76,6 +76,8 @@
 
 #define DAVINCI_BOARD_MAX_NR_UARTS 3
 
+#define GPIO_DEBOUNCE_TO 10
+
 static int basi_debug = 1;
 module_param(basi_debug, int, 0644);
 MODULE_PARM_DESC(basi_debug, "Debug level 0-1");
@@ -96,6 +98,8 @@ static struct at24_platform_data at24_info = {
 	.context = (void *)0x19e,       /* where it gets the mac-address */
 	.wpset = wp_set,
 };
+
+static struct timer_list pf_debounce_timer;
 
 static struct tda9885_platform_data tda9885_defaults = {
 	.switching_mode = 0xf2,
@@ -380,18 +384,27 @@ static void basi_uart2_configure(void)
 	platform_device_register(&basi_dm365_serial_device);
 }
 
+enum irq_on_gpio0_type {
+	LEVEL,
+	EDGE,
+};
+
 static struct irq_on_gpio0 {
 	unsigned int gpio;
 	unsigned int irq;
+	enum irq_on_gpio0_type type;
 };
 
 static struct irq_on_gpio0 basi_irq_on_gpio0 [] = {
 	{
 		.gpio = INT_UART,
 		.irq = IRQ_DM365_GPIO0_1,
+		.type = LEVEL,
+
 	}, {
 		.gpio = POWER_FAIL,
 		.irq = IRQ_DM365_GPIO0_2,
+		.type = EDGE,
 	},
 };
 
@@ -416,23 +429,86 @@ static struct irq_chip basi_gpio0_irq_chip = {
 	.unmask         = basi_unmask_irq_gpio0,
 };
 
-static void basi_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
-{
-	unsigned int cnt;
+static struct manage_gpio_int {
+	struct work_struct work;
+	unsigned int pending_interrupts;
+} manage_gpio_int;
 
-	if ((basi_gpio0_irq_enabled & 0x01) && (gpio_get_value(0))) {
-		/* enabled interrupt when lines are all high */
-		generic_handle_irq(IRQ_DM365_GPIO0_0);
-	}
-	else if (!gpio_get_value(0)) {
-		for (cnt = 0; cnt < ARRAY_SIZE(basi_irq_on_gpio0); cnt++) {
-			if (!gpio_get_value(basi_irq_on_gpio0[cnt].gpio) && (basi_gpio0_irq_enabled &
-			    (1<<(basi_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0)))){
+static struct manage_gpio_int manage_gpio_int;
+
+static inline void test_io(void)
+{
+	unsigned int shift, cnt;
+	for (cnt = 0; cnt < ARRAY_SIZE(basi_irq_on_gpio0); cnt++) {
+		shift = 1<<(basi_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0);
+		if (!gpio_get_value(basi_irq_on_gpio0[cnt].gpio) &&
+		   (basi_gpio0_irq_enabled & shift)) {
+			if ((basi_irq_on_gpio0[cnt].type == LEVEL) || !(manage_gpio_int.pending_interrupts & shift)) {
+				manage_gpio_int.pending_interrupts |= shift;
 				generic_handle_irq(basi_irq_on_gpio0[cnt].irq);
 			}
 		}
+		if (gpio_get_value(basi_irq_on_gpio0[cnt].gpio) &&
+		   (basi_gpio0_irq_enabled & shift) &&
+		   (manage_gpio_int.pending_interrupts & shift)) {
+			manage_gpio_int.pending_interrupts &= ~shift;
+		}
 	}
+}
+
+static void debounce_gpio_int(unsigned long data)
+{
+	if (gpio_get_value(0)) {
+		manage_gpio_int.pending_interrupts = 0;
+		return;
+	}
+
+	test_io();
+	mod_timer(&pf_debounce_timer, jiffies +
+		msecs_to_jiffies(GPIO_DEBOUNCE_TO));
+}
+
+static void debounce_gpio_interrupts(struct work_struct *work)
+{
+	if (gpio_get_value(0))
+		return;
+	test_io();
+	mod_timer(&pf_debounce_timer,
+		jiffies + msecs_to_jiffies(GPIO_DEBOUNCE_TO));
+}
+
+static void basi_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
+{
+	unsigned int cnt;
+	unsigned int shift;
+
 	desc->chip->ack(irq);
+	desc->chip->mask(irq);
+	if (gpio_get_value(0)) {
+		mod_timer(&pf_debounce_timer, 0);
+		manage_gpio_int.pending_interrupts = 0;
+		if (basi_gpio0_irq_enabled & 0x01)
+			generic_handle_irq(IRQ_DM365_GPIO0_0);
+	} else {
+		manage_gpio_int.pending_interrupts = 0;
+		for (cnt = 0; cnt < ARRAY_SIZE(basi_irq_on_gpio0); cnt++) {
+			shift =
+			   1<<(basi_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0);
+			if (!gpio_get_value(basi_irq_on_gpio0[cnt].gpio) &&
+			   (basi_gpio0_irq_enabled & shift)) {
+				generic_handle_irq(basi_irq_on_gpio0[cnt].irq);
+				if (basi_irq_on_gpio0[cnt].type == EDGE)
+					manage_gpio_int.pending_interrupts |=
+									shift;
+				if (!test_bit(WORK_STRUCT_PENDING,
+					work_data_bits(&manage_gpio_int.work)))
+					schedule_work(&manage_gpio_int.work);
+				break;
+			} else
+				manage_gpio_int.pending_interrupts &= ~shift;
+		}
+	}
+	desc->chip->unmask(irq);
 }
 
 static void __init basi_gpio_init_irq(void)
@@ -441,12 +517,17 @@ static void __init basi_gpio_init_irq(void)
 
 	davinci_irq_init();
 	/* setup extra Basi irqs on GPIO0*/
-	for(irq = IRQ_DM365_GPIO0_0; irq <= IRQ_DM365_GPIO0_2; irq++) {
+	for (irq = IRQ_DM365_GPIO0_0;
+	    irq <= IRQ_DM365_GPIO0_0 + ARRAY_SIZE(basi_irq_on_gpio0); irq++) {
 		set_irq_chip(irq, &basi_gpio0_irq_chip);
-		set_irq_handler(irq, handle_simple_irq);
+		set_irq_handler(irq, handle_level_irq);
 		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
 	}
 
+	INIT_WORK(&manage_gpio_int.work, debounce_gpio_interrupts);
+	init_timer(&pf_debounce_timer);
+	pf_debounce_timer.function = debounce_gpio_int;
+	pf_debounce_timer.expires = 0;
 	set_irq_type(IRQ_DM365_GPIO0, IRQ_TYPE_EDGE_BOTH);
 	set_irq_chained_handler(IRQ_DM365_GPIO0, basi_gpio_irq_handler);
 }
@@ -469,6 +550,9 @@ static irqreturn_t basi_powerfail_quick_check_start(int irq, void *dev_id)
 
 static irqreturn_t basi_powerfail_start(int irq, void *dev_id)
 {
+	basi_mask_irq_gpio0(IRQ_DM365_GPIO0_2);
+	basi_unmask_irq_gpio0(IRQ_DM365_GPIO0_0);
+
 	if (powerfail_status)
 		return IRQ_HANDLED;
 	powerfail_status = 1;
@@ -487,10 +571,10 @@ static irqreturn_t basi_powerfail_quick_check_stop(int irq, void *dev_id)
 
 static irqreturn_t basi_powerfail_stop(int irq, void *dev_id)
 {
-	if (!powerfail_status)
-		return IRQ_HANDLED;
 	powerfail_status = 0;
 	pm_loss_power_changed(SYS_PWR_GOOD);
+	basi_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	basi_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
 	return IRQ_HANDLED;
 }
 
