@@ -2534,8 +2534,8 @@ extern unsigned int __machine_arch_type;
 #define MACH_TYPE_BULLDOG              2553
 #define MACH_TYPE_BASI                 2948
 #define MACH_TYPE_DINGO                3337
-#define MACH_TYPE_JUMBO-D              3982
-#define MACH_TYPE_JUMBO-I              3983
+#define MACH_TYPE_JUMBO_D              3982
+#define MACH_TYPE_JUMBO_I              3983
 
 #ifdef CONFIG_ARCH_EBSA110
 # ifdef machine_arch_type
@@ -32801,28 +32801,28 @@ extern unsigned int __machine_arch_type;
 # define machine_is_dingo()	(0)
 #endif
 
-#ifdef CONFIG_MACH_JUMBO-D
+#ifdef CONFIG_MACH_JUMBO_D
 # ifdef machine_arch_type
 #  undef machine_arch_type
 #  define machine_arch_type	__machine_arch_type
 # else
-#  define machine_arch_type	MACH_TYPE_JUMBO-D
+#  define machine_arch_type	MACH_TYPE_JUMBO_D
 # endif
-# define machine_is_jumbo-d()	(machine_arch_type == MACH_TYPE_JUMBO-D)
+# define machine_is_jumbo_d()	(machine_arch_type == MACH_TYPE_JUMBO_D)
 #else
-# define machine_is_jumbo-d()	(0)
+# define machine_is_jumbo_d()	(0)
 #endif
 
-#ifdef CONFIG_MACH_JUMBO-I
+#ifdef CONFIG_MACH_JUMBO_I
 # ifdef machine_arch_type
 #  undef machine_arch_type
 #  define machine_arch_type	__machine_arch_type
 # else
-#  define machine_arch_type	MACH_TYPE_JUMBO-I
+#  define machine_arch_type	MACH_TYPE_JUMBO_I
 # endif
-# define machine_is_jumbo-i()	(machine_arch_type == MACH_TYPE_JUMBO-I)
+# define machine_is_jumbo_i()	(machine_arch_type == MACH_TYPE_JUMBO_I)
 #else
-# define machine_is_jumbo-i()	(0)
+# define machine_is_jumbo_i()	(0)
 #endif
 
 /*

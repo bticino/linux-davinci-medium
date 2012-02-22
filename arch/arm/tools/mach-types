@@ -2538,5 +2538,5 @@ esyx			MACH_ESYX		ESYX			2551
 bulldog			MACH_BULLDOG		BULLDOG			2553
 basi			MACH_BASI		BASI	  		2948
 dingo			MACH_DINGO		DINGO			3337
-jumbo-d			MACH_JUMBO-D		JUMBO-D	  		3982
-jumbo-i			MACH_JUMBO-I		JUMBO-I	  		3983
+jumbo-d			MACH_JUMBO_D		JUMBO_D	  		3982
+jumbo-i			MACH_JUMBO_I		JUMBO_I	  		3983

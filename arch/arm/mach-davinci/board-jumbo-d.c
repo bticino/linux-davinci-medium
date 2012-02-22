@@ -782,7 +782,7 @@ static struct jumbo_asoc_platform_data jumbo_asoc_info = {
 
 static struct platform_device jumbo_asoc_device[] = {
 	{
-		.name = "jumbo-asoc",
+		.name = "jumbo-d-asoc",
 		.id = 0,
 		.dev = {
 			.platform_data  = &jumbo_asoc_info,
@@ -892,7 +892,7 @@ static __init void jumbo_init(void)
 		pinmux_check();
 }
 
-MACHINE_START(JUMBO-D, "BTicino Jumbo-d board")
+MACHINE_START(JUMBO_D, "BTicino Jumbo-d board")
 	.phys_io = IO_PHYS,
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),

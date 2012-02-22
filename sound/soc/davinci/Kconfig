@@ -36,9 +36,9 @@ config SND_DAVINCI_SOC_BASI
 	  Say Y if you want to add support for SoC audio on
 	  Bticino basi board.
 
-config SND_DAVINCI_SOC_JUMBO-I
+config SND_DAVINCI_SOC_JUMBO_I
 	tristate "SoC Audio support for DM365 jumbo-i board"
-	depends on SND_DAVINCI_SOC && MACH_JUMBO-I
+	depends on SND_DAVINCI_SOC && MACH_JUMBO_I
 	select SND_DM365_VOICE_CODEC
 	select SND_SOC_CQ0093VC
 	select SND_SOC_ZL38005
@@ -47,9 +47,9 @@ config SND_DAVINCI_SOC_JUMBO-I
 	  Say Y if you want to add support for SoC audio on
 	  Bticino jumbo-i board.
 
-config SND_DAVINCI_SOC_JUMBO-D
+config SND_DAVINCI_SOC_JUMBO_D
 	tristate "SoC Audio support for DM365 jumbo-d board"
-	depends on SND_DAVINCI_SOC && MACH_JUMBO-D
+	depends on SND_DAVINCI_SOC && MACH_JUMBO_D
 	select SND_DM365_VOICE_CODEC
 	select SND_SOC_CQ0093VC
 	select SND_SOC_ZL38005

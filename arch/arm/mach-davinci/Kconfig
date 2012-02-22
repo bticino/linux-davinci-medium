@@ -110,19 +110,19 @@ config MACH_DINGO
 	  Configure this option to specify whether the board used
 	   is a bticino DINGO based on DM365 SOC
 
-config MACH_JUMBO-D
-	bool "Bticino Jumbo-d based ON TI DM365 SOC"
+config MACH_JUMBO_D
+	bool "Bticino Jumbo_d based ON TI DM365 SOC"
 	depends on ARCH_DAVINCI_DM365
 	help
 	  Configure this option to specify whether the board used
-	   is a bticino JUMBO-D based on DM365 SOC
+	   is a bticino JUMBO_D based on DM365 SOC
 
-config MACH_JUMBO-I
-	bool "Bticino Jumbo-i based ON TI DM365 SOC"
+config MACH_JUMBO_I
+	bool "Bticino Jumbo_i based ON TI DM365 SOC"
 	depends on ARCH_DAVINCI_DM365
 	help
 	  Configure this option to specify whether the board used
-	   is a bticino JUMBO-I based on DM365 SOC
+	   is a bticino JUMBO_I based on DM365 SOC
 
 config MACH_DAVINCI_DA830_EVM
 	bool "TI DA830/OMAP-L137 Reference Platform"

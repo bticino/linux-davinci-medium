@@ -906,7 +906,7 @@ static __init void jumbo_init(void)
 		pinmux_check();
 }
 
-MACHINE_START(JUMBO, "BTicino Jumbo_i board")
+MACHINE_START(JUMBO_I, "BTicino Jumbo_i board")
 	.phys_io = IO_PHYS,
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),

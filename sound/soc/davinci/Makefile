@@ -26,5 +26,5 @@ obj-$(CONFIG_SND_DA850_SOC_EVM) += snd-soc-evm.o
 obj-$(CONFIG_SND_DAVINCI_SOC_SFFSDR) += snd-soc-sffsdr.o
 obj-$(CONFIG_SND_DAVINCI_SOC_BASI) += snd-soc-basi.o
 obj-$(CONFIG_SND_DAVINCI_SOC_DINGO) += snd-soc-dingo.o
-obj-$(CONFIG_SND_DAVINCI_SOC_JUMBO-I) += snd-soc-jumbo-i.o
-obj-$(CONFIG_SND_DAVINCI_SOC_JUMBO-D) += snd-soc-jumbo-d.o
+obj-$(CONFIG_SND_DAVINCI_SOC_JUMBO_I) += snd-soc-jumbo-i.o
+obj-$(CONFIG_SND_DAVINCI_SOC_JUMBO_D) += snd-soc-jumbo-d.o
