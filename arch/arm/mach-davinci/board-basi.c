@@ -56,6 +56,7 @@
 #include <mach/keyscan.h>
 #include <mach/gpio.h>
 #include <mach/usb.h>
+#include <mach/bt_nexmed-hwmon.h>
 #include <linux/videodev2.h>
 #include <media/soc_camera.h>
 #include <media/tvp5150.h>
@@ -76,7 +77,8 @@
 
 #define DAVINCI_BOARD_MAX_NR_UARTS 3
 
-#define GPIO_DEBOUNCE_TO 10
+#define GPIO_DEBOUNCE_TO 50
+#define TIME_TO_LATE_INIT 1500
 
 static int basi_debug = 1;
 module_param(basi_debug, int, 0644);
@@ -99,7 +101,7 @@ static struct at24_platform_data at24_info = {
 	.wpset = wp_set,
 };
 
-static struct timer_list pf_debounce_timer;
+static struct timer_list pf_debounce_timer, startup_timer;
 
 static struct tda9885_platform_data tda9885_defaults = {
 	.switching_mode = 0xf2,
@@ -1004,6 +1006,27 @@ static struct spi_board_info basi_spi_info[] __initconst = {
 
 static struct snd_platform_data dm365_basi_snd_data;
 
+static void basi_late_init(unsigned long data)
+{
+	void __iomem *adc_mem;
+	u32 regval, index;
+
+	del_timer(&startup_timer);
+	index = 1;
+
+	adc_mem = ioremap(DM365_ADCIF_BASE, SZ_1K);
+	__raw_writel(1 << index, adc_mem + CHSEL);
+	regval = ADCTL_SCNIEN | ADCTL_SCNFLG;
+	__raw_writel(regval, adc_mem + ADCTL);
+	regval |= ADCTL_START;
+	__raw_writel(regval, adc_mem + ADCTL);
+	do { } while (__raw_readl(adc_mem + ADCTL) & ADCTL_START);
+	regval = __raw_readl(adc_mem + AD_DAT(index));
+
+	system_rev = lookup_resistors(regval);
+	/* system_serial_low & system_serial_high can also be set here*/
+
+}
 
 static __init void basi_init(void)
 {
@@ -1030,6 +1053,12 @@ static __init void basi_init(void)
 	platform_add_devices(basi_devices, ARRAY_SIZE(basi_devices));
 	dm365_init_rtc();
 	dm365_init_adc(&basi_adc_data);
+
+	init_timer(&startup_timer);
+	startup_timer.function = basi_late_init;
+	startup_timer.expires =
+			jiffies + msecs_to_jiffies(TIME_TO_LATE_INIT);
+	add_timer(&startup_timer);
 
 	if (basi_debug)
 		pinmux_check();
