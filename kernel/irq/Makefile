@@ -5,3 +5,4 @@ obj-$(CONFIG_PROC_FS) += proc.o
 obj-$(CONFIG_GENERIC_PENDING_IRQ) += migration.o
 obj-$(CONFIG_NUMA_IRQ_DESC) += numa_migrate.o
 obj-$(CONFIG_PM_SLEEP) += pm.o
+obj-$(CONFIG_MULTIPLE_IRQ_GPIO) += irq_gpio.o
