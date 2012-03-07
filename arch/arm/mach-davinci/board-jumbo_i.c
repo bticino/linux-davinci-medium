@@ -96,7 +96,9 @@ static struct at24_platform_data at24_info = {
 	.wpset = wp_set,
 };
 
-/* Video Demolutator */
+/*----------------------------------------------------------------------------*/
+
+/* TDA9885 : Video Demolutator */
 static struct tda9885_platform_data tda9885_defaults = {
 	.switching_mode = 0xf2,
 	.adjust_mode = 0xd0,
@@ -104,9 +106,20 @@ static struct tda9885_platform_data tda9885_defaults = {
 	.power = poENABLE_VIDEO_IN,
 };
 
+/* TVP5146 : Pal Decoder */
 static struct tvp5150_platform_data tvp5150_pdata = {
 	.pdn = poPDEC_PWRDNn,
 	.resetb = poPDEC_RESETn,
+};
+
+/* Inputs available at the TDA9885 */
+static struct v4l2_input tda9885_inputs[] = {
+	{
+		.index = 0,
+		.name = "SCS Modulated video",
+		.type = V4L2_INPUT_TYPE_CAMERA,
+		.std = V4L2_STD_PAL,
+	},
 };
 
 /* Inputs available at the TVP5146 */
@@ -119,7 +132,7 @@ static struct v4l2_input tvp5151_inputs[] = {
 	},
 };
 
-/*
+/* 
  * this is the route info for connecting each input to decoder
  * ouput that goes to vpfe. There is a one to one correspondence
  * with tvp5151_inputs
@@ -128,16 +141,6 @@ static struct vpfe_route tvp5151_routes[] = {
 	{
 		.input = TVP5150_COMPOSITE0,
 		.output = TVP5150_NORMAL,
-	},
-};
-
-/* Inputs available at the TDA9885 */
-static struct v4l2_input tda9885_inputs[] = {
-	{
-		.index = 0,
-		.name = "SCS Modulated video",
-		.type = V4L2_INPUT_TYPE_CAMERA,
-		.std = V4L2_STD_PAL,
 	},
 };
 
@@ -173,9 +176,10 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 
 };
 
+/* Set : video_input */
 static int jumbo_setup_video_input(enum vpfe_subdev_id id)
 {
-	/*TODO ?*/
+	/*Nothing todo*/
 	return 0;
 }
 
@@ -188,6 +192,8 @@ static struct vpfe_config vpfe_cfg = {
 	.num_clocks = 1,
 	.clocks = {"vpss_master"},
 };
+
+/*----------------------------------------------------------------------------*/
 
 void jumbo_phy_power(int on)
 {
@@ -264,8 +270,8 @@ static struct gpio_led jumbo_gpio_led[] = {
 };
 
 static struct gpio_led_platform_data jumbo_gpio_led_info = {
-	.leds = &jumbo_gpio_led,
 	.num_leds = 1,
+	.leds = jumbo_gpio_led,
 };
 
 static struct platform_device jumbo_leds_gpio_device = {
@@ -397,7 +403,8 @@ static void jumbo_uart_configure(void)
 	platform_device_register(&jumbo_dm365_serial_device);
 }
 
-static struct irq_on_gpio0 {
+//static struct irq_on_gpio0 {
+struct irq_on_gpio0 {
 	unsigned int gpio;
 	unsigned int irq;
 };
@@ -867,6 +874,7 @@ static struct spi_board_info jumbo_spi_info[] __initconst = {
 		.max_speed_hz   = 2 * 1000 * 1000,
 		.bus_num        = 0,
 		.controller_data = poZARLINK_CS,
+		//  .chip_select	= poZARLINK_CS, cosi non va...
 		.mode           = SPI_MODE_0,
 	},
 

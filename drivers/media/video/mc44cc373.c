@@ -33,7 +33,7 @@
 #include "mc44cc373.h"
 
 MODULE_DESCRIPTION("mc44cc373 Video Modulator Driver");
-MODULE_AUTHOR("Chaithrika U S, modify by SC");
+MODULE_AUTHOR("Davide Bonfanti, Simone Cianni");
 MODULE_LICENSE("GPL");
 
 static int debug;
@@ -76,23 +76,26 @@ static int mc44cc373_setvalue(struct v4l2_subdev *sd)
 }
 EXPORT_SYMBOL(mc44cc373_setvalue);
 
-static int mc44cc373_s_std_output(struct v4l2_subdev *sd)
-{
-	return mc44cc373_setvalue(sd);
-}
-
 static int mc44cc373_s_power(struct v4l2_subdev *sd, int on)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	//struct i2c_client *client = v4l2_get_subdevdata(sd);
         struct mc44cc373 *t = to_state(sd);
 
-        //v4l2_dbg(1, debug, sd, "Switching %s the modulator\n", on ? "on" : "off");
-        v4l_info(client, "Switching %s the modulator\n", on ? "on" : "off");
+        v4l2_dbg(1, debug, sd, "Switching %s the modulator\n", on ? "on" : "off");
+        //v4l_info(client, "Switching %s the modulator\n", on ? "on" : "off");
 	gpio_set_value(t->pdata->power, on);
 
-	if (on)
+	if (on){
+		mdelay(20);
 		return mc44cc373_setvalue(sd);
+	}
 	return 0;
+}
+
+static int mc44cc373_s_std_output(struct v4l2_subdev *sd, v4l2_std_id std)
+{
+	//return 0;
+	return mc44cc373_s_power(sd,1);
 }
 
 static const struct v4l2_subdev_video_ops mc44cc373_video_ops = {
@@ -144,10 +147,11 @@ static int mc44cc373_probe(struct i2c_client *client,
 static int mc44cc373_remove(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+        struct mc44cc373 *t = to_state(sd);
 
 	v4l2_device_unregister_subdev(sd);
-	kfree(sd);
-
+	mc44cc373_s_power(sd,0); /*off*/
+	kfree(t);
 	return 0;
 }
 
