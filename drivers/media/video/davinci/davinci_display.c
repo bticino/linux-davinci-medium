@@ -1994,6 +1994,7 @@ static __init int davinci_probe(struct device *device)
 		vbd->ioctl_ops		= &vpbe_ioctl_ops;
 		vbd->minor		= -1;
 		vbd->current_norm	= V4L2_STD_NTSC;
+		/*vbd->debug              = V4L2_DEBUG_IOCTL; // TODO Per avere info di debug */
 
 		snprintf(vbd->name, sizeof(vbd->name),
 			 "DaVinci_VPBEDisplay_DRIVER_V%d.%d.%d",

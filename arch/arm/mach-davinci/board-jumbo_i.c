@@ -132,7 +132,7 @@ static struct v4l2_input tvp5151_inputs[] = {
 	},
 };
 
-/* 
+/*
  * this is the route info for connecting each input to decoder
  * ouput that goes to vpfe. There is a one to one correspondence
  * with tvp5151_inputs
