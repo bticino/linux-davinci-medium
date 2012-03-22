@@ -23,7 +23,7 @@
 #include <sound/uda134x.h>
 
 #include <mach/dm365.h>
-#include <mach/jumbo_i.h>
+#include <mach/jumbo-i.h>
 #include <mach/clock.h>
 #include <linux/gpio.h>
 
@@ -82,14 +82,14 @@ static int jumbo_i_mic_event(struct snd_soc_dapm_widget *w,
 	return 0;
 };
 
-/* davinci-jumbo_i machine dapm widgets */
+/* davinci-jumbo-i machine dapm widgets */
 static const struct snd_soc_dapm_widget cq93_dapm_widgets[] = {
 	SND_SOC_DAPM_HP("Speakers out", NULL),
 	SND_SOC_DAPM_LINE("Line Out", jumbo_i_line_event),
 	SND_SOC_DAPM_MIC("Microphone", jumbo_i_mic_event),
 };
 
-/* davinci-jumbo_i machine connections to the codec pins */
+/* davinci-jumbo-i machine connections to the codec pins */
 static const struct snd_soc_dapm_route audio_map[] = {
 	/* Speakers connected to SP (actually not connected !) */
 	{ "Speakers out", NULL, "SP", },
@@ -122,7 +122,7 @@ static int jumbo_i_cq93_init(struct snd_soc_codec *codec)
 	if (err < 0)
 		return err;
 
-	/* Set up davinci-jumbo_i specific audio path audio_map */
+	/* Set up davinci-jumbo-i specific audio path audio_map */
 	snd_soc_dapm_add_routes(codec, audio_map, ARRAY_SIZE(audio_map));
 
 	/* not connected */
@@ -137,7 +137,7 @@ static int jumbo_i_cq93_init(struct snd_soc_codec *codec)
 	return 0;
 }
 
-/* jumbo_i digital audio interface glue - connects codec <--> CPU */
+/* jumbo-i digital audio interface glue - connects codec <--> CPU */
 
 static struct snd_soc_dai_link dm365_jumbo_i_dai[] = {
 	{
@@ -150,7 +150,7 @@ static struct snd_soc_dai_link dm365_jumbo_i_dai[] = {
 	},
 };
 
-/* davinci dm365 jumbo_i audio machine driver */
+/* davinci dm365 jumbo-i audio machine driver */
 static struct snd_soc_card dm365_snd_soc_card_jumbo_i[] = {
 	{
 		.name = "DaVinci JUMBO_I VOICE",
@@ -160,7 +160,7 @@ static struct snd_soc_card dm365_snd_soc_card_jumbo_i[] = {
 	},
 };
 
-/* jumbo_i audio subsystem */
+/* jumbo-i audio subsystem */
 static struct snd_soc_device dm365_jumbo_i_snd_devdata[] = {
 	{
 		.card = &dm365_snd_soc_card_jumbo_i[0],
@@ -238,7 +238,7 @@ static struct platform_driver jumbo_i_asoc_driver = {
 	.probe = jumbo_i_asoc_probe,
 	.remove = __devexit_p(jumbo_i_asoc_remove),
 	.driver = {
-		.name = "jumbo_i-asoc",
+		.name = "jumbo-i-asoc",
 		.owner = THIS_MODULE,
 #ifdef CONFIG_PM_LOSS
 		.pm = &jumbo_i_asoc_dev_pm_ops,
@@ -260,5 +260,5 @@ module_init(jumbo_i_asoc_init);
 module_exit(jumbo_i_asoc_exit);
 
 MODULE_AUTHOR("bticino s.p.a.");
-MODULE_DESCRIPTION("TI DAVINCI jumbo_i ASoC driver");
+MODULE_DESCRIPTION("TI DAVINCI jumbo-i ASoC driver");
 MODULE_LICENSE("GPL");

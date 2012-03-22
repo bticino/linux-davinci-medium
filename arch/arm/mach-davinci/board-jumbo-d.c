@@ -23,7 +23,6 @@
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/i2c/at24.h>
-#include <linux/i2c/mc44cc373.h>
 #include <linux/leds.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
@@ -63,7 +62,7 @@
 #include <mach/aemif.h>
 #include <sound/davinci_jumbo_asoc.h>
 
-#include <mach/jumbo_i.h>
+#include <mach/jumbo-d.h>
 #include <mach/aemif.h>
 
 #define DM365_ASYNC_EMIF_CONTROL_BASE   0x01d10000
@@ -96,9 +95,6 @@ static struct at24_platform_data at24_info = {
 	.wpset = wp_set,
 };
 
-/*----------------------------------------------------------------------------*/
-
-/* TDA9885 : Video Demolutator */
 static struct tda9885_platform_data tda9885_defaults = {
 	.switching_mode = 0xf2,
 	.adjust_mode = 0xd0,
@@ -106,20 +102,9 @@ static struct tda9885_platform_data tda9885_defaults = {
 	.power = poENABLE_VIDEO_IN,
 };
 
-/* TVP5146 : Pal Decoder */
 static struct tvp5150_platform_data tvp5150_pdata = {
 	.pdn = poPDEC_PWRDNn,
 	.resetb = poPDEC_RESETn,
-};
-
-/* Inputs available at the TDA9885 */
-static struct v4l2_input tda9885_inputs[] = {
-	{
-		.index = 0,
-		.name = "SCS Modulated video",
-		.type = V4L2_INPUT_TYPE_CAMERA,
-		.std = V4L2_STD_PAL,
-	},
 };
 
 /* Inputs available at the TVP5146 */
@@ -141,6 +126,16 @@ static struct vpfe_route tvp5151_routes[] = {
 	{
 		.input = TVP5150_COMPOSITE0,
 		.output = TVP5150_NORMAL,
+	},
+};
+
+/* Inputs available at the TDA9885 */
+static struct v4l2_input tda9885_inputs[] = {
+	{
+		.index = 0,
+		.name = "SCS Modulated video",
+		.type = V4L2_INPUT_TYPE_CAMERA,
+		.std = V4L2_STD_PAL,
 	},
 };
 
@@ -176,10 +171,9 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 
 };
 
-/* Set : video_input */
 static int jumbo_setup_video_input(enum vpfe_subdev_id id)
 {
-	/*Nothing todo*/
+	/*TODO ?*/
 	return 0;
 }
 
@@ -192,8 +186,6 @@ static struct vpfe_config vpfe_cfg = {
 	.num_clocks = 1,
 	.clocks = {"vpss_master"},
 };
-
-/*----------------------------------------------------------------------------*/
 
 void jumbo_phy_power(int on)
 {
@@ -270,8 +262,8 @@ static struct gpio_led jumbo_gpio_led[] = {
 };
 
 static struct gpio_led_platform_data jumbo_gpio_led_info = {
+	.leds = &jumbo_gpio_led,
 	.num_leds = 1,
-	.leds = jumbo_gpio_led,
 };
 
 static struct platform_device jumbo_leds_gpio_device = {
@@ -308,17 +300,6 @@ static void pinmux_check(void)
 static struct plat_serial8250_port jumbo_dm365_serial_platform_data[] = {
 	{
 		.mapbase        = DM365_ASYNC_EMIF_DATA_CE1_BASE,
-		.irq            = IRQ_DM365_GPIO0_3,
-		.type           = PORT_16550A,
-		.flags          = UPF_BOOT_AUTOCONF | UPF_IOREMAP
-				| UART_CONFIG_TYPE | UPF_SKIP_TEST
-				| UPF_FIXED_TYPE,
-		.iotype         = UPIO_MEM,
-		.regshift       = 0,
-		.uartclk        = 8000000,
-	},
-	{
-		.mapbase        = DM365_ASYNC_EMIF_DATA_CE1_BASE + 0x80,
 		.irq            = IRQ_DM365_GPIO0_1,
 		.type           = PORT_16550A,
 		.flags          = UPF_BOOT_AUTOCONF | UPF_IOREMAP
@@ -354,7 +335,7 @@ static struct platform_device jumbo_dm365_serial_device = {
 	},
 };
 
-static void jumbo_uart_configure(void)
+static void jumbo_uart2_configure(void)
 {
 	struct clk *aemif_clk;
 	struct davinci_aemif_timing t;
@@ -403,8 +384,7 @@ static void jumbo_uart_configure(void)
 	platform_device_register(&jumbo_dm365_serial_device);
 }
 
-//static struct irq_on_gpio0 {
-struct irq_on_gpio0 {
+static struct irq_on_gpio0 {
 	unsigned int gpio;
 	unsigned int irq;
 };
@@ -643,6 +623,7 @@ int inline gpio_configure_in (int DM365_Pin,int Name, char* str)
  */
 static void jumbo_gpio_configure(void)
 {
+	int status;
 	void __iomem *pupdctl0 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x78);
 	void __iomem *pupdctl1 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x7c);
 
@@ -670,45 +651,43 @@ static void jumbo_gpio_configure(void)
 
 	/* -- Configure Output -----------------------------------------------*/
 
-	/* gpio_configure_out (DM365_GPIO64_57, poEN_MOD_DIFF_SONORA, 0,
-				"Audio modulator Enable on external connector"); */ /*TODO */
-
-	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
-	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
-	gpio_configure_out (DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXT_UART");
-	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, /* TODO Verify*/
-				"Protecting SPI chip select");
-	gpio_configure_out (DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
-	gpio_configure_out (DM365_GPIO99, poPIC_RESETn, 1,
-				"PIC AV and PIC AI reset");
-	gpio_configure_out (DM365_GPIO28, poRESET_CONFn, 0, "poRESET_CONFn");
-	gpio_configure_out (DM365_GPIO86, po_NAND_WPn, 0, "po_NAND_WPn,");
-	gpio_configure_out (DM365_GPIO97, po_EN_SW_USB, 0, "po_EN_SW_USB");
-	gpio_configure_out (DM365_GPIO98, po_EN_PWR_USB, 0, "po_EN_PWR_USB");
-
+	gpio_configure_out (DM365_GPIO64_57, poEN_MOD_DIFF_SONORA, 0,
+				"Audio modulator Enable on external connector");
 	/* enabled, to allow i2c attach */
 	gpio_configure_out (DM365_GPIO64_57, poENABLE_VIDEO_IN, 1,
 				"Enable video demodulator");
+	gpio_configure_out (DM365_GPIO64_57, poZARLINK_CS, 1,
+				"Zarlink chip select");
+	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
+	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
+	gpio_configure_out (DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXTUART");
+	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, /* TODO Verify*/
+				"Protecting SPI chip select");
 	gpio_configure_out (DM365_GPIO103, poPDEC_PWRDNn, 1,
 				"Pal-Decoder power down");
+	gpio_configure_out (DM365_GPIO102, poPDEC_RESETn, 0,
+				"PAL decoder Reset");
         /*
 	 * The I2CSEL tvp5151 input is sampled when its resetb input is down,
          * assigning the i2c address.
 	 */
-	gpio_configure_out (DM365_GPIO102, poPDEC_RESETn, 0,
-				"PAL decoder Reset");
         mdelay(10);
         gpio_direction_output(poPDEC_RESETn, 1);
+
+	gpio_configure_out (DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
+	gpio_configure_out (DM365_GPIO72, poZARLINK_RESET, 0, "Zarlink reset");
+	gpio_configure_out (DM365_GPIO99, poPIC_RESETn, 0,
+				"PIC AV and PIC AI reset");
+	gpio_configure_out (DM365_GPIO28, poRESET_CONFn, 0, "poRESET_CONFn");
 	gpio_configure_out (DM365_GPIO64_57, po_ENABLE_VIDEO_OUT, 0,
 				"po_ENABLE_VIDEO_OUT");
-
+	gpio_configure_out (DM365_GPIO68, po_EN_FONICA, 0, "po_EN_FONICA");
+	gpio_configure_out (DM365_GPIO86, po_NAND_WPn, 0, "po_NAND_WPn,");
 	gpio_configure_out (DM365_GPIO90, po_AUDIO_RESET, 1, "po_AUDIO_RESET");
 	gpio_configure_out (DM365_GPIO91, po_AUDIO_DEEMP, 0, "po_AUDIO_DEEMP");
 	gpio_configure_out (DM365_GPIO92, po_AUDIO_MUTE, 0, "po_AUDIO_MUTE");
-	gpio_configure_out (DM365_GPIO68, po_EN_FONICA, 1, "po_EN_FONICA");
-	gpio_configure_out (DM365_GPIO64_57, poZARLINK_CS, 1,"poZARLINK_CS");
-	gpio_configure_out (DM365_GPIO72, poZARLINK_RESET, 0,
-					"poZARLINK_RESET");
+	gpio_configure_out (DM365_GPIO97, po_EN_SW_USB, 0, "po_EN_SW_USB");
+	gpio_configure_out (DM365_GPIO98, po_EN_PWR_USB, 0, "po_EN_PWR_USB");
 
 	/* -- Export For Debug -----------------------------------------------*/
 
@@ -716,7 +695,7 @@ static void jumbo_gpio_configure(void)
 		gpio_export(piPOWER_FAILn, 0);
 		gpio_export(piINT_UART_An, 0);
 		gpio_export(piTMK_INTn, 0);
-		/*gpio_export(poEN_MOD_DIFF_SONORA, 0); *//*TODO*/
+		gpio_export(poEN_MOD_DIFF_SONORA, 0);
 		gpio_export(poENABLE_VIDEO_IN, 0);
 		gpio_export(poZARLINK_CS, 0);
 		gpio_export(poEMMC_RESETn, 0);
@@ -746,7 +725,39 @@ static void jumbo_gpio_configure(void)
 	}
 }
 
-/*----------------------------------------------------------------------------*/
+/*
+static int jumbo_mmc_get_ro(int module)
+{
+	return gpio_get_value( "pin non presente" );
+}
+
+static struct davinci_mmc_config jumbo_mmc_config = {
+	// .get_cd is not defined since it seems it useless... the MMC
+	// controller detects anyway the card! O_o
+
+	.get_ro		= jumbo_mmc_get_ro,
+	.wires		= 4,
+	.max_freq	= 50000000,
+	.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
+	.version	= MMC_CTLR_VERSION_2,
+};
+
+static void jumbo_mmc_configure(void)
+{
+	int ret;
+
+	davinci_cfg_reg(DM365_MMCSD0);
+	davinci_cfg_reg(DM365_GPIO43); // Not connected to the eMMC
+
+	ret = gpio_request( pin non presente, "MMC WP");
+	if (ret)
+		pr_warning("jumbo: cannot request GPIO %d!\n", "pin non presente"  );
+	gpio_direction_input( "pin non presente" );
+	davinci_setup_mmc(0, &jumbo_mmc_config);
+
+	return;
+}
+*/
 
 static void jumbo_usb_configure(void)
 {
@@ -754,16 +765,14 @@ static void jumbo_usb_configure(void)
 	setup_usb(500, 8);
 }
 
-/*----------------------------------------------------------------------------*/
-
-void inline jumbo_en_audio_power(int value)
+void jumbo_en_audio_power(int on)
 {
-	gpio_set_value(po_EN_FONICA, value);
+	gpio_set_value(poEN_MOD_DIFF_SONORA, on);
 }
 
-void inline jumbo_zarlink_reset(int value)
+void jumbo_zarlink_reset(int on)
 {
-	gpio_set_value(poZARLINK_RESET, value);
+	gpio_set_value(poZARLINK_RESET, on);
 }
 
 static struct jumbo_asoc_platform_data jumbo_asoc_info = {
@@ -773,7 +782,7 @@ static struct jumbo_asoc_platform_data jumbo_asoc_info = {
 
 static struct platform_device jumbo_asoc_device[] = {
 	{
-		.name = "jumbo_i-asoc",
+		.name = "jumbo-d-asoc",
 		.id = 0,
 		.dev = {
 			.platform_data  = &jumbo_asoc_info,
@@ -781,34 +790,13 @@ static struct platform_device jumbo_asoc_device[] = {
 	},
 };
 
-static struct snd_platform_data dm365_jumbo_snd_data;
-
-/*----------------------------------------------------------------------------*/
-
-static u8 mc44cc373_pars[] = {0xBA, 0x18, 0x26, 0xE8};
-
-static struct mc44cc373_platform_data mc44cc373_pdata = {
-	.num_par = 4,
-	.pars = mc44cc373_pars,
-	.power = po_ENABLE_VIDEO_OUT,
-};
-
-/* I2C 7bit Adr */
 static struct i2c_board_info __initdata jumbo_i2c_info[] = {
-	{	/* RTC */
+	{
 		I2C_BOARD_INFO("pcf8563", 0x51),
-		.irq = IRQ_DM365_GPIO0_4,
 	},
-	{	/* EEprom */
+	{
 		I2C_BOARD_INFO("24c256", 0x53),
 		.platform_data = &at24_info,
-	},
-	{	/*Video HD*/
-		I2C_BOARD_INFO("ths7303", 0x2c),
-	},
-	{	/*Video Modulator*/
-		I2C_BOARD_INFO("mc44cc373", 0x65),
-		.platform_data = &mc44cc373_pdata,
 	},
 };
 
@@ -823,28 +811,20 @@ static void __init jumbo_init_i2c(void)
 	i2c_register_board_info(1, jumbo_i2c_info, ARRAY_SIZE(jumbo_i2c_info));
 }
 
-/*----------------------------------------------------------------------------*/
-
 static struct platform_device *jumbo_devices[] __initdata = {
 	&jumbo_asoc_device[0],
 	&jumbo_hwmon_device,
 };
 
-/*----------------------------------------------------------------------------*/
-
 static struct davinci_uart_config uart_config __initdata = {
-	.enabled_uarts = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3),
+	.enabled_uarts = (1 << 0) | (1 << 1) | (1 << 2),
 };
-
-/*----------------------------------------------------------------------------*/
 
 static void __init jumbo_map_io(void)
 {
 	dm365_set_vpfe_config(&vpfe_cfg);
 	dm365_init();
 }
-
-/*----------------------------------------------------------------------------*/
 
 #ifdef  ENABLING_SPI_FLASH
 static struct spi_eeprom at25640 = {
@@ -856,70 +836,63 @@ static struct spi_eeprom at25640 = {
 #endif
 
 static struct spi_board_info jumbo_spi_info[] __initconst = {
-#ifdef  ENABLING_SPI_FLASH
 	/*
 	 * DANGEROUS, because spi flash contains bubl bootloader
 	 */
+#ifdef  ENABLING_SPI_FLASH
 	{
 		.modalias       = "at25",
 		.platform_data  = &at25640,
-		.max_speed_hz   = 20 * 1000 * 1000, /* at 3v3 */
+		.max_speed_hz   = 20 * 1000 * 1000,     /* at 3v3 */
 		.bus_num        = 0,
 		.chip_select    = 0,
 		.mode           = SPI_MODE_0,
 	},
 #endif
-	{	/* dm365 spi work between 600000 and 50000000 */
+	{
 		.modalias       = "zl38005",
-		.max_speed_hz   = 2 * 1000 * 1000,
+		.max_speed_hz   = 2 * 1000 * 1000, /* dm365 spi work between 600000 and 50000000 */
 		.bus_num        = 0,
 		.controller_data = poZARLINK_CS,
-		//  .chip_select	= poZARLINK_CS, cosi non va...
 		.mode           = SPI_MODE_0,
 	},
 
 };
 
-/*----------------------------------------------------------------------------*/
+static struct snd_platform_data dm365_jumbo_snd_data;
+
 
 static __init void jumbo_init(void)
 {
 	if (jumbo_debug>1)
 		pinmux_check();
-
 	jumbo_gpio_configure();
-	jumbo_led_init();
-	/* uart for expansion */
-	davinci_cfg_reg(DM365_UART1_RXD_34);
+//	jumbo_led_init();
+	davinci_cfg_reg(DM365_UART1_RXD_34); /* pic uart */
 	davinci_cfg_reg(DM365_UART1_TXD_25);
-	/* 2 usart for pic */
 	davinci_serial_init(&uart_config);
 	mdelay(1);
-
-	/* I2C */
 	davinci_cfg_reg(DM365_I2C_SDA);
 	davinci_cfg_reg(DM365_I2C_SCL);
 	jumbo_init_i2c();
-
 	jumbo_emac_configure();
-	/* SPI for Zarlink*/
-	dm365_init_spi0(0, jumbo_spi_info, ARRAY_SIZE(jumbo_spi_info));
 
-	jumbo_usb_configure();
-	jumbo_uart_configure();
-/*TODO*/	jumbo_powerfail_configure();
+//	dm365_init_spi0(0, jumbo_spi_info, ARRAY_SIZE(jumbo_spi_info));
 
-	dm365_init_vc(&dm365_jumbo_snd_data);
-	platform_add_devices(jumbo_devices, ARRAY_SIZE(jumbo_devices));
-
-	dm365_init_rtc();
-	dm365_init_adc(&jumbo_adc_data);
+//	- funzione eliminata - jumbo_mmc_configure();
+//	jumbo_usb_configure();
+//	jumbo_uart2_configure();
+//	jumbo_powerfail_configure();
+//	dm365_init_vc(&dm365_jumbo_snd_data);
+//	platform_add_devices(jumbo_devices, ARRAY_SIZE(jumbo_devices));
+//	dm365_init_rtc();
+//	dm365_init_adc(&jumbo_adc_data);
 
 	if (jumbo_debug)
 		pinmux_check();
 }
 
-MACHINE_START(JUMBO_I, "BTicino Jumbo_i board")
+MACHINE_START(JUMBO_D, "BTicino Jumbo-d board")
 	.phys_io = IO_PHYS,
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),
@@ -928,6 +901,3 @@ MACHINE_START(JUMBO_I, "BTicino Jumbo_i board")
 	.timer = &davinci_timer,
 	.init_machine = jumbo_init,
 MACHINE_END
-
-/* End Of File */
-
