@@ -46,6 +46,8 @@ struct tm035kbh02 lcd = {
 	.HV_inversion = 0,
 };
 
+struct lcd_device *tm035kbh02_lcd_device;
+
 static struct timer_list lcd_refresh_timer;
 
 const u8 regs_tm035kbh02[][2] = {
@@ -66,6 +68,44 @@ const u8 regs_tm035kbh02[][2] = {
 	{0x12, 0x24 },
 	{0x00, 0x03 },
 };
+
+int  tm035kbh02_set_contrast(struct lcd_device *tm035kbh02_lcd_device,
+			     int contrast)
+{
+	u8 loc_buf[2];
+
+	if (lcd.disabled || !lcd.spi)
+		return 0;
+	loc_buf[0] = contrast;
+	loc_buf[1] = 0x23;
+	spi_write(lcd.spi, &loc_buf[0], 2);
+	lcd.contrast = contrast;
+	return 0;
+}
+
+int  tm035kbh02_get_contrast(struct lcd_device *tm035kbh02_lcd_device)
+{
+	return lcd.contrast;
+}
+
+int  tm035kbh02_set_brightness(struct lcd_device *tm035kbh02_lcd_device,
+			       int brightness)
+{
+	u8 loc_buf[2];
+
+	if (lcd.disabled || !lcd.spi)
+		return 0;
+	loc_buf[0] = brightness;
+	loc_buf[1] = 0x27;
+	spi_write(lcd.spi, &loc_buf[0], 2);
+	lcd.brightness = brightness;
+	return 0;
+}
+
+int  tm035kbh02_get_brightness(struct lcd_device *tm035kbh02_lcd_device)
+{
+	return lcd.brightness;
+}
 
 void tm035kbh02_disable(void)
 {
@@ -102,12 +142,16 @@ void tm035kbh02_enable(void)
 			mdelay(1);
 			gpio_set_value(lcd.reset_n, 1);
 			mdelay(40);
+			schedule();
 		}
 		for (i = 0; i < len; i++) {
 			loc_buf[1] = (pnt[i][0]<<2) | 0x03 ;
 			loc_buf[0] = pnt[i][1];
 			spi_write(lcd.spi, &loc_buf[0], 2);
 		}
+		tm035kbh02_set_contrast(tm035kbh02_lcd_device, lcd.contrast);
+		tm035kbh02_set_brightness(tm035kbh02_lcd_device,
+					  lcd.brightness);
 		lcd.disabled = 0;
 	}
 }
@@ -152,44 +196,6 @@ static int tm035kbh02_power_changed(struct spi_device *spi,
 	return 0;
 }
 
-int  tm035kbh02_set_contrast(struct lcd_device *tm035kbh02_lcd_device,
-			     int contrast)
-{
-	u8 loc_buf[2];
-
-	if (lcd.disabled || !lcd.spi)
-		return 0;
-	loc_buf[0] = contrast;
-	loc_buf[1] = 0x23;
-	spi_write(lcd.spi, &loc_buf[0], 2);
-	lcd.contrast = contrast;
-	return 0;
-}
-
-int  tm035kbh02_get_contrast(struct lcd_device *tm035kbh02_lcd_device)
-{
-	return lcd.contrast;
-}
-
-int  tm035kbh02_set_brightness(struct lcd_device *tm035kbh02_lcd_device,
-			       int brightness)
-{
-	u8 loc_buf[2];
-
-	if (lcd.disabled || !lcd.spi)
-		return 0;
-	loc_buf[0] = brightness;
-	loc_buf[1] = 0x27;
-	spi_write(lcd.spi, &loc_buf[0], 2);
-	lcd.brightness = brightness;
-	return 0;
-}
-
-int  tm035kbh02_get_brightness(struct lcd_device *tm035kbh02_lcd_device)
-{
-	return lcd.brightness;
-}
-
 static void refresh_lcd_settings(unsigned long data)
 {
 	schedule_work(&lcd.work);
@@ -209,8 +215,13 @@ int  tm035kbh02_set_power(struct lcd_device *tm035kbh02_lcd_device, int power)
 			init_timer(&lcd_refresh_timer);
 			lcd_refresh_timer.function = refresh_lcd_settings;
 			lcd_refresh_timer.expires =
-			jiffies + msecs_to_jiffies(lcd.time_refr_regs * 1000);
+				jiffies +
+				msecs_to_jiffies(lcd.time_refr_regs * 1000);
 			add_timer(&lcd_refresh_timer);
+			tm035kbh02_set_contrast(tm035kbh02_lcd_device,
+				lcd.contrast);
+			tm035kbh02_set_brightness(tm035kbh02_lcd_device,
+				lcd.brightness);
 		}
 	} else if (power == 4) {
 		lcd.is_suspended = 1;
@@ -235,8 +246,6 @@ struct lcd_ops tm035kbh02_lcd_ops = {
 	.get_brightness = tm035kbh02_get_brightness,
 	.set_brightness = tm035kbh02_set_brightness,
 };
-
-struct lcd_device *tm035kbh02_lcd_device;
 
 static int __devinit tm035kbh02_spi_probe(struct spi_device *spi)
 {
