@@ -36,6 +36,7 @@
 #include <linux/irq.h>
 #include <linux/list.h>
 #include <linux/pm_loss.h>
+#include <linux/irq_gpio.h>
 
 #include <media/soc_camera.h>
 
@@ -75,9 +76,16 @@
 
 #define DAVINCI_BOARD_MAX_NR_UARTS 3
 
+struct work_struct late_init_work;
+static struct timer_list startup_timer;
+#define TIME_TO_LATE_INIT 1500
+
 static int jumbo_debug = 1;
 module_param(jumbo_debug, int, 0644);
 MODULE_PARM_DESC(jumbo_debug, "Debug level 0-1");
+
+extern unsigned int system_rev;
+extern int lookup_resistors(int cnt);
 
 /*
  * wp_set: set/unset the at24 eeprom write protect
@@ -403,87 +411,56 @@ static void jumbo_uart_configure(void)
 	platform_device_register(&jumbo_dm365_serial_device);
 }
 
-//static struct irq_on_gpio0 {
-struct irq_on_gpio0 {
-	unsigned int gpio;
-	unsigned int irq;
-};
-
-static struct irq_on_gpio0 jumbo_irq_on_gpio0 [] = {
+static struct irq_on_gpio jumbo_irq_on_gpio0 [] = {
 	{
+		.gpio = piPOWER_FAILn,
+		.irq = IRQ_DM365_GPIO0_0,
+		.type = EDGE,
+		.mode = GPIO_EDGE_RISING,
+	}, {
 		.gpio = piINT_UART_Bn,
 		.irq = IRQ_DM365_GPIO0_1,
+		.type = LEVEL,
+		.mode = GPIO_EDGE_FALLING,
 	}, {
 		.gpio = piPOWER_FAILn,
 		.irq = IRQ_DM365_GPIO0_2,
+		.type = EDGE,
+		.mode = GPIO_EDGE_FALLING,
 	}, {
                 .gpio = piINT_UART_An,
                 .irq = IRQ_DM365_GPIO0_3,
+		.type = LEVEL,
+		.mode = GPIO_EDGE_FALLING,
         }, {
                 .gpio = piTMK_INTn,
                 .irq = IRQ_DM365_GPIO0_4,
+		.type = LEVEL,
+		.mode = GPIO_EDGE_FALLING,
         }, {
-                .gpio = piGPIO_INTn,
+	        .gpio = piGPIO_INTn,		//PENIRQn SIMO TODO VERIFY
                 .irq = IRQ_DM365_GPIO0_5,
+		.type = EDGE,
+		.mode = GPIO_EDGE_FALLING,
         },
 };
 
-static unsigned long jumbo_gpio0_irq_enabled;
-
-static void jumbo_mask_irq_gpio0(unsigned int irq)
-{
-	int jumbo_gpio_irq = (irq - IRQ_DM365_GPIO0_0);
-	jumbo_gpio0_irq_enabled &= ~(1 << jumbo_gpio_irq);
-}
-
-static void jumbo_unmask_irq_gpio0(unsigned int irq)
-{
-	int jumbo_gpio_irq = (irq - IRQ_DM365_GPIO0_0);
-	jumbo_gpio0_irq_enabled |= (1 << jumbo_gpio_irq);
-}
-
-static struct irq_chip jumbo_gpio0_irq_chip = {
-	.name           = "DM365_GPIO0",
-	.ack            = jumbo_mask_irq_gpio0,
-	.mask           = jumbo_mask_irq_gpio0,
-	.unmask         = jumbo_unmask_irq_gpio0,
+static struct irq_gpio_platform_data jumbo_irq_gpio_platform_data = {
+	.gpio_list = jumbo_irq_on_gpio0,
+	.len = ARRAY_SIZE(jumbo_irq_on_gpio0),
+	.gpio_common = 0,
+	.irq_gpio = IRQ_DM365_GPIO0,
 };
 
-static void jumbo_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
-{
-	unsigned int cnt;
-
-	if ((jumbo_gpio0_irq_enabled & 0x01) && (gpio_get_value(0))) {
-		/* enabled interrupt when lines are all high */
-		generic_handle_irq(IRQ_DM365_GPIO0_0);
-	}
-	else if (!gpio_get_value(0)) {
-		for (cnt = 0; cnt < ARRAY_SIZE(jumbo_irq_on_gpio0); cnt++) {
-			if (!gpio_get_value(jumbo_irq_on_gpio0[cnt].gpio)
-			&& (jumbo_gpio0_irq_enabled &
-		    (1<<(jumbo_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0)))){
-			generic_handle_irq(jumbo_irq_on_gpio0[cnt].irq);
-			}
-		}
-	}
-	desc->chip->ack(irq);
-}
-
-static void __init jumbo_gpio_init_irq(void)
-{
-	int irq;
-
-	davinci_irq_init();
-	/* setup extra Jumbo irqs on GPIO0*/
-	for(irq = IRQ_DM365_GPIO0_0; irq <= IRQ_DM365_GPIO0_5; irq++) {
-		set_irq_chip(irq, &jumbo_gpio0_irq_chip);
-		set_irq_handler(irq, handle_simple_irq);
-		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
-	}
-
-	set_irq_type(IRQ_DM365_GPIO0, IRQ_TYPE_EDGE_BOTH);
-	set_irq_chained_handler(IRQ_DM365_GPIO0, jumbo_gpio_irq_handler);
-}
+static struct platform_device jumbo_irq_gpio_device = {
+	.name			= "irq_gpio",
+	.id			= 0,
+	.num_resources		= 0,
+	.resource		= NULL,
+	.dev			= {
+		.platform_data	= &jumbo_irq_gpio_platform_data,
+	},
+};
 
 /* Power failure stuff */
 #ifdef CONFIG_PM_LOSS
@@ -494,8 +471,10 @@ static irqreturn_t jumbo_powerfail_stop(int irq, void *dev_id);
 
 static irqreturn_t jumbo_powerfail_quick_check_start(int irq, void *dev_id)
 {
-	jumbo_mask_irq_gpio0(IRQ_DM365_GPIO0_2);
-	jumbo_unmask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	struct irq_desc *desc = irq_to_desc(irq);
+
+	desc->chip->mask(IRQ_DM365_GPIO0_2);
+	desc->chip->unmask(IRQ_DM365_GPIO0_0);
 
 	/* PowerFail situation - START: power is going away */
 	return IRQ_WAKE_THREAD;
@@ -503,17 +482,26 @@ static irqreturn_t jumbo_powerfail_quick_check_start(int irq, void *dev_id)
 
 static irqreturn_t jumbo_powerfail_start(int irq, void *dev_id)
 {
+	struct irq_desc *desc = irq_to_desc(irq);
+
+	desc->chip->mask(IRQ_DM365_GPIO0_2);
+	desc->chip->unmask(IRQ_DM365_GPIO0_0);
+
 	if (powerfail_status)
 		return IRQ_HANDLED;
 	powerfail_status = 1;
 	pm_loss_power_changed(SYS_PWR_FAILING);
+
+	/* PowerFail situation - START: power is going away */
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t jumbo_powerfail_quick_check_stop(int irq, void *dev_id)
 {
-	jumbo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
-	jumbo_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
+	struct irq_desc *desc = irq_to_desc(irq);
+
+	desc->chip->unmask(IRQ_DM365_GPIO0_2);
+	desc->chip->mask(IRQ_DM365_GPIO0_0);
 
 	/* PowerFail situation - STOP: power is coming back */
 	return IRQ_WAKE_THREAD;
@@ -521,10 +509,14 @@ static irqreturn_t jumbo_powerfail_quick_check_stop(int irq, void *dev_id)
 
 static irqreturn_t jumbo_powerfail_stop(int irq, void *dev_id)
 {
-	if (!powerfail_status)
-		return IRQ_HANDLED;
+	struct irq_desc *desc = irq_to_desc(irq);
+
 	powerfail_status = 0;
 	pm_loss_power_changed(SYS_PWR_GOOD);
+	desc->chip->unmask(IRQ_DM365_GPIO0_2);
+	desc->chip->mask(IRQ_DM365_GPIO0_0);
+
+	/* PowerFail situation - STOP: power is coming back */
 	return IRQ_HANDLED;
 }
 
@@ -556,10 +548,12 @@ struct pm_loss_default_policy_table jumbo_pm_loss_policy_table = {
 	.nitems = ARRAY_SIZE(jumbo_pm_loss_policy_items),
 };
 
-static void jumbo_powerfail_configure(void)
+static void jumbo_powerfail_configure(struct work_struct *work)
 {
 	int stat;
 	struct pm_loss_policy *p;
+	struct irq_desc *desc;
+
 	stat = request_threaded_irq(IRQ_DM365_GPIO0_2,
 				    jumbo_powerfail_quick_check_start,
 				    jumbo_powerfail_start,
@@ -575,7 +569,9 @@ static void jumbo_powerfail_configure(void)
 	if (stat < 0)
 		printk(KERN_ERR "request_threaded_irq for IRQ%d (pwrfail-off) "
 		       "failed\n", IRQ_DM365_GPIO0_0);
-	jumbo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	desc = irq_to_desc(IRQ_DM365_GPIO0_0);
+	desc->chip->mask(IRQ_DM365_GPIO0_0);
+
 	p = pm_loss_setup_default_policy(&jumbo_pm_loss_policy_table);
 
 	if (!p)
@@ -584,6 +580,8 @@ static void jumbo_powerfail_configure(void)
 	if (pm_loss_set_policy(JUMBO_POLICY_NAME) < 0)
 		printk(KERN_ERR "Could not set %s power loss policy\n",
 		       JUMBO_POLICY_NAME);
+
+	printk(KERN_ERR "%s OK\n", __func__);
 }
 
 int platform_pm_loss_power_changed(struct device *dev,
@@ -671,7 +669,7 @@ static void jumbo_gpio_configure(void)
 	/* -- Configure Output -----------------------------------------------*/
 
 	/* gpio_configure_out (DM365_GPIO64_57, poEN_MOD_DIFF_SONORA, 0,
-				"Audio modulator Enable on external connector"); */ /*TODO */
+		"Audio modulator Enable on external connector"); */ /*TODO  New Board su Pin 65 ??*/
 
 	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
 	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
@@ -748,6 +746,42 @@ static void jumbo_gpio_configure(void)
 
 /*----------------------------------------------------------------------------*/
 
+/*
+static int jumbo_mmc_get_ro(int module)
+{
+	return gpio_get_value( "pin non presente" );
+}
+
+static struct davinci_mmc_config jumbo_mmc_config = {
+	// .get_cd is not defined since it seems it useless... the MMC
+	// controller detects anyway the card! O_o
+
+	.get_ro		= jumbo_mmc_get_ro,
+	.wires		= 4,
+	.max_freq	= 50000000,
+	.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
+	.version	= MMC_CTLR_VERSION_2,
+};
+
+static void jumbo_mmc_configure(void)
+{
+	int ret;
+
+	davinci_cfg_reg(DM365_MMCSD0);
+	davinci_cfg_reg(DM365_GPIO43); // Not connected to the eMMC
+
+	ret = gpio_request( pin non presente, "MMC WP");
+	if (ret)
+		pr_warning("jumbo: cannot request GPIO %d!\n", "pin non presente"  );
+	gpio_direction_input( "pin non presente" );
+	davinci_setup_mmc(0, &jumbo_mmc_config);
+
+	return;
+}
+*/
+
+/*----------------------------------------------------------------------------*/
+
 static void jumbo_usb_configure(void)
 {
 	pr_notice("Launching setup_usb\n");
@@ -797,7 +831,7 @@ static struct mc44cc373_platform_data mc44cc373_pdata = {
 static struct i2c_board_info __initdata jumbo_i2c_info[] = {
 	{	/* RTC */
 		I2C_BOARD_INFO("pcf8563", 0x51),
-		.irq = IRQ_DM365_GPIO0_4,
+		.irq = IRQ_DM365_GPIO0_4, // SIMO TODO VERIFY
 	},
 	{	/* EEprom */
 		I2C_BOARD_INFO("24c256", 0x53),
@@ -828,6 +862,7 @@ static void __init jumbo_init_i2c(void)
 static struct platform_device *jumbo_devices[] __initdata = {
 	&jumbo_asoc_device[0],
 	&jumbo_hwmon_device,
+	&jumbo_irq_gpio_device,
 };
 
 /*----------------------------------------------------------------------------*/
@@ -840,7 +875,7 @@ static struct davinci_uart_config uart_config __initdata = {
 
 static void __init jumbo_map_io(void)
 {
-	dm365_set_vpfe_config(&vpfe_cfg);
+	dm365_set_vpfe_config(&vpfe_cfg); // SIMO TODO VERIFY
 	dm365_init();
 }
 
@@ -882,16 +917,49 @@ static struct spi_board_info jumbo_spi_info[] __initconst = {
 
 /*----------------------------------------------------------------------------*/
 
+static void jumbo_late_init(unsigned long data)
+{
+	void __iomem *adc_mem;
+	u32 regval, index;
+
+	del_timer(&startup_timer);
+	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, /* TODO Verify*/
+				"Protecting SPI chip select");
+
+	/* setting /proc/cpuinfo hardware_version information */
+	index = 1;
+
+	adc_mem = ioremap(DM365_ADCIF_BASE, SZ_1K);
+	__raw_writel(1 << index, adc_mem + CHSEL);
+	regval = ADCTL_SCNIEN | ADCTL_SCNFLG;
+	__raw_writel(regval, adc_mem + ADCTL);
+	regval |= ADCTL_START;
+	__raw_writel(regval, adc_mem + ADCTL);
+	do { } while (__raw_readl(adc_mem + ADCTL) & ADCTL_START);
+	regval = __raw_readl(adc_mem + AD_DAT(index));
+
+	system_rev = lookup_resistors(regval);
+	/* system_serial_low & system_serial_high can also be set here*/
+
+	INIT_WORK(&late_init_work, jumbo_powerfail_configure);
+	schedule_work(&late_init_work);
+
+	davinci_cfg_reg(DM365_UART1_RXD_34);
+	davinci_cfg_reg(DM365_UART1_TXD_25);
+}
+/*----------------------------------------------------------------------------*/
+
 static __init void jumbo_init(void)
 {
+	pr_warning("Board_Init: START\n");
 	if (jumbo_debug>1)
 		pinmux_check();
 
 	jumbo_gpio_configure();
 	jumbo_led_init();
 	/* uart for expansion */
-	davinci_cfg_reg(DM365_UART1_RXD_34);
-	davinci_cfg_reg(DM365_UART1_TXD_25);
+//	davinci_cfg_reg(DM365_UART1_RXD_34); // SIMO TODO VERIFY
+//	davinci_cfg_reg(DM365_UART1_TXD_25); // SIMO TODO VERIFY
 	/* 2 usart for pic */
 	davinci_serial_init(&uart_config);
 	mdelay(1);
@@ -905,9 +973,9 @@ static __init void jumbo_init(void)
 	/* SPI for Zarlink*/
 	dm365_init_spi0(0, jumbo_spi_info, ARRAY_SIZE(jumbo_spi_info));
 
+//	- funzione eliminata - jumbo_mmc_configure();
 	jumbo_usb_configure();
 	jumbo_uart_configure();
-/*TODO*/	jumbo_powerfail_configure();
 
 	dm365_init_vc(&dm365_jumbo_snd_data);
 	platform_add_devices(jumbo_devices, ARRAY_SIZE(jumbo_devices));
@@ -915,8 +983,15 @@ static __init void jumbo_init(void)
 	dm365_init_rtc();
 	dm365_init_adc(&jumbo_adc_data);
 
+	init_timer(&startup_timer);
+	startup_timer.function = jumbo_late_init;
+	startup_timer.expires =
+			jiffies + msecs_to_jiffies(TIME_TO_LATE_INIT);
+	add_timer(&startup_timer);
+
 	if (jumbo_debug)
 		pinmux_check();
+	pr_warning("Board_Init: DONE\n");
 }
 
 MACHINE_START(JUMBO_I, "BTicino Jumbo_i board")
@@ -924,7 +999,7 @@ MACHINE_START(JUMBO_I, "BTicino Jumbo_i board")
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),
 	.map_io = jumbo_map_io,
-	.init_irq = jumbo_gpio_init_irq,
+	.init_irq = davinci_irq_init,
 	.timer = &davinci_timer,
 	.init_machine = jumbo_init,
 MACHINE_END
