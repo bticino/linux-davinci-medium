@@ -113,6 +113,7 @@ struct ads7846 {
 	u16			debounce_max;
 	u16			debounce_tol;
 	u16			debounce_rep;
+	u32			sampling_period;
 
 	u16			penirq_recheck_delay_usecs;
 
@@ -570,7 +571,7 @@ static void ads7846_rx(void *ads)
 		pr_debug("%s: ignored %d pressure %d\n",
 			dev_name(&ts->spi->dev), packet->tc.ignore, Rt);
 #endif
-		hrtimer_start(&ts->timer, ktime_set(0, TS_POLL_PERIOD),
+		hrtimer_start(&ts->timer, ktime_set(0, ts->sampling_period),
 			      HRTIMER_MODE_REL);
 		return;
 	}
@@ -616,7 +617,7 @@ static void ads7846_rx(void *ads)
 #endif
 	}
 
-	hrtimer_start(&ts->timer, ktime_set(0, TS_POLL_PERIOD),
+	hrtimer_start(&ts->timer, ktime_set(0, ts->sampling_period),
 			HRTIMER_MODE_REL);
 }
 
@@ -935,6 +936,7 @@ static int __devinit ads7846_probe(struct spi_device *spi)
 	ts->vref_delay_usecs = pdata->vref_delay_usecs ? : 100;
 	ts->x_plate_ohms = pdata->x_plate_ohms ? : 400;
 	ts->pressure_max = pdata->pressure_max ? : ~0;
+	ts->sampling_period = pdata->sampling_period ? : TS_POLL_PERIOD;
 
 	if (pdata->filter != NULL) {
 		if (pdata->filter_init != NULL) {

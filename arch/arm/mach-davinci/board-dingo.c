@@ -62,6 +62,7 @@
 #include <mach/adc.h>
 #include <video/davincifb.h>
 #include <linux/pm_loss.h>
+#include <linux/irq_gpio.h>
 
 #include <mach/dingo.h>
 
@@ -98,7 +99,6 @@
 #define PWM_ONESHOT		1
 #define PWM_CONTINUOS		2
 
-#define POWER_FAIL_DEBOUNCE_TO 50
 #define TIME_TO_LATE_INIT 1500
 
 static int dingo_debug = 1;
@@ -127,7 +127,7 @@ static struct at24_platform_data at24_info = {
 	.wpset = wp_set,
 };
 
-static struct timer_list pf_debounce_timer, startup_timer;
+static struct timer_list startup_timer;
 
 static struct mtd_partition dingo_nand_partitions[] = {
 	{
@@ -532,95 +532,51 @@ static void dingo_uart2_configure(void)
 }
 #endif
 
-struct irq_on_gpio0 {
-	unsigned int gpio;
-	unsigned int irq;
-};
-
-static struct irq_on_gpio0 dingo_irq_on_gpio0[] = {
+static struct irq_on_gpio dingo_irq_on_gpio0[] = {
 	{
+		.gpio = POWER_FAIL,
+		.irq = IRQ_DM365_GPIO0_0,
+		.type = EDGE,
+		.mode = GPIO_EDGE_RISING,
+	}, {
 		.gpio = INT_UART,
 		.irq = IRQ_DM365_GPIO0_1,
+		.type = LEVEL,
+		.mode = GPIO_EDGE_FALLING,
 	}, {
 		.gpio = POWER_FAIL,
 		.irq = IRQ_DM365_GPIO0_2,
+		.type = EDGE,
+		.mode = GPIO_EDGE_FALLING,
 	}, {
 		.gpio = TMK_INTn,
 		.irq = IRQ_DM365_GPIO0_3,
+		.type = LEVEL,
+		.mode = GPIO_EDGE_FALLING,
 	}, {
 		.gpio = PENIRQn,
 		.irq = IRQ_DM365_GPIO0_4,
+		.type = EDGE,
+		.mode = GPIO_EDGE_FALLING,
 	},
 };
 
-static unsigned long dingo_gpio0_irq_enabled;
-
-static void dingo_mask_irq_gpio0(unsigned int irq)
-{
-	int dingo_gpio_irq = (irq - IRQ_DM365_GPIO0_0);
-	dingo_gpio0_irq_enabled &= ~(1 << dingo_gpio_irq);
-}
-
-static void dingo_unmask_irq_gpio0(unsigned int irq)
-{
-	int dingo_gpio_irq = (irq - IRQ_DM365_GPIO0_0);
-	dingo_gpio0_irq_enabled |= (1 << dingo_gpio_irq);
-}
-
-static int dingo_set_wake_irq_gpio0(unsigned int irq, unsigned int on)
-{
-	return 0;
-}
-
-static struct irq_chip dingo_gpio0_irq_chip = {
-	.name		= "DM365_GPIO0",
-	.ack		= dingo_mask_irq_gpio0,
-	.mask		= dingo_mask_irq_gpio0,
-	.unmask		= dingo_unmask_irq_gpio0,
-	.disable	= dingo_mask_irq_gpio0,
-	.enable		= dingo_unmask_irq_gpio0,
-	.bus_sync_unlock = dingo_unmask_irq_gpio0,
-	.bus_lock	= dingo_mask_irq_gpio0,
-	.set_wake	= dingo_set_wake_irq_gpio0,
+static struct irq_gpio_platform_data dingo_irq_gpio_platform_data = {
+	.gpio_list = dingo_irq_on_gpio0,
+	.len = ARRAY_SIZE(dingo_irq_on_gpio0),
+	.gpio_common = 0,
+	.irq_gpio = IRQ_DM365_GPIO0,
 };
 
-static void dingo_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
-{
-	unsigned int cnt;
-
-	desc->chip->ack(irq);
-	if ((dingo_gpio0_irq_enabled & 0x01) && (gpio_get_value(0))) {
-		/* enabled interrupt when lines are all high */
-		generic_handle_irq(IRQ_DM365_GPIO0_0);
-	} else if (!gpio_get_value(0)) {
-		udelay(50);
-		for (cnt = 0; cnt < ARRAY_SIZE(dingo_irq_on_gpio0); cnt++) {
-			if (!gpio_get_value(dingo_irq_on_gpio0[cnt].gpio) &&
-			   (dingo_gpio0_irq_enabled & (1<<
-			   (dingo_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0)))
-			   )
-				generic_handle_irq(dingo_irq_on_gpio0[cnt].irq);
-		}
-	}
-	desc->chip->unmask(irq);
-}
-
-static void __init dingo_gpio_init_irq(void)
-{
-	int irq;
-
-	davinci_irq_init();
-	/* setup extra Basi irqs on GPIO0*/
-	for (irq = IRQ_DM365_GPIO0_0;
-	    irq <= IRQ_DM365_GPIO0_0 + ARRAY_SIZE(dingo_irq_on_gpio0); irq++) {
-		set_irq_chip(irq, &dingo_gpio0_irq_chip);
-		set_irq_handler(irq, handle_level_irq);
-		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
-	}
-
-	set_irq_type(IRQ_DM365_GPIO0, IRQ_TYPE_EDGE_BOTH);
-	set_irq_chained_handler(IRQ_DM365_GPIO0, dingo_gpio_irq_handler);
-}
+static struct platform_device dingo_irq_gpio_device = {
+	.name			= "irq_gpio",
+	.id			= 0,
+	.num_resources		= 0,
+	.resource		= NULL,
+	.dev			= {
+		.platform_data	= &dingo_irq_gpio_platform_data,
+	},
+};
 
 /* Power failure stuff */
 #ifdef CONFIG_PM_LOSS
@@ -631,17 +587,21 @@ static irqreturn_t dingo_powerfail_stop(int irq, void *dev_id);
 
 static irqreturn_t dingo_powerfail_quick_check_start(int irq, void *dev_id)
 {
-	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_2);
-	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	struct irq_desc *desc = irq_to_desc(irq);
+	desc->chip->mask(IRQ_DM365_GPIO0_2);
+	desc->chip->unmask(IRQ_DM365_GPIO0_0);
 
 	/* PowerFail situation - START: power is going away */
+
 	return IRQ_WAKE_THREAD;
 }
 
 static irqreturn_t dingo_powerfail_start(int irq, void *dev_id)
 {
-	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_2);
-	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	struct irq_desc *desc = irq_to_desc(irq);
+
+	desc->chip->mask(IRQ_DM365_GPIO0_2);
+	desc->chip->unmask(IRQ_DM365_GPIO0_0);
 	if (powerfail_status)
 		return IRQ_HANDLED;
 	powerfail_status = 1;
@@ -654,45 +614,25 @@ static irqreturn_t dingo_powerfail_start(int irq, void *dev_id)
 
 static irqreturn_t dingo_powerfail_quick_check_stop(int irq, void *dev_id)
 {
-	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
-	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
+	struct irq_desc *desc = irq_to_desc(irq);
 
+	desc->chip->unmask(IRQ_DM365_GPIO0_2);
+	desc->chip->mask(IRQ_DM365_GPIO0_0);
 	/* PowerFail situation - STOP: power is coming back */
 	return IRQ_WAKE_THREAD;
 }
 
-static void debounce(unsigned long data)
-{
-	del_timer(&pf_debounce_timer);
-	if (!gpio_get_value(POWER_FAIL))
-		return;
-
-	if (!powerfail_status)
-		return;
-	powerfail_status = 0;
-	pm_loss_power_changed(SYS_PWR_GOOD);
-
-	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
-	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
-
-	/* PowerFail situation - STOP: power is back */
-}
-
 static irqreturn_t dingo_powerfail_stop(int irq, void *dev_id)
 {
-	/*
-	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
-	dingo_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
-	*/
+	struct irq_desc *desc = irq_to_desc(irq);
+	powerfail_status = 0;
 
-	/* PowerFail situation - STOP: power is coming back */
-	init_timer(&pf_debounce_timer);
-	pf_debounce_timer.function = debounce;
-	pf_debounce_timer.expires =
-			jiffies + msecs_to_jiffies(POWER_FAIL_DEBOUNCE_TO);
-	add_timer(&pf_debounce_timer);
+	pm_loss_power_changed(SYS_PWR_GOOD);
+	desc->chip->unmask(IRQ_DM365_GPIO0_2);
+	desc->chip->mask(IRQ_DM365_GPIO0_0);
 
 	return IRQ_HANDLED;
+	/* PowerFail situation - STOP: power is coming back */
 }
 
 enum dingo_pwrfail_prio {
@@ -719,10 +659,14 @@ struct pm_loss_default_policy_table dingo_pm_loss_policy_table = {
 	.nitems = ARRAY_SIZE(dingo_pm_loss_policy_items),
 };
 
-static void dingo_powerfail_configure(void)
+struct work_struct mywork;
+
+static void dingo_powerfail_configure(struct work_struct *work)
 {
 	int stat;
 	struct pm_loss_policy *p;
+	struct irq_desc *desc;
+
 	stat = request_threaded_irq(IRQ_DM365_GPIO0_2,
 				    dingo_powerfail_quick_check_start,
 				    dingo_powerfail_start,
@@ -738,7 +682,9 @@ static void dingo_powerfail_configure(void)
 	if (stat < 0)
 		printk(KERN_ERR "request_threaded_irq for IRQ%d (pwrfail-off) "
 		       "failed\n", IRQ_DM365_GPIO0_0);
-	dingo_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	desc = irq_to_desc(IRQ_DM365_GPIO0_0);
+	desc->chip->mask(IRQ_DM365_GPIO0_0);
+
 	p = pm_loss_setup_default_policy(&dingo_pm_loss_policy_table);
 
 	if (!p)
@@ -1035,6 +981,7 @@ static struct platform_device *dingo_devices[] __initdata = {
 	&dingo_asoc_device[1],
 	&dingo_hwmon_device,
 	&davinci_fb_device,
+	&dingo_irq_gpio_device,
 };
 
 static struct davinci_uart_config uart_config __initdata = {
@@ -1074,6 +1021,7 @@ static struct ads7846_platform_data dingo_ads7846_info = {
 	.debounce_tol = 50,
 	.debounce_max = 20,
 	.debounce_rep = 3,
+	.sampling_period = 50 * 1000 * 1000,
 	.pressure_max = 1024,
 
 	.vref_mv = 3300,
@@ -1145,6 +1093,9 @@ static void dingo_late_init(unsigned long data)
 	system_rev = lookup_resistors(regval);
 	/* system_serial_low & system_serial_high can also be set here*/
 
+	INIT_WORK(&mywork, dingo_powerfail_configure);
+	schedule_work(&mywork);
+
 	davinci_cfg_reg(DM365_UART1_RXD_34);
 	davinci_cfg_reg(DM365_UART1_TXD_25);
 	gpio_direction_output(DEBUG_GPIO1, 1);
@@ -1176,7 +1127,6 @@ static __init void dingo_init(void)
 	dingo_usb_configure();
 	/* dingo_uart2_configure(); */
 
-	dingo_powerfail_configure();
 	davinci_cfg_reg(DM365_CLKOUT2);
 	dm365_init_vc(&dm365_dingo_snd_data[0]);
 	dm365_init_asp(&dm365_dingo_snd_data[1]);
@@ -1203,8 +1153,7 @@ MACHINE_START(DINGO, "bticino DINGO board")
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),
 	.map_io = dingo_map_io,
-	.init_irq = dingo_gpio_init_irq,
-	/* .init_irq = davinci_irq_init, */
+	.init_irq = davinci_irq_init,
 	.timer = &davinci_timer,
 	.init_machine = dingo_init,
 MACHINE_END

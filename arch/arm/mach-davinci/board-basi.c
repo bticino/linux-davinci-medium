@@ -56,6 +56,7 @@
 #include <mach/keyscan.h>
 #include <mach/gpio.h>
 #include <mach/usb.h>
+#include <mach/bt_nexmed-hwmon.h>
 #include <linux/videodev2.h>
 #include <media/soc_camera.h>
 #include <media/tvp5150.h>
@@ -63,6 +64,7 @@
 #include <linux/i2c/tvp5150.h>
 #include <mach/aemif.h>
 #include <sound/davinci_basi_asoc.h>
+#include <linux/irq_gpio.h>
 
 #include <mach/basi.h>
 #include <mach/aemif.h>
@@ -75,6 +77,8 @@
 #define HW_IN_CLOCKOUT2_UDA_I2S
 
 #define DAVINCI_BOARD_MAX_NR_UARTS 3
+
+#define TIME_TO_LATE_INIT 1500
 
 static int basi_debug = 1;
 module_param(basi_debug, int, 0644);
@@ -96,6 +100,8 @@ static struct at24_platform_data at24_info = {
 	.context = (void *)0x19e,       /* where it gets the mac-address */
 	.wpset = wp_set,
 };
+
+static struct timer_list startup_timer;
 
 static struct tda9885_platform_data tda9885_defaults = {
 	.switching_mode = 0xf2,
@@ -380,76 +386,41 @@ static void basi_uart2_configure(void)
 	platform_device_register(&basi_dm365_serial_device);
 }
 
-static struct irq_on_gpio0 {
-	unsigned int gpio;
-	unsigned int irq;
-};
-
-static struct irq_on_gpio0 basi_irq_on_gpio0 [] = {
+static struct irq_on_gpio basi_irq_on_gpio0[] = {
 	{
+		.gpio = POWER_FAIL,
+		.irq = IRQ_DM365_GPIO0_0,
+		.type = EDGE,
+		.mode = GPIO_EDGE_RISING,
+	}, {
 		.gpio = INT_UART,
 		.irq = IRQ_DM365_GPIO0_1,
+		.type = LEVEL,
+		.mode = GPIO_EDGE_FALLING,
 	}, {
 		.gpio = POWER_FAIL,
 		.irq = IRQ_DM365_GPIO0_2,
+		.type = EDGE,
+		.mode = GPIO_EDGE_FALLING,
 	},
 };
 
-static unsigned long basi_gpio0_irq_enabled;
-
-static void basi_mask_irq_gpio0(unsigned int irq)
-{
-	int basi_gpio_irq = (irq - IRQ_DM365_GPIO0_0);
-	basi_gpio0_irq_enabled &= ~(1 << basi_gpio_irq);
-}
-
-static void basi_unmask_irq_gpio0(unsigned int irq)
-{
-	int basi_gpio_irq = (irq - IRQ_DM365_GPIO0_0);
-	basi_gpio0_irq_enabled |= (1 << basi_gpio_irq);
-}
-
-static struct irq_chip basi_gpio0_irq_chip = {
-	.name           = "DM365_GPIO0",
-	.ack            = basi_mask_irq_gpio0,
-	.mask           = basi_mask_irq_gpio0,
-	.unmask         = basi_unmask_irq_gpio0,
+static struct irq_gpio_platform_data basi_irq_gpio_platform_data = {
+	.gpio_list = basi_irq_on_gpio0,
+	.len = ARRAY_SIZE(basi_irq_on_gpio0),
+	.gpio_common = 0,
+	.irq_gpio = IRQ_DM365_GPIO0,
 };
 
-static void basi_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
-{
-	unsigned int cnt;
-
-	if ((basi_gpio0_irq_enabled & 0x01) && (gpio_get_value(0))) {
-		/* enabled interrupt when lines are all high */
-		generic_handle_irq(IRQ_DM365_GPIO0_0);
-	}
-	else if (!gpio_get_value(0)) {
-		for (cnt = 0; cnt < ARRAY_SIZE(basi_irq_on_gpio0); cnt++) {
-			if (!gpio_get_value(basi_irq_on_gpio0[cnt].gpio) && (basi_gpio0_irq_enabled &
-			    (1<<(basi_irq_on_gpio0[cnt].irq - IRQ_DM365_GPIO0_0)))){
-				generic_handle_irq(basi_irq_on_gpio0[cnt].irq);
-			}
-		}
-	}
-	desc->chip->ack(irq);
-}
-
-static void __init basi_gpio_init_irq(void)
-{
-	int irq;
-
-	davinci_irq_init();
-	/* setup extra Basi irqs on GPIO0*/
-	for(irq = IRQ_DM365_GPIO0_0; irq <= IRQ_DM365_GPIO0_2; irq++) {
-		set_irq_chip(irq, &basi_gpio0_irq_chip);
-		set_irq_handler(irq, handle_simple_irq);
-		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
-	}
-
-	set_irq_type(IRQ_DM365_GPIO0, IRQ_TYPE_EDGE_BOTH);
-	set_irq_chained_handler(IRQ_DM365_GPIO0, basi_gpio_irq_handler);
-}
+static struct platform_device basi_irq_gpio_device = {
+	.name			= "irq_gpio",
+	.id			= 0,
+	.num_resources		= 0,
+	.resource		= NULL,
+	.dev			= {
+		.platform_data	= &basi_irq_gpio_platform_data,
+	},
+};
 
 /* Power failure stuff */
 #ifdef CONFIG_PM_LOSS
@@ -460,8 +431,9 @@ static irqreturn_t basi_powerfail_stop(int irq, void *dev_id);
 
 static irqreturn_t basi_powerfail_quick_check_start(int irq, void *dev_id)
 {
-	basi_mask_irq_gpio0(IRQ_DM365_GPIO0_2);
-	basi_unmask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	struct irq_desc *desc = irq_to_desc(irq);
+	desc->chip->mask(IRQ_DM365_GPIO0_2);
+	desc->chip->unmask(IRQ_DM365_GPIO0_0);
 
 	/* PowerFail situation - START: power is going away */
 	return IRQ_WAKE_THREAD;
@@ -469,6 +441,11 @@ static irqreturn_t basi_powerfail_quick_check_start(int irq, void *dev_id)
 
 static irqreturn_t basi_powerfail_start(int irq, void *dev_id)
 {
+	struct irq_desc *desc = irq_to_desc(irq);
+
+	desc->chip->mask(IRQ_DM365_GPIO0_2);
+	desc->chip->unmask(IRQ_DM365_GPIO0_0);
+
 	if (powerfail_status)
 		return IRQ_HANDLED;
 	powerfail_status = 1;
@@ -478,8 +455,10 @@ static irqreturn_t basi_powerfail_start(int irq, void *dev_id)
 
 static irqreturn_t basi_powerfail_quick_check_stop(int irq, void *dev_id)
 {
-	basi_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
-	basi_unmask_irq_gpio0(IRQ_DM365_GPIO0_2);
+	struct irq_desc *desc = irq_to_desc(irq);
+
+	desc->chip->unmask(IRQ_DM365_GPIO0_2);
+	desc->chip->mask(IRQ_DM365_GPIO0_0);
 
 	/* PowerFail situation - STOP: power is coming back */
 	return IRQ_WAKE_THREAD;
@@ -487,10 +466,12 @@ static irqreturn_t basi_powerfail_quick_check_stop(int irq, void *dev_id)
 
 static irqreturn_t basi_powerfail_stop(int irq, void *dev_id)
 {
-	if (!powerfail_status)
-		return IRQ_HANDLED;
+	struct irq_desc *desc = irq_to_desc(irq);
+
 	powerfail_status = 0;
 	pm_loss_power_changed(SYS_PWR_GOOD);
+	desc->chip->unmask(IRQ_DM365_GPIO0_2);
+	desc->chip->mask(IRQ_DM365_GPIO0_0);
 	return IRQ_HANDLED;
 }
 
@@ -522,10 +503,14 @@ struct pm_loss_default_policy_table basi_pm_loss_policy_table = {
 	.nitems = ARRAY_SIZE(basi_pm_loss_policy_items),
 };
 
-static void basi_powerfail_configure(void)
+struct work_struct late_init_work;
+
+static void basi_powerfail_configure(struct work_struct *work)
 {
 	int stat;
 	struct pm_loss_policy *p;
+	struct irq_desc *desc;
+
 	stat = request_threaded_irq(IRQ_DM365_GPIO0_2,
 				    basi_powerfail_quick_check_start,
 				    basi_powerfail_start,
@@ -541,7 +526,8 @@ static void basi_powerfail_configure(void)
 	if (stat < 0)
 		printk(KERN_ERR "request_threaded_irq for IRQ%d (pwrfail-off) "
 		       "failed\n", IRQ_DM365_GPIO0_0);
-	basi_mask_irq_gpio0(IRQ_DM365_GPIO0_0);
+	desc = irq_to_desc(IRQ_DM365_GPIO0_0);
+	desc->chip->mask(IRQ_DM365_GPIO0_0);
 	p = pm_loss_setup_default_policy(&basi_pm_loss_policy_table);
 
 	if (!p)
@@ -873,6 +859,7 @@ static void __init basi_init_i2c(void)
 static struct platform_device *basi_devices[] __initdata = {
 	&basi_asoc_device[0],
 	&basi_hwmon_device,
+	&basi_irq_gpio_device,
 };
 
 static struct davinci_uart_config uart_config __initdata = {
@@ -920,6 +907,32 @@ static struct spi_board_info basi_spi_info[] __initconst = {
 
 static struct snd_platform_data dm365_basi_snd_data;
 
+static void basi_late_init(unsigned long data)
+{
+	void __iomem *adc_mem;
+	u32 regval, index;
+
+	del_timer(&startup_timer);
+	index = 1;
+
+	adc_mem = ioremap(DM365_ADCIF_BASE, SZ_1K);
+	__raw_writel(1 << index, adc_mem + CHSEL);
+	regval = ADCTL_SCNIEN | ADCTL_SCNFLG;
+	__raw_writel(regval, adc_mem + ADCTL);
+	regval |= ADCTL_START;
+	__raw_writel(regval, adc_mem + ADCTL);
+	do { } while (__raw_readl(adc_mem + ADCTL) & ADCTL_START);
+	regval = __raw_readl(adc_mem + AD_DAT(index));
+
+	system_rev = lookup_resistors(regval);
+	/* system_serial_low & system_serial_high can also be set here*/
+
+	INIT_WORK(&late_init_work, basi_powerfail_configure);
+	schedule_work(&late_init_work);
+
+	davinci_cfg_reg(DM365_UART1_RXD_34);
+	davinci_cfg_reg(DM365_UART1_TXD_25);
+}
 
 static __init void basi_init(void)
 {
@@ -941,11 +954,16 @@ static __init void basi_init(void)
 	basi_mmc_configure();
 	basi_usb_configure();
 	basi_uart2_configure();
-	basi_powerfail_configure();
 	dm365_init_vc(&dm365_basi_snd_data);
 	platform_add_devices(basi_devices, ARRAY_SIZE(basi_devices));
 	dm365_init_rtc();
 	dm365_init_adc(&basi_adc_data);
+
+	init_timer(&startup_timer);
+	startup_timer.function = basi_late_init;
+	startup_timer.expires =
+			jiffies + msecs_to_jiffies(TIME_TO_LATE_INIT);
+	add_timer(&startup_timer);
 
 	if (basi_debug)
 		pinmux_check();
@@ -956,7 +974,7 @@ MACHINE_START(BASI, "BTicino BASI board")
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),
 	.map_io = basi_map_io,
-	.init_irq = basi_gpio_init_irq,
+	.init_irq = davinci_irq_init,
 	.timer = &davinci_timer,
 	.init_machine = basi_init,
 MACHINE_END
