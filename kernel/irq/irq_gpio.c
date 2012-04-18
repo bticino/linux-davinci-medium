@@ -214,9 +214,9 @@ static int __devinit irqgpio_probe(struct platform_device *dev)
 	for (cnt = 0; cnt < irqgpio->len; cnt++, pres_irq++) {
 		irq = pres_irq->irq;
 		set_irq_chip(irq, &gpio_irq_chip);
+		set_irq_data(irq, irqgpio);
 		set_irq_handler(irq, handle_level_irq);
 		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
-		set_irq_data(irq, irqgpio);
 	}
 
 	INIT_WORK(&irqgpio->work, debounce_gpio_interrupts);
@@ -225,8 +225,8 @@ static int __devinit irqgpio_probe(struct platform_device *dev)
 	irqgpio->pf_debounce_timer.expires = 0;
 	irqgpio->pf_debounce_timer.data = (unsigned long)irqgpio;
 	set_irq_type(irqgpio->irq_gpio, IRQ_TYPE_EDGE_BOTH);
-	set_irq_chained_handler(irqgpio->irq_gpio, gpio_irq_handler);
 	set_irq_data(irqgpio->irq_gpio, irqgpio);
+	set_irq_chained_handler(irqgpio->irq_gpio, gpio_irq_handler);
 	return 0;
 }
 
