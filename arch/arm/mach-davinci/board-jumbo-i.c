@@ -27,6 +27,7 @@
 #include <linux/leds.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
+#include <linux/mtd/nand.h>
 #include <linux/input.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/eeprom.h>
@@ -47,6 +48,7 @@
 #include <mach/mux.h>
 #include <mach/hardware.h>
 #include <mach/dm365.h>
+#include <mach/nand.h>
 #include <mach/psc.h>
 #include <mach/common.h>
 #include <mach/i2c.h>
@@ -73,6 +75,8 @@
 #define JUMBO_PHY_MASK              (0x2)
 #define JUMBO_MDIO_FREQUENCY        (2200000)	/* PHY bus frequency */
 #define HW_IN_CLOCKOUT2_UDA_I2S
+
+#define NAND_BLOCK_SIZE         SZ_128K
 
 #define DAVINCI_BOARD_MAX_NR_UARTS 3
 
@@ -106,6 +110,91 @@ static struct at24_platform_data at24_info = {
 
 /*----------------------------------------------------------------------------*/
 
+static struct mtd_partition jumbo_nand_partitions[] = {
+	{
+		/* U-Boot */
+		.name           = "u-boot",
+		.offset         = 0,
+		.size           = 12 * NAND_BLOCK_SIZE,
+		.mask_flags     = MTD_WRITEABLE, /* force read-only */
+	}, {
+		/* U-Boot environment */
+		.name           = "u-boot e",
+		.offset         = MTDPART_OFS_APPEND,
+		.size           = 2 * NAND_BLOCK_SIZE,
+		.mask_flags     = 0,
+	}, {	/* Recovery copy of kernel */
+		.name           = "kernel_c",
+		.offset         = MTDPART_OFS_APPEND,
+		.size           = SZ_8M,
+		.mask_flags     = 0,
+	}, {	/* Recovery copy of rootfs */
+		.name           = "rootfs_c",
+		.offset         = MTDPART_OFS_APPEND,
+		.size           = 20 * SZ_1M,
+		.mask_flags     = 0,
+	}, {	/* Primary copy of kernel */
+		.name           = "kernel",
+		.offset         = MTDPART_OFS_APPEND,
+		.size           = SZ_8M,
+		.mask_flags     = 0,
+	}, {	/* Primary copy of rootfs */
+		.name           = "rootfs",
+		.offset         = MTDPART_OFS_APPEND,
+		.size           = SZ_70M,
+		.mask_flags     = 0,
+	}, {	/* Configurations and extras */
+		.name           = "extras",
+		.offset         = MTDPART_OFS_APPEND,
+		.size           = MTDPART_SIZ_FULL,
+		.mask_flags     = 0,
+	}
+	/* two blocks with bad block table (and mirror) at the end */
+};
+
+static struct davinci_aemif_timing jumbo_nandflash_timing = {
+	.wsetup		= 5,
+	.wstrobe	= 10,
+	.whold		= 5,
+	.rsetup		= 5,
+	.rstrobe	= 10,
+	.rhold		= 5,
+	.ta		= 10,
+};
+
+static struct davinci_nand_pdata davinci_nand_data = {
+	.mask_chipsel	= 0, /* BIT(14), enable a second nand flash */
+	.parts		= jumbo_nand_partitions,
+	.nr_parts	= ARRAY_SIZE(jumbo_nand_partitions),
+	.ecc_mode	= NAND_ECC_HW,
+	.options	= NAND_USE_FLASH_BBT,
+	.ecc_bits	= 4,
+	.timing		= &jumbo_nandflash_timing,
+};
+
+static struct resource davinci_nand_resources[] = {
+	{
+		.start          = DM365_ASYNC_EMIF_DATA_CE0_BASE,
+		.end            = DM365_ASYNC_EMIF_DATA_CE0_BASE + SZ_32M - 1,
+		.flags          = IORESOURCE_MEM,
+	}, {
+		.start          = DM365_ASYNC_EMIF_CONTROL_BASE,
+		.end            = DM365_ASYNC_EMIF_CONTROL_BASE + SZ_4K - 1,
+		.flags          = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device davinci_nand_device = {
+	.name                   = "davinci_nand",
+	.id                     = 0,
+	.num_resources          = ARRAY_SIZE(davinci_nand_resources),
+	.resource               = davinci_nand_resources,
+	.dev                    = {
+		.platform_data  = &davinci_nand_data,
+	},
+};
+/*----------------------------------------------------------------------------*/
+
 /* TDA9885 : Video Demolutator */
 static struct tda9885_platform_data tda9885_defaults = {
 	.switching_mode = 0xf2,
@@ -113,6 +202,8 @@ static struct tda9885_platform_data tda9885_defaults = {
 	.data_mode = 0x0b,
 	.power = poENABLE_VIDEO_IN,
 };
+
+/*----------------------------------------------------------------------------*/
 
 /* TVP5146 : Pal Decoder */
 static struct tvp5150_platform_data tvp5150_pdata = {
@@ -405,6 +496,8 @@ static void jumbo_uart_configure(void)
 	davinci_cfg_reg(DM365_EM_WE_OE);
 
 	davinci_cfg_reg(DM365_GPIO51);
+	gpio_direction_output(poRES_EXTUART, 1);
+        mdelay(10);
 	gpio_direction_output(poRES_EXTUART, 0);
 
 	set_irq_type(gpio_to_irq(0), IRQ_TYPE_EDGE_BOTH);
@@ -751,12 +844,13 @@ static int jumbo_mmc_get_ro(int module)
 {
 	return gpio_get_value( "pin non presente" );
 }
+*/
 
 static struct davinci_mmc_config jumbo_mmc_config = {
 	// .get_cd is not defined since it seems it useless... the MMC
 	// controller detects anyway the card! O_o
 
-	.get_ro		= jumbo_mmc_get_ro,
+	//.get_ro		= jumbo_mmc_get_ro,
 	.wires		= 4,
 	.max_freq	= 50000000,
 	.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
@@ -768,18 +862,17 @@ static void jumbo_mmc_configure(void)
 	int ret;
 
 	davinci_cfg_reg(DM365_MMCSD0);
-	davinci_cfg_reg(DM365_GPIO43); // Not connected to the eMMC
 
-	ret = gpio_request( pin non presente, "MMC WP");
-	if (ret)
-		pr_warning("jumbo: cannot request GPIO %d!\n", "pin non presente"  );
-	gpio_direction_input( "pin non presente" );
+	//davinci_cfg_reg(DM365_GPIO43); // Not connected to the eMMC
+	//ret = gpio_request( pin non presente, "MMC WP");
+	//if (ret)
+	//	pr_warning("jumbo: cannot request GPIO %d!\n", "pin non presente"  );
+	//gpio_direction_input( "pin non presente" );
+
 	davinci_setup_mmc(0, &jumbo_mmc_config);
 
 	return;
 }
-*/
-
 /*----------------------------------------------------------------------------*/
 
 static void jumbo_usb_configure(void)
@@ -787,7 +880,6 @@ static void jumbo_usb_configure(void)
 	pr_notice("Launching setup_usb\n");
 	setup_usb(500, 8);
 }
-
 /*----------------------------------------------------------------------------*/
 
 void inline jumbo_en_audio_power(int value)
@@ -860,6 +952,7 @@ static void __init jumbo_init_i2c(void)
 /*----------------------------------------------------------------------------*/
 
 static struct platform_device *jumbo_devices[] __initdata = {
+//	&davinci_nand_device,
 	&jumbo_asoc_device[0],
 	&jumbo_hwmon_device,
 	&jumbo_irq_gpio_device,
@@ -994,7 +1087,7 @@ static __init void jumbo_init(void)
 	pr_warning("Board_Init: DONE\n");
 }
 
-MACHINE_START(JUMBO_I, "BTicino Jumbo_i board")
+MACHINE_START(JUMBO_I, "BTicino Jumbo-i board")
 	.phys_io = IO_PHYS,
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),
