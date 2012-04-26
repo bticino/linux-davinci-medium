@@ -654,7 +654,7 @@ static struct mmc_blk_data *mmc_blk_alloc(struct mmc_card *card)
 		 * set_capacity takes units of 512 bytes.
 		 */
 		set_capacity(md->disk,
-			(card->csd.capacity << (card->csd.read_blkbits - 9)) * 2);
+			card->csd.capacity << (card->csd.read_blkbits - 9));
 	}
 	return md;
 
