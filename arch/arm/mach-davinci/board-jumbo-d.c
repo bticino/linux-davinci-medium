@@ -751,7 +751,7 @@ static void jumbo_gpio_configure(void)
 
 	gpio_configure_in (DM365_GPIO50, piPOWER_FAILn, "piPOWER_FAILn");
 	gpio_configure_in (DM365_GPIO64_57, piINT_UART_An, "piINT_UART_An");
-	gpio_configure_in (DM365_GPIO64_57, piTMK_INTn, "piTMK_INTn");
+	gpio_configure_in (DM365_GPIO64_57, piTMK_INTn, "piTMK_INTn (RTC)");
 	gpio_configure_in (DM365_GPIO26, piINT_UART_Bn, "piINT_UART_Bn");
 	gpio_configure_in (DM365_GPIO100, piGPIO_INTn, "piGPIO_INTn");
 	gpio_configure_in (DM365_GPIO101, piOCn, "Over Current VBUS");
@@ -839,37 +839,64 @@ static void jumbo_gpio_configure(void)
 
 /*----------------------------------------------------------------------------*/
 
-/*
 static int jumbo_mmc_get_ro(int module)
 {
-	return gpio_get_value( "pin non presente" );
+	// high == card's write protect switch active
+	return 0;
 }
-*/
 
-static struct davinci_mmc_config jumbo_mmc_config = {
-	// .get_cd is not defined since it seems it useless... the MMC
-	// controller detects anyway the card! O_o
+static int jumbo_mmc1_get_cd(int module)
+{
+	// low == card present
+	return gpio_get_value(piSD_DETECTn);  // TODO
+}
 
-	//.get_ro		= jumbo_mmc_get_ro,
-	.wires		= 4,
-	.max_freq	= 50000000,
-	.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
-	.version	= MMC_CTLR_VERSION_2,
+static struct davinci_mmc_config jumbo_mmc_config[] = {
+	{
+		// .get_cd is not defined since it seems it useless... the MMC
+		// controller detects anyway the card! O_o
+		.get_ro		= jumbo_mmc_get_ro,
+		.wires		= 4,
+		.max_freq	= 50000000,
+		.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
+		.version	= MMC_CTLR_VERSION_2,
+	}, {
+		//.get_cd		= jumbo_mmc1_get_cd,
+		.get_ro		= jumbo_mmc_get_ro,
+		.wires		= 4,
+		.max_freq	= 50000000,
+		.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
+		.version	= MMC_CTLR_VERSION_2,
+	},
 };
 
-static void jumbo_mmc_configure(void)
-{
-	int ret;
+static struct davinci_mmc_config jumbo_mmc1_config = {
+};
 
+static void jumbo_mmc0_configure(void)
+{
+	/* MMC/SD 0 */
 	davinci_cfg_reg(DM365_MMCSD0);
 
-	//davinci_cfg_reg(DM365_GPIO43); // Not connected to the eMMC
-	//ret = gpio_request( pin non presente, "MMC WP");
-	//if (ret)
-	//	pr_warning("jumbo: cannot request GPIO %d!\n", "pin non presente"  );
-	//gpio_direction_input( "pin non presente" );
+	davinci_setup_mmc(0, &jumbo_mmc_config[0]);
 
-	davinci_setup_mmc(0, &jumbo_mmc_config);
+	return;
+}
+/*----------------------------------------------------------------------------*/
+
+static void jumbo_mmc1_sd1_configure(void)
+{
+        /* MMC/SD 1 */
+	davinci_cfg_reg(DM365_SD1_CLK);
+	davinci_cfg_reg(DM365_SD1_CMD);
+	davinci_cfg_reg(DM365_SD1_DATA3);
+	davinci_cfg_reg(DM365_SD1_DATA2);
+	davinci_cfg_reg(DM365_SD1_DATA1);
+	davinci_cfg_reg(DM365_SD1_DATA0);
+
+	gpio_configure_in (DM365_GPIO96, piSD_DETECTn, "SD detec");
+
+	davinci_setup_mmc(1, &jumbo_mmc_config[1]);
 
 	return;
 }
@@ -1066,7 +1093,9 @@ static __init void jumbo_init(void)
 	/* SPI for Zarlink*/
 	dm365_init_spi0(0, jumbo_spi_info, ARRAY_SIZE(jumbo_spi_info));
 
-//	- funzione eliminata - jumbo_mmc_configure();
+	jumbo_mmc0_configure();
+	jumbo_mmc1_sd1_configure();
+
 	jumbo_usb_configure();
 	jumbo_uart_configure();
 
