@@ -763,6 +763,8 @@ static void jumbo_gpio_configure(void)
 
 	/* -- Configure Output -----------------------------------------------*/
 
+	/* TODO per poEN_SOUND_DIFF , mettere test su Hw Ver ? */
+
 	// gpio_configure_out (DM365_GPIO64_57, poEN_SOUND_DIFF, 0, /* TODO  New Board su Pin 65 ?? */
 	gpio_configure_out (DM365_GPIO89, poEN_SOUND_DIFF, 0,	/* Fatta Ripresa su GIO89 (su schema GPIO_1) */
 		"Audio modulator Enable on external connector");

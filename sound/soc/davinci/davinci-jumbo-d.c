@@ -214,7 +214,7 @@ static int jumbo_d_uda1334_init(struct snd_soc_codec *codec)
 #if 0
         /* Add jumbo specific widgets */
 
-        /* Set up dingo specific audio path audio_map */
+        /* Set up jumbo specific audio path audio_map */
         snd_soc_dapm_add_routes(codec, audio_map_uda, ARRAY_SIZE(audio_map_uda));
 
         /* not connected */
@@ -258,7 +258,7 @@ static struct snd_soc_card dm365_snd_soc_card_jumbo_d[] = {
 		.dai_link = &dm365_jumbo_d_dai[0],
 		.num_links = 1,
 	}, {
-		.name = "DaVinci DINGO STEREO OUT",
+		.name = "DaVinci JUMBO_D STEREO OUT",
 		.platform = &davinci_soc_platform,
 		.dai_link = &dm365_jumbo_d_dai[1],
 		.num_links = 1,
@@ -342,11 +342,13 @@ static int jumbo_d_asoc_power_changed(struct device *dev,
 		jumbo_d_asoc_priv.ext_circuit_power(1);
 		schedule_delayed_work(&jumbo_d_asoc_priv.delayed_work,
 				      msecs_to_jiffies(100));
+		jumbo_d_uda1334_priv.power(1);
 		break;
 	case SYS_PWR_FAILING:
 		jumbo_d_asoc_priv.ext_codec_power(0);
 		jumbo_d_asoc_priv.ext_circuit_power(0);
 		ret = cancel_delayed_work(&jumbo_d_asoc_priv.delayed_work);
+		jumbo_d_uda1334_priv.power(0);
 		break;
 	default:
 		BUG();
