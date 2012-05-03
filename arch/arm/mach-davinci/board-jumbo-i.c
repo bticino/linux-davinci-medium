@@ -2,7 +2,8 @@
  * BTicino S.p.A. jumbo platform support
  * based on evm-dm365 board
  *
- * Copyright (C) 2012  BTicino S.p.A.
+ * Simone Cianni, Davide Bonfanti
+ * Copyright (C) 2012 , BTicino S.p.A.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -36,10 +37,14 @@
 #include <linux/serial_8250.h>
 #include <linux/irq.h>
 #include <linux/list.h>
+#include <linux/videodev2.h>
+#include <linux/i2c/tda9885.h>
+#include <linux/i2c/tvp5150.h>
 #include <linux/pm_loss.h>
 #include <linux/irq_gpio.h>
 
 #include <media/soc_camera.h>
+#include <sound/davinci_jumbo_asoc.h>
 
 #include <asm/setup.h>
 #include <asm/mach-types.h>
@@ -58,15 +63,11 @@
 #include <mach/keyscan.h>
 #include <mach/gpio.h>
 #include <mach/usb.h>
-#include <linux/videodev2.h>
 #include <media/soc_camera.h>
 #include <media/tvp5150.h>
-#include <linux/i2c/tda9885.h>
-#include <linux/i2c/tvp5150.h>
 #include <mach/aemif.h>
-#include <sound/davinci_jumbo_asoc.h>
 
-#include <mach/jumbo-i.h>
+#include <mach/jumbo-d.h>
 #include <mach/aemif.h>
 
 #define DM365_ASYNC_EMIF_CONTROL_BASE   0x01d10000
@@ -761,8 +762,9 @@ static void jumbo_gpio_configure(void)
 
 	/* -- Configure Output -----------------------------------------------*/
 
-	/* gpio_configure_out (DM365_GPIO64_57, poEN_MOD_DIFF_SONORA, 0,
-		"Audio modulator Enable on external connector"); */ /*TODO  New Board su Pin 65 ??*/
+	// gpio_configure_out (DM365_GPIO64_57, poEN_SOUND_DIFF, 0, /* TODO  New Board su Pin 65 ?? */
+	//gpio_configure_out (DM365_GPIO89, poEN_SOUND_DIFF, 0,	/* Fatta Ripresa su GIO89 (su schema GPIO_1) */
+		"Audio modulator Enable on external connector");
 
 	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
 	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
@@ -807,7 +809,7 @@ static void jumbo_gpio_configure(void)
 		gpio_export(piPOWER_FAILn, 0);
 		gpio_export(piINT_UART_An, 0);
 		gpio_export(piTMK_INTn, 0);
-		/*gpio_export(poEN_MOD_DIFF_SONORA, 0); *//*TODO*/
+		//gpio_export(poEN_SOUND_DIFF, 0);
 		gpio_export(poENABLE_VIDEO_IN, 0);
 		gpio_export(poZARLINK_CS, 0);
 		gpio_export(poEMMC_RESETn, 0);
@@ -868,9 +870,6 @@ static struct davinci_mmc_config jumbo_mmc_config[] = {
 		.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
 		.version	= MMC_CTLR_VERSION_2,
 	},
-};
-
-static struct davinci_mmc_config jumbo_mmc1_config = {
 };
 
 static void jumbo_mmc0_configure(void)

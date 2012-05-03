@@ -2,7 +2,8 @@
  * BTicino S.p.A. jumbo platform support
  * based on evm-dm365 board
  *
- * Copyright (C) 2012  BTicino S.p.A.
+ * Simone Cianni, Davide Bonfanti
+ * Copyright (C) 2012 , BTicino S.p.A.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -36,10 +37,15 @@
 #include <linux/serial_8250.h>
 #include <linux/irq.h>
 #include <linux/list.h>
+#include <linux/videodev2.h>
+#include <linux/i2c/tda9885.h>
+#include <linux/i2c/tvp5150.h>
 #include <linux/pm_loss.h>
 #include <linux/irq_gpio.h>
 
 #include <media/soc_camera.h>
+#include <sound/davinci_jumbo_asoc.h>
+#include <sound/uda1334.h>
 
 #include <asm/setup.h>
 #include <asm/mach-types.h>
@@ -58,13 +64,9 @@
 #include <mach/keyscan.h>
 #include <mach/gpio.h>
 #include <mach/usb.h>
-#include <linux/videodev2.h>
 #include <media/soc_camera.h>
 #include <media/tvp5150.h>
-#include <linux/i2c/tda9885.h>
-#include <linux/i2c/tvp5150.h>
 #include <mach/aemif.h>
-#include <sound/davinci_jumbo_asoc.h>
 
 #include <mach/jumbo-d.h>
 #include <mach/aemif.h>
@@ -757,12 +759,13 @@ static void jumbo_gpio_configure(void)
 	gpio_configure_in (DM365_GPIO101, piOCn, "Over Current VBUS");
 	gpio_configure_in (DM365_GPIO96, piSD_DETECTn, "SD detec");
 	gpio_configure_in (DM365_GPIO88, pi_GPIO_2, "pi_GPIO_2");
-	gpio_configure_in (DM365_GPIO89, pi_GPIO_1, "pi_GPIO_1");
+	//gpio_configure_in (DM365_GPIO89, pi_GPIO_1, "pi_GPIO_1");
 
 	/* -- Configure Output -----------------------------------------------*/
 
-	/* gpio_configure_out (DM365_GPIO64_57, poEN_MOD_DIFF_SONORA, 0,
-		"Audio modulator Enable on external connector"); */ /*TODO  New Board su Pin 65 ??*/
+	// gpio_configure_out (DM365_GPIO64_57, poEN_SOUND_DIFF, 0, /* TODO  New Board su Pin 65 ?? */
+	gpio_configure_out (DM365_GPIO89, poEN_SOUND_DIFF, 0,	/* Fatta Ripresa su GIO89 (su schema GPIO_1) */
+		"Audio modulator Enable on external connector");
 
 	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
 	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
@@ -807,7 +810,7 @@ static void jumbo_gpio_configure(void)
 		gpio_export(piPOWER_FAILn, 0);
 		gpio_export(piINT_UART_An, 0);
 		gpio_export(piTMK_INTn, 0);
-		/*gpio_export(poEN_MOD_DIFF_SONORA, 0); *//*TODO*/
+		gpio_export(poEN_SOUND_DIFF, 0);
 		gpio_export(poENABLE_VIDEO_IN, 0);
 		gpio_export(poZARLINK_CS, 0);
 		gpio_export(poEMMC_RESETn, 0);
@@ -828,7 +831,7 @@ static void jumbo_gpio_configure(void)
 		gpio_export(po_EN_FONICA, 0);
 		gpio_export(po_NAND_WPn, 0);
 		gpio_export(pi_GPIO_2, 0);
-		gpio_export(pi_GPIO_1, 0);
+		//gpio_export(pi_GPIO_1, 0);
 		gpio_export(po_AUDIO_RESET, 0);
 		gpio_export(po_AUDIO_DEEMP, 0);
 		gpio_export(po_AUDIO_MUTE, 0);
@@ -868,9 +871,6 @@ static struct davinci_mmc_config jumbo_mmc_config[] = {
 		.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
 		.version	= MMC_CTLR_VERSION_2,
 	},
-};
-
-static struct davinci_mmc_config jumbo_mmc1_config = {
 };
 
 static void jumbo_mmc0_configure(void)
@@ -924,17 +924,43 @@ static struct jumbo_asoc_platform_data jumbo_asoc_info = {
 	.ext_circuit_power = jumbo_en_audio_power,
 };
 
+void jumbo_uda_power(int value)
+{
+        gpio_set_value(poEN_SOUND_DIFF, value);
+}
+
+static struct uda1334_platform_data jumbo_uda1334_info = {
+        .mute_gpio = po_AUDIO_MUTE,
+        .deemp_gpio = po_AUDIO_DEEMP,
+        .reset_gpio = po_AUDIO_RESET,
+        .power = jumbo_uda_power,
+};
+
 static struct platform_device jumbo_asoc_device[] = {
 	{
-		.name = "jumbo-d-asoc",
+		.name = "jumbo-d-asoc", /*Internal Voice codec + Zarlink*/
 		.id = 0,
 		.dev = {
 			.platform_data  = &jumbo_asoc_info,
 		},
+	}, {
+		.name = "jumbo-d-asoc", /*UDA1334 Voice Codec*/
+		.id = 1,
+		.dev = {
+			.platform_data  = &jumbo_uda1334_info,
+		},
 	},
 };
 
-static struct snd_platform_data dm365_jumbo_snd_data;
+static struct snd_platform_data dm365_jumbo_snd_data[] = {
+        {
+        },
+        {
+                .eventq_no = EVENTQ_3,
+                .i2s_accurate_sck = 1,
+                .clk_input_pin = MCBSP_CLKS,
+        },
+};
 
 /*----------------------------------------------------------------------------*/
 
@@ -981,6 +1007,7 @@ static void __init jumbo_init_i2c(void)
 static struct platform_device *jumbo_devices[] __initdata = {
 //	&davinci_nand_device,
 	&jumbo_asoc_device[0],
+	&jumbo_asoc_device[1],
 	&jumbo_hwmon_device,
 	&jumbo_irq_gpio_device,
 };
@@ -1099,7 +1126,10 @@ static __init void jumbo_init(void)
 	jumbo_usb_configure();
 	jumbo_uart_configure();
 
-	dm365_init_vc(&dm365_jumbo_snd_data);
+	dm365_init_vc(&dm365_jumbo_snd_data[0]);
+        davinci_cfg_reg(DM365_CLKOUT2);
+	dm365_init_asp(&dm365_jumbo_snd_data[1]);
+
 	platform_add_devices(jumbo_devices, ARRAY_SIZE(jumbo_devices));
 
 	dm365_init_rtc();

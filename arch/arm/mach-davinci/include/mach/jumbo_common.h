@@ -23,7 +23,8 @@
 #define poENET_RESETn		44	/* */
 #define poRES_EXTUART		51	/* */
 #define poBOOT_FL_WPn		45	/* Protecting SPI chip select */
-/* #define poEN_MOD_DIFF_SONORA	55 */ /*TODO */	/* EN_Audio */
+//#define poEN_MOD_DIFF_SONORA	65	/* EN_DiffusioneSonora */ /* TODO */
+#define poEN_SOUND_DIFF		89	/* EN_DiffusioneSonora */ /* TODO TEMPORANEO: Ripresa su CS */
 #define poENABLE_VIDEO_IN	62	/* Enable DEM_VIDEO */
 #define poPDEC_PWRDNn		103	/* PalDecoder PWRDown */
 #define poPDEC_RESETn		102	/* PAL decoder Reset */

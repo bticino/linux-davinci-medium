@@ -9,7 +9,7 @@
  * published by the Free Software Foundation.
  */
 
-#define DEBUG
+//#define DEBUG
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/timer.h>
@@ -20,7 +20,7 @@
 #include <sound/pcm.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
-#include <sound/uda134x.h>
+#include <sound/uda1334.h>
 
 #include <mach/dm365.h>
 #include <mach/jumbo-d.h>
@@ -35,21 +35,31 @@
 #include <mach/edma.h>
 #include <mach/mux.h>
 
+#include "../codecs/uda1334.h"
 #include "../codecs/cq93vc.h"
 #include "../codecs/zl38005.h"
 #include "davinci-pcm.h"
 #include "davinci-i2s.h"
 #include "davinci-vcif.h"
+
 #include <sound/davinci_jumbo_asoc.h>
 #include <linux/pm_loss.h>
 #include <linux/delay.h>
 
+/*  Defines it if voice codec works with DMA. */
+//#undef VC_WORKING_WITH_DMA
+
 static struct jumbo_asoc_platform_data jumbo_d_asoc_priv;
+static struct uda1334_platform_data jumbo_d_uda1334_priv;
 
-static struct platform_device *jumbo_d_snd_device[1];
+static struct platform_device *jumbo_d_snd_device[2];
 
-#define AUDIO_FORMAT (SND_SOC_DAIFMT_DSP_B | \
-		SND_SOC_DAIFMT_CBM_CFM | SND_SOC_DAIFMT_IB_NF)
+#define AUDIO_FORMAT_CQ93 (SND_SOC_DAIFMT_DSP_B | SND_SOC_DAIFMT_CBM_CFM | SND_SOC_DAIFMT_IB_NF)
+
+/*	SND_SOC_DAIFMT_CBS_CFS  => CLK master & FRM master
+	SND_SOC_DAIFMT_CBM_CFS  => CLK slave & FRM master */
+#define AUDIO_FORMAT_UDA1334 ( SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFS)
+
 static int jumbo_d_hw_params_cq93(struct snd_pcm_substream *substream,
 			struct snd_pcm_hw_params *params)
 {
@@ -64,8 +74,58 @@ static int jumbo_d_hw_params_cq93(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int jumbo_d_hw_params_uda(struct snd_pcm_substream *substream,
+			struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *codec_dai = rtd->dai->codec_dai;
+	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
+	int ret = 0;
+	unsigned sysclk;
+	struct clk *clkout2;
+
+	davinci_cfg_reg(DM365_EVT2_ASP_TX);
+	davinci_cfg_reg(DM365_EVT3_ASP_RX);
+
+	/* one can think to use codec_dai->id instead of 1 ... */
+	clkout2 = clk_get(&(jumbo_d_snd_device[1]->dev), "clkout2");
+
+	printk(KERN_DEBUG "%s - %d rate_num:%d / rate_den=%d\n", __func__,
+			__LINE__, params->rate_num, params->rate_den);
+
+	sysclk = params->rate_num / params->rate_den * 256;
+
+	ret = snd_soc_dai_set_fmt(codec_dai, AUDIO_FORMAT_UDA1334);
+	if (ret < 0)
+		return ret;
+
+	/* set cpu DAI configuration */
+	ret = snd_soc_dai_set_fmt(cpu_dai, AUDIO_FORMAT_UDA1334);
+	if (ret < 0)
+		return ret;
+
+	/* set the codec system clock */
+	ret = snd_soc_dai_set_sysclk(codec_dai, 0, sysclk, SND_SOC_CLOCK_OUT);
+	if (ret < 0)
+		return ret;
+
+	/* on CLKS there's 256*fs -> 256/32 bits per sample => clk_div=8 */
+	ret = snd_soc_dai_set_clkdiv(cpu_dai, 0, 8);
+	if (ret < 0)
+		return ret;
+
+	printk(KERN_DEBUG "%s - %d setting sysclk=%d\n",
+		__func__, __LINE__, sysclk);
+	dm365_clkout2_set_rate(sysclk);
+	return 0;
+}
+
 static struct snd_soc_ops jumbo_d_ops_cq93 = {
 	.hw_params = jumbo_d_hw_params_cq93,
+};
+
+static struct snd_soc_ops jumbo_d_ops_uda = {
+	.hw_params = jumbo_d_hw_params_uda,
 };
 
 static int jumbo_d_line_event(struct snd_soc_dapm_widget *w,
@@ -82,6 +142,11 @@ static int jumbo_d_mic_event(struct snd_soc_dapm_widget *w,
 	return 0;
 };
 
+static void ext_codec_power_work(struct work_struct *work)
+{
+	zl38005_init();
+}
+
 /* davinci-jumbo-d machine dapm widgets */
 static const struct snd_soc_dapm_widget cq93_dapm_widgets[] = {
 	SND_SOC_DAPM_HP("Speakers out", NULL),
@@ -90,7 +155,7 @@ static const struct snd_soc_dapm_widget cq93_dapm_widgets[] = {
 };
 
 /* davinci-jumbo-d machine connections to the codec pins */
-static const struct snd_soc_dapm_route audio_map[] = {
+static const struct snd_soc_dapm_route audio_map_c93[] = {
 	/* Speakers connected to SP (actually not connected !) */
 	{ "Speakers out", NULL, "SP", },
 	/* Line output connected to LO */
@@ -99,11 +164,17 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{ "MICIN", NULL, "Microphone" },
 };
 
-static void ext_codec_power_work(struct work_struct *work)
-{
-	zl38005_init();
-}
+/* davinci-jumbo-d machine connections to the codec pins */
+static const struct snd_soc_dapm_route audio_map_uda[] = {
+	/* Line Out connected to LLOUT, RLOUT */
+        {"Line Out", NULL, "LLOUT"},
+        {"Line Out", NULL, "RLOUT"},
+        /* Line In connected to (LINE1L | LINE1R) */
+        {"LINE1L", NULL, "Line In"},
+        {"LINE1R", NULL, "Line In"},
+};
 
+/* Logic for a cq93 as connected on a jumbo_d */
 static int jumbo_d_cq93_init(struct snd_soc_codec *codec)
 {
 	int err;
@@ -122,8 +193,8 @@ static int jumbo_d_cq93_init(struct snd_soc_codec *codec)
 	if (err < 0)
 		return err;
 
-	/* Set up davinci-jumbo-d specific audio path audio_map */
-	snd_soc_dapm_add_routes(codec, audio_map, ARRAY_SIZE(audio_map));
+	/* Set up davinci-jumbo-d specific audio path audio_map_c93 */
+	snd_soc_dapm_add_routes(codec, audio_map_c93, ARRAY_SIZE(audio_map_c93));
 
 	/* not connected */
 	snd_soc_dapm_disable_pin(codec, "SP");
@@ -137,8 +208,30 @@ static int jumbo_d_cq93_init(struct snd_soc_codec *codec)
 	return 0;
 }
 
-/* jumbo-d digital audio interface glue - connects codec <--> CPU */
+/* Logic for a uda1334 as connected on a jumbo_d */
+static int jumbo_d_uda1334_init(struct snd_soc_codec *codec)
+{
+#if 0
+        /* Add jumbo specific widgets */
 
+        /* Set up dingo specific audio path audio_map */
+        snd_soc_dapm_add_routes(codec, audio_map_uda, ARRAY_SIZE(audio_map_uda));
+
+        /* not connected */
+        snd_soc_dapm_disable_pin(codec, "Line In");
+
+        /* always connected */
+        snd_soc_dapm_enable_pin(codec, "Line Out");
+
+        snd_soc_dapm_sync(codec);
+#else
+        printk(KERN_DEBUG "dapm for uda1334 not needed\n");
+#endif
+
+        return 0;
+}
+
+/* jumbo-d digital audio interface glue - connects codec <--> CPU */
 static struct snd_soc_dai_link dm365_jumbo_d_dai[] = {
 	{
 		.name = "Voice Codec - CQ93VC",
@@ -147,6 +240,13 @@ static struct snd_soc_dai_link dm365_jumbo_d_dai[] = {
 		.codec_dai = &cq93vc_dai,
 		.init = jumbo_d_cq93_init,
 		.ops = &jumbo_d_ops_cq93,
+	}, {
+		.name = "UDA1334",
+		.stream_name = "uda1334",
+		.cpu_dai = &davinci_i2s_dai,
+		.codec_dai = &uda1334_dai,
+		.init = jumbo_d_uda1334_init,
+		.ops = &jumbo_d_ops_uda,
 	},
 };
 
@@ -157,6 +257,11 @@ static struct snd_soc_card dm365_snd_soc_card_jumbo_d[] = {
 		.platform = &davinci_soc_platform,
 		.dai_link = &dm365_jumbo_d_dai[0],
 		.num_links = 1,
+	}, {
+		.name = "DaVinci DINGO STEREO OUT",
+		.platform = &davinci_soc_platform,
+		.dai_link = &dm365_jumbo_d_dai[1],
+		.num_links = 1,
 	},
 };
 
@@ -165,6 +270,12 @@ static struct snd_soc_device dm365_jumbo_d_snd_devdata[] = {
 	{
 		.card = &dm365_snd_soc_card_jumbo_d[0],
 		.codec_dev = &soc_codec_dev_cq93vc,
+	//	.codec_data = &jumbo_d_voice_data,
+	},
+	{
+		.card = &dm365_snd_soc_card_jumbo_d[1],
+		.codec_dev = &soc_codec_dev_uda1334,
+		.codec_data = &jumbo_d_uda1334_priv,
 	},
 };
 
@@ -172,15 +283,30 @@ static int jumbo_d_asoc_probe(struct platform_device *pdev)
 {
 	int ret;
 	int id = pdev->id;
+
 	struct jumbo_asoc_platform_data *pdata = pdev->dev.platform_data;
+	struct uda1334_platform_data *pdata_1 = pdev->dev.platform_data;
+
 	//printk("SIAMO QUIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII\n");
 	if (!machine_is_jumbo_d() || (id > 1))
 		return -ENODEV;
 
-	if ((!pdata->ext_codec_power) || (!pdata->ext_circuit_power))
-		return -EINVAL;
+	if (id == 0)
+	{
+		if ((!pdata->ext_codec_power) || (!pdata->ext_circuit_power))
+			return -EINVAL;
 
-	memcpy(&jumbo_d_asoc_priv, pdata, sizeof(jumbo_d_asoc_priv));
+		memcpy(&jumbo_d_asoc_priv, pdata, sizeof(jumbo_d_asoc_priv));
+	}
+
+	if (id == 1)
+	{
+		//return 1;
+
+		if (!pdata_1->power)
+			return -EINVAL;
+		memcpy(&jumbo_d_uda1334_priv, pdata_1, sizeof(jumbo_d_uda1334_priv));
+	}
 
 	jumbo_d_snd_device[id] = platform_device_alloc("soc-audio", id);
 	if (!jumbo_d_snd_device[id])
