@@ -764,7 +764,7 @@ static void jumbo_gpio_configure(void)
 
 	// gpio_configure_out (DM365_GPIO64_57, poEN_SOUND_DIFF, 0, /* TODO  New Board su Pin 65 ?? */
 	//gpio_configure_out (DM365_GPIO89, poEN_SOUND_DIFF, 0,	/* Fatta Ripresa su GIO89 (su schema GPIO_1) */
-		"Audio modulator Enable on external connector");
+		//"Audio modulator Enable on external connector");
 
 	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
 	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
@@ -775,7 +775,7 @@ static void jumbo_gpio_configure(void)
 	gpio_configure_out (DM365_GPIO99, poPIC_RESETn, 1,
 				"PIC AV and PIC AI reset");
 	gpio_configure_out (DM365_GPIO28, poRESET_CONFn, 0, "poRESET_CONFn");
-	gpio_configure_out (DM365_GPIO86, po_NAND_WPn, 0, "po_NAND_WPn,");
+	gpio_configure_out (DM365_GPIO86, po_NAND_WPn, 1, "po_NAND_WriteProtect_n,");
 	gpio_configure_out (DM365_GPIO97, po_EN_SW_USB, 0, "po_EN_SW_USB");
 	gpio_configure_out (DM365_GPIO98, po_EN_PWR_USB, 0, "po_EN_PWR_USB");
 
@@ -978,7 +978,7 @@ static void __init jumbo_init_i2c(void)
 /*----------------------------------------------------------------------------*/
 
 static struct platform_device *jumbo_devices[] __initdata = {
-//	&davinci_nand_device,
+	&davinci_nand_device,
 	&jumbo_asoc_device[0],
 	&jumbo_hwmon_device,
 	&jumbo_irq_gpio_device,
