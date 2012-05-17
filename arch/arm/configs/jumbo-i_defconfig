@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32.17-davinci1
-# Wed May 16 17:34:16 2012
+# Thu May 17 15:00:44 2012
 #
 CONFIG_ARM=y
 CONFIG_COMPLETELY_SILENT=y
@@ -478,8 +478,7 @@ CONFIG_EXTRA_FIRMWARE=""
 # CONFIG_SYS_HYPERVISOR is not set
 # CONFIG_CONNECTOR is not set
 CONFIG_MTD=y
-CONFIG_MTD_DEBUG=y
-CONFIG_MTD_DEBUG_VERBOSE=0
+# CONFIG_MTD_DEBUG is not set
 CONFIG_MTD_TESTS=m
 # CONFIG_MTD_CONCAT is not set
 CONFIG_MTD_PARTITIONS=y
