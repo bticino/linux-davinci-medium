@@ -186,6 +186,17 @@ struct vid_enc_sliced_vbi_service {
 };
 
 /**
+ * DCLK output offset. Adjust the DCLK delay output from VCLK pin by ENC clock.
+ */
+enum dofst {
+	DOFST_NONE,
+	DOFST_MINUS_0_5,
+	DOFST_PLUS_0_5,
+	DOFST_MINUS_1,
+	DOFST_PLUS_1,
+};
+
+/**
  * struct vid_enc_mode_info
  * @name: ptr to name string of the standard, "NTSC", "PAL" etc
  * @std: standard or non-standard mode. 1 - standard, 0 - nonstandard
@@ -228,6 +239,7 @@ struct vid_enc_mode_info {
 	unsigned int vsync_len;
 	unsigned int flags;
 	unsigned int pixclock;
+	enum dofst dofst;
 };
 
 #endif				/* #ifdef __KERNEL__ */

@@ -289,6 +289,7 @@ static struct vid_enc_mode_info vpbe_encoder_modes[VPBE_ENCODER_MAX_NUM_STD] = {
 	 .hsync_len = 1,
 	 .vsync_len = 1,
 	 .pixclock = 125000,
+	 .dofst = DOFST_PLUS_0_5,
 	 .flags = 0},
 
 };
@@ -860,6 +861,7 @@ static int vpbe_encoder_start_display(struct vid_encoder_device *enc)
 	u32 pllfreq;
 	struct clk *clk6;
 	struct clk *clk;
+	unsigned int tmp;
 
 	enc->mode_ops->getmode (&mode_info, enc);
 
@@ -878,14 +880,33 @@ static int vpbe_encoder_start_display(struct vid_encoder_device *enc)
 	pllfreq = 1000000000 / mode_info.pixclock;
 	pllfreq *= 1000;
 
+	switch (mode_info.dofst) {
+	case(DOFST_NONE):
+		tmp = 0;
+		break;
+	case (DOFST_MINUS_0_5):
+		tmp = 1;
+		break;
+	case (DOFST_PLUS_0_5):
+		tmp = 2;
+		break;
+	case (DOFST_MINUS_1):
+		tmp = 0;
+		break;
+	case (DOFST_PLUS_1):
+		tmp = 3;
+	}
+
 	clk6 = clk_get(NULL, "pll1_sysclk6");
 	if (clk_set_rate(clk6, pllfreq))
 	{
 		/* frequency too slow -> use a pattern to divide by 4 */
-		venc_reg_out(VENC_DCLKCTL, 0x03);
+		venc_reg_out(VENC_DCLKCTL,
+			tmp<<VENC_DCLKCTL_DOFST_SHIFT | 0x03);
 		clk_set_rate(clk6, pllfreq * 4);
 	} else
-		venc_reg_out(VENC_DCLKCTL, 0x801);
+		venc_reg_out(VENC_DCLKCTL,
+			tmp<<VENC_DCLKCTL_DOFST_SHIFT | 0x801);
 	pllfreq = clk_get_rate(clk6);
 	clk_put(clk6);
 
