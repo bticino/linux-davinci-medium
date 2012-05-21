@@ -738,13 +738,10 @@ static void jumbo_gpio_configure(void)
 	void __iomem *pupdctl0 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x78);
 	void __iomem *pupdctl1 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x7c);
 
-	/*
-	 * Configure (disable) pull down control because can give problems:
-	 * for example it is needed to disable "CIN[7:0] and PCLK Pull down
-	 * enable" in order to read correctly I2CSEL TVP5151 input.
-	 */
+	/* Configure (disable) pull down control */
 	__raw_writel(0, pupdctl0);
-	__raw_writel(0, pupdctl1);
+	__raw_writel(0x40000, pupdctl1); /* EM_WAIT active pull-up */
+
 
 	/*  -- Configure Input ---------------------------------------------- */
 	gpio_request(0, "GIO0"); /* pi_INTERRUPT */
