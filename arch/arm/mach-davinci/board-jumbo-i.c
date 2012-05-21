@@ -766,8 +766,7 @@ static void jumbo_gpio_configure(void)
 	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
 	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
 	gpio_configure_out (DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXT_UART");
-	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, /* TODO Verify*/
-				"Protecting SPI chip select");
+	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, "Protect SPI ChipSelect");
 	gpio_configure_out (DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
 	gpio_configure_out (DM365_GPIO99, poPIC_RESETn, 1,
 				"PIC AV and PIC AI reset");
@@ -890,8 +889,6 @@ static void jumbo_mmc1_sd1_configure(void)
 	davinci_cfg_reg(DM365_SD1_DATA1);
 	davinci_cfg_reg(DM365_SD1_DATA0);
 
-	gpio_configure_in (DM365_GPIO96, piSD_DETECTn, "SD detec");
-
 	davinci_setup_mmc(1, &jumbo_mmc_config[1]);
 
 	return;
@@ -946,7 +943,7 @@ static struct mc44cc373_platform_data mc44cc373_pdata = {
 static struct i2c_board_info __initdata jumbo_i2c_info[] = {
 	{	/* RTC */
 		I2C_BOARD_INFO("pcf8563", 0x51),
-		.irq = IRQ_DM365_GPIO0_4, // SIMO TODO VERIFY
+		.irq = IRQ_DM365_GPIO0_4,
 	},
 	{	/* EEprom */
 		I2C_BOARD_INFO("24c256", 0x53),
@@ -1039,8 +1036,6 @@ static void jumbo_late_init(unsigned long data)
 	u32 regval, index;
 
 	del_timer(&startup_timer);
-	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, /* TODO Verify*/
-				"Protecting SPI chip select");
 
 	/* setting /proc/cpuinfo hardware_version information */
 	index = 1;
@@ -1074,8 +1069,8 @@ static __init void jumbo_init(void)
 	jumbo_gpio_configure();
 	jumbo_led_init();
 	/* uart for expansion */
-//	davinci_cfg_reg(DM365_UART1_RXD_34); // SIMO TODO VERIFY
-//	davinci_cfg_reg(DM365_UART1_TXD_25); // SIMO TODO VERIFY
+	//davinci_cfg_reg(DM365_UART1_RXD_34);
+	//davinci_cfg_reg(DM365_UART1_TXD_25);
 	/* 2 usart for pic */
 	davinci_serial_init(&uart_config);
 	mdelay(1);

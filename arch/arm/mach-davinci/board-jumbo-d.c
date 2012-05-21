@@ -739,13 +739,10 @@ static void jumbo_gpio_configure(void)
 	void __iomem *pupdctl0 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x78);
 	void __iomem *pupdctl1 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x7c);
 
-	/*
-	 * Configure (disable) pull down control because can give problems:
-	 * for example it is needed to disable "CIN[7:0] and PCLK Pull down
-	 * enable" in order to read correctly I2CSEL TVP5151 input.
-	 */
+	/* Configure (disable) pull down control */
 	__raw_writel(0, pupdctl0);
-	__raw_writel(0, pupdctl1);
+	__raw_writel(0x40000, pupdctl1); /* EM_WAIT active pull-up */
+
 
 	/*  -- Configure Input ---------------------------------------------- */
 	gpio_request(0, "GIO0"); /* pi_INTERRUPT */
@@ -772,13 +769,12 @@ static void jumbo_gpio_configure(void)
 	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
 	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
 	gpio_configure_out (DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXT_UART");
-	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, /* TODO Verify*/
-				"Protecting SPI chip select");
+	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, "Protect SPI ChipSelect");
 	gpio_configure_out (DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
 	gpio_configure_out (DM365_GPIO99, poPIC_RESETn, 1,
 				"PIC AV and PIC AI reset");
 	gpio_configure_out (DM365_GPIO28, poRESET_CONFn, 0, "poRESET_CONFn");
-	gpio_configure_out (DM365_GPIO86, po_NAND_WPn, 0, "po_NAND_WPn,");
+	gpio_configure_out (DM365_GPIO86, po_NAND_WPn, 1, "po_NAND_WriteProtect_n,");
 	gpio_configure_out (DM365_GPIO97, po_EN_SW_USB, 0, "po_EN_SW_USB");
 	gpio_configure_out (DM365_GPIO98, po_EN_PWR_USB, 0, "po_EN_PWR_USB");
 
@@ -896,8 +892,6 @@ static void jumbo_mmc1_sd1_configure(void)
 	davinci_cfg_reg(DM365_SD1_DATA1);
 	davinci_cfg_reg(DM365_SD1_DATA0);
 
-	gpio_configure_in (DM365_GPIO96, piSD_DETECTn, "SD detec");
-
 	davinci_setup_mmc(1, &jumbo_mmc_config[1]);
 
 	return;
@@ -978,7 +972,7 @@ static struct mc44cc373_platform_data mc44cc373_pdata = {
 static struct i2c_board_info __initdata jumbo_i2c_info[] = {
 	{	/* RTC */
 		I2C_BOARD_INFO("pcf8563", 0x51),
-		.irq = IRQ_DM365_GPIO0_4, // SIMO TODO VERIFY
+		.irq = IRQ_DM365_GPIO0_4,
 	},
 	{	/* EEprom */
 		I2C_BOARD_INFO("24c256", 0x53),
@@ -1007,7 +1001,7 @@ static void __init jumbo_init_i2c(void)
 /*----------------------------------------------------------------------------*/
 
 static struct platform_device *jumbo_devices[] __initdata = {
-//	&davinci_nand_device,
+	//&davinci_nand_device,
 	&jumbo_asoc_device[0],
 	&jumbo_asoc_device[1],
 	&jumbo_hwmon_device,
@@ -1072,8 +1066,6 @@ static void jumbo_late_init(unsigned long data)
 	u32 regval, index;
 
 	del_timer(&startup_timer);
-	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, /* TODO Verify*/
-				"Protecting SPI chip select");
 
 	/* setting /proc/cpuinfo hardware_version information */
 	index = 1;
@@ -1107,8 +1099,8 @@ static __init void jumbo_init(void)
 	jumbo_gpio_configure();
 	jumbo_led_init();
 	/* uart for expansion */
-//	davinci_cfg_reg(DM365_UART1_RXD_34); // SIMO TODO VERIFY
-//	davinci_cfg_reg(DM365_UART1_TXD_25); // SIMO TODO VERIFY
+	//davinci_cfg_reg(DM365_UART1_RXD_34);
+	//davinci_cfg_reg(DM365_UART1_TXD_25);
 	/* 2 usart for pic */
 	davinci_serial_init(&uart_config);
 	mdelay(1);
