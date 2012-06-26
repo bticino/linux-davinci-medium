@@ -152,11 +152,11 @@ int zl38005_mute_r(int on)
 EXPORT_SYMBOL_GPL(zl38005_mute_r);
 
 static const struct snd_kcontrol_new zl38005_snd_controls[] = {
-	SOC_SINGLE_EXT("ZL38005 UGAIN", ZL38005_USRGAIN , 0, 0xffff, 0,
+	SOC_SINGLE_EXT("ZL-UGAIN", ZL38005_USRGAIN , 0, 0xffff, 0,
 			zl38005_spi_read, zl38005_spi_write),
-	SOC_SINGLE_EXT("ZL38005 SOUTGN", ZL38005_SYSGAIN , 8, 0xf, 0,
+	SOC_SINGLE_EXT("ZL-SOUTGN", ZL38005_SYSGAIN , 8, 0xf, 0,
 			zl38005_spi_read, zl38005_spi_write),
-	SOC_SINGLE_EXT("ZL38005 MUTE_R", ZL38005_AEC_CTRL0 , 7, 1, 0,
+	SOC_SINGLE_EXT("ZL-MUTE_R", ZL38005_AEC_CTRL0 , 7, 1, 0,
 			zl38005_spi_read, zl38005_spi_write),
 };
 
