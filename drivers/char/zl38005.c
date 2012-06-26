@@ -40,8 +40,11 @@
 #include <linux/smp_lock.h>
 #include <linux/cdev.h>
 #include <linux/uaccess.h>
+#include <linux/spi/zl38005.h>
 
 #include "zl38005.h"
+
+static const char module_name[] = "zl38005";
 
 #define ZL38005 "zl38005:"
 
@@ -79,14 +82,20 @@ struct zl38005 {
 	dev_t			dev;
 	struct spi_device	*spi;
 	struct list_head	device_entry;
+	int			chip_select_gpio;
 };
 
 /* For registeration of charatcer device */
 static struct cdev c_dev;
 
+#define DEVCOUNT 2
+
+static int zl38005_major;
+static int zl38005_minor_used = -1;
+
 static int module_usage_count;
 
-static struct zl38005 zl38005_data;
+static struct zl38005 *zl38005_table[DEVCOUNT];
 
 static DEFINE_MUTEX(zl38005_list_lock);
 static LIST_HEAD(zl38005_list);
@@ -317,7 +326,7 @@ static int zl38005_rd_reg(struct device *dev, u16 addr, int *pval, u8 mem)
 
 int zl38005_read(u16 addr, int *val)
 {
-	struct zl38005          *zl38005 = &zl38005_data;
+	struct zl38005		*zl38005 = zl38005_table[zl38005_minor_used];
 
 	pr_debug_zl2("addr=%04X\n", addr);
 	if (zl38005_rd_reg(&zl38005->spi->dev, addr, val, DMEM))
@@ -359,7 +368,12 @@ static int zl38005_wr_reg(struct device *dev, u16 addr, u32 val, u8 mem)
 
 int zl38005_write(u16 addr, u16 val)
 {
-	struct zl38005		*zl38005 = &zl38005_data;
+	struct zl38005		*zl38005;
+
+	if (zl38005_minor_used == -1)
+		return -EAGAIN;
+
+	zl38005 = zl38005_table[zl38005_minor_used];
 
 	return zl38005_wr_reg(&zl38005->spi->dev, addr, val, DMEM);
 }
@@ -395,7 +409,11 @@ static int zl_checkConnection(struct device *dev)
 
 int zl38005_check_conn(void)
 {
-	struct zl38005		*zl38005 = &zl38005_data;
+	struct zl38005		*zl38005;
+
+	if (zl38005_minor_used == -1)
+		return -EAGAIN;
+	zl38005 = zl38005_table[zl38005_minor_used];
 	return zl_checkConnection(&zl38005->spi->dev);
 }
 EXPORT_SYMBOL(zl38005_check_conn);
@@ -706,27 +724,55 @@ void zl_hardwareReset(UInt16T reset_mode)
  */
 static int zl38005_open(struct inode *inode, struct file *filp)
 {
-	if (module_usage_count) {
-		printk(KERN_ERR "zl38005 device alrady opened\n");
-		return -EBUSY;
+	struct zl38005		*zl38005;
+	int err;
+	int minor = MINOR(inode->i_rdev);
+
+	if (minor < DEVCOUNT) {
+		if (module_usage_count) {
+			printk(KERN_ERR "at least one zl38005 device already opened\n");
+			return -EBUSY;
+		}
+		module_usage_count++;
+		zl38005_minor_used = minor;
+		zl38005 = zl38005_table[zl38005_minor_used];
+		zl38005->spi->chip_select_gpio = zl38005->chip_select_gpio;
+		err = spi_setup(zl38005->spi);
+		if (err < 0)
+			return err;
+
+		return 0;
 	}
-	module_usage_count++;
-	return 0;
+	return -ENODEV;
 }
 
 static int zl38005_close(struct inode *inode, struct file *filp)
 {
-	if (module_usage_count) {
-		module_usage_count--;
+	int minor;
+
+	minor = MINOR(inode->i_rdev);
+	if (minor < DEVCOUNT) {
+		if (module_usage_count)
+			module_usage_count--;
+		else {
+			printk(KERN_ERR "no one zl38005 device not opened\n");
+			return -EBUSY;
+		}
+		zl38005_minor_used = -1;
+		return 0;
 	}
-	return 0;
+	return -ENODEV;
 }
 
-static int zl38005_ioctl(struct inode *inode, struct file *file,
-		     unsigned int cmd, unsigned long arg)
+static long zl38005_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
-	struct zl38005		*zl38005 = &zl38005_data;
+	struct zl38005		*zl38005;
 	int ret;
+
+	if (zl38005_minor_used == -1)
+		return -EAGAIN;
+	zl38005 = zl38005_table[zl38005_minor_used];
+
 
 	switch (cmd) {
 	case ZL_WR_DATA_REG:
@@ -865,27 +911,45 @@ static struct class *zl38005_class;
 
 static int zl38005_spi_probe(struct spi_device *spi)
 {
-	struct zl38005 *zl38005 = &zl38005_data;
-	int err;
+	struct device *dev;
+	struct zl38005 *zl38005;
+	int status, err;
+	struct zl38005_platform_data    *pdata = spi->dev.platform_data;
+	int minor;
 
 	dev_dbg(&spi->dev, "probing zl38005 spi device\n");
 
-	spi->bits_per_word = 8;
-	spi->mode = SPI_MODE_0;
-	err = spi_setup(spi);
-	if (err < 0)
-		return err;
+	for (minor = 0; minor < DEVCOUNT; minor++) {
 
-	/* Initialize the driver data */
-	zl38005->spi = spi;
-	spi_set_drvdata(spi, zl38005);
+		/* Allocate driver data */
+		zl38005 = kzalloc(sizeof(*zl38005), GFP_KERNEL);
+		if (!zl38005)
+			return -ENOMEM;
+		/* Initialize driver data */
+		zl38005->chip_select_gpio = pdata[minor].chip_select_gpio;
+		if (zl38005_table[minor])
+			continue;
+		zl38005_table[minor] = zl38005;
+		dev = device_create(zl38005_class, NULL,
+				    MKDEV(zl38005_major, minor),
+				    NULL, "%s%d", module_name, minor);
+		status = IS_ERR(dev) ? PTR_ERR(dev) : 0;
+
+		spi->bits_per_word = 8;
+		spi->mode = SPI_MODE_0;
+		err = spi_setup(spi);
+		if (err < 0)
+			return err;
+		zl38005->spi = spi;
+		spi_set_drvdata(spi, zl38005);
+	}
 
 	return 0;
 }
 
 static int zl38005_spi_remove(struct spi_device *spi)
 {
-	device_destroy(zl38005_class, zl38005_data.dev);
+	device_destroy(zl38005_class, MKDEV(zl38005_major, zl38005_minor_used));
 	class_destroy(zl38005_class);
 	kfree(spi_get_drvdata(spi));
 	return 0;
@@ -902,15 +966,34 @@ static struct spi_driver zl38005_spi = {
 
 static int __init zl38005_init(void)
 {
-	struct zl38005 *zl38005 = &zl38005_data;
+	dev_t dev_id;
 	int result;
 
-	result = alloc_chrdev_region(&zl38005->dev, 0, 1, "zl38005");
+	result = alloc_chrdev_region(&dev_id, 0, DEVCOUNT, "zl38005");
 	if (result < 0) {
 		printk(KERN_ERR "\nzl38005: Module intialization failed.\
                 could not register character device");
                 return -ENODEV;
         }
+
+	zl38005_major = MAJOR(dev_id);
+
+	/* registration of character device */
+	register_chrdev(zl38005_major, DRIVER_NAME, &zl38005_fops);
+
+	zl38005_class = class_create(THIS_MODULE, module_name);
+
+	if (!zl38005_class) {
+		cdev_del(&c_dev);
+		unregister_chrdev(zl38005_major, DRIVER_NAME);
+	}
+
+	result = spi_register_driver(&zl38005_spi);
+	if (result < 0) {
+		class_destroy(zl38005_class);
+		unregister_chrdev(zl38005_major, zl38005_spi.driver.name);
+	}
+        printk(KERN_NOTICE "zl38005 initialized, major#: %d, minor# %d \n", MAJOR(zl38005->dev), MINOR(zl38005->dev));
 
 	/* Initialize of character device */
 	cdev_init(&c_dev, &zl38005_fops);
@@ -918,33 +1001,14 @@ static int __init zl38005_init(void)
 	c_dev.ops = &zl38005_fops;
 
 	/* addding character device */
-	result = cdev_add(&c_dev, zl38005->dev, 1);
+	result = cdev_add(&c_dev, dev_id, DEVCOUNT);
 	if (result) {
-		printk("NOTICE \nzl38005:Error %d adding zl38005\
+		printk("NOTICE\nzl38005:Error %d adding zl38005\
 				..error no:", result);
-		unregister_chrdev_region(zl38005->dev, 1);
+		unregister_chrdev_region(zl38005_major, DEVCOUNT);
 	}
 
-	/* registration of character device */
-	register_chrdev(MAJOR(zl38005->dev), DRIVER_NAME, &zl38005_fops);
-
-	zl38005_class = class_create(THIS_MODULE, "zl38005");
-
-	if (!zl38005_class) {
-		cdev_del(&c_dev);
-		unregister_chrdev(MAJOR(zl38005->dev), DRIVER_NAME);
-	}
-
-	device_create(zl38005_class, NULL, zl38005->dev, NULL, "zl38005");
-
-	result = spi_register_driver(&zl38005_spi);
-	if (result < 0) {
-		class_destroy(zl38005_class);
-		unregister_chrdev(MAJOR(zl38005->dev), zl38005_spi.driver.name);
-	}
-        printk(KERN_NOTICE "zl38005 initialized, major#: %d, minor# %d \n", MAJOR(zl38005->dev), MINOR(zl38005->dev));
 	return result;
-
 }
 
 module_init(zl38005_init);
@@ -952,6 +1016,8 @@ module_init(zl38005_init);
 static void __exit zl38005_exit(void)
 {
 	spi_unregister_driver(&zl38005_spi);
+	cdev_del(&c_dev);
+	unregister_chrdev_region(zl38005_major, DEVCOUNT);
 }
 module_exit(zl38005_exit);
 
