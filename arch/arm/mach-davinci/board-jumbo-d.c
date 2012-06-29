@@ -25,6 +25,7 @@
 #include <linux/clk.h>
 #include <linux/i2c/at24.h>
 #include <linux/i2c/mc44cc373.h>
+#include <linux/i2c/mcp4531.h>
 #include <linux/leds.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
@@ -402,7 +403,7 @@ static void pinmux_check(void)
 
 		for (i = 0; i < 5; i++) {
 			pinmux[i] = __raw_readl(pinmux_reg[i]);
-		printk("pinmux%d=%X\n",i,pinmux[i]);
+		printk(KERN_INFO "pinmux%d=%X\n",i,pinmux[i]);
 	}
 }
 
@@ -968,6 +969,20 @@ static struct mc44cc373_platform_data mc44cc373_pdata = {
 	.power = po_ENABLE_VIDEO_OUT,
 };
 
+struct mcp4531_platform_data mcp4531_pdata[] = {
+	{
+		.id = 0,
+		.wiper0_def = 0x40,
+		.wiper1_def = 0x40,
+		.tcon_def = 0x1ff,
+	}, {
+		.id = 1,
+		.wiper0_def = 0x40,
+		.wiper1_def = 0x40,
+		.tcon_def = 0x1ff,
+	},
+};
+
 /* I2C 7bit Adr */
 static struct i2c_board_info __initdata jumbo_i2c_info[] = {
 	{	/* RTC */
@@ -984,6 +999,14 @@ static struct i2c_board_info __initdata jumbo_i2c_info[] = {
 	{	/*Video Modulator*/
 		I2C_BOARD_INFO("mc44cc373", 0x65),
 		.platform_data = &mc44cc373_pdata,
+	},
+	{	/* Digital Potentiometer*/
+		I2C_BOARD_INFO("mcp4531", 0x2e),
+		.platform_data = &mcp4531_pdata[0],
+	},
+	{	/* Digital Potentiometer*/
+		I2C_BOARD_INFO("mcp4531", 0x2f),
+		.platform_data = &mcp4531_pdata[1],
 	},
 };
 

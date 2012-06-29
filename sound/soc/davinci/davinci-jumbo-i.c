@@ -85,8 +85,8 @@ static int jumbo_i_mic_event(struct snd_soc_dapm_widget *w,
 /* davinci-jumbo-i machine dapm widgets */
 static const struct snd_soc_dapm_widget cq93_dapm_widgets[] = {
 	SND_SOC_DAPM_HP("Speakers out", NULL),
-	SND_SOC_DAPM_LINE("Line Out", jumbo_i_line_event),
-	SND_SOC_DAPM_MIC("Microphone", jumbo_i_mic_event),
+//	SND_SOC_DAPM_LINE("Line Out", jumbo_i_line_event),
+//	SND_SOC_DAPM_MIC("Microphone", jumbo_i_mic_event),
 };
 
 /* davinci-jumbo-i machine connections to the codec pins */

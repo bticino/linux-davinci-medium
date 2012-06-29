@@ -246,6 +246,14 @@ config EP93XX_PWM
 	  To compile this driver as a module, choose M here: the module will
 	  be called ep93xx_pwm.
 
+config MICROCHIP_MCP4531
+	tristate "Microchip Digital Potentiometers "
+	depends on I2C
+	help
+	  This option enables device driver support for the Microchip 
+	  Digital Potentiometers.
+	  Device MCP4531 (10kohm , 129 Step)	
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

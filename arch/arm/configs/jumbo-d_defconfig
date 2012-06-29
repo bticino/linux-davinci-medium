@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32.17-davinci1
-# Mon May 21 12:02:23 2012
+# Wed May 30 08:53:35 2012
 #
 CONFIG_ARM=y
 CONFIG_COMPLETELY_SILENT=y
@@ -590,6 +590,7 @@ CONFIG_MISC_DEVICES=y
 # CONFIG_ICS932S401 is not set
 # CONFIG_ENCLOSURE_SERVICES is not set
 # CONFIG_ISL29003 is not set
+CONFIG_MICROCHIP_MCP4531=y
 # CONFIG_C2PORT is not set
 
 #
@@ -1682,7 +1683,6 @@ CONFIG_FRAME_POINTER=y
 CONFIG_HAVE_FUNCTION_TRACER=y
 CONFIG_TRACING_SUPPORT=y
 # CONFIG_FTRACE is not set
-# CONFIG_BUILD_DOCSRC is not set
 # CONFIG_SAMPLES is not set
 CONFIG_HAVE_ARCH_KGDB=y
 # CONFIG_KGDB is not set
