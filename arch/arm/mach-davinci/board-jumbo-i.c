@@ -116,38 +116,38 @@ static struct mtd_partition jumbo_nand_partitions[] = {
 		/* U-Boot */
 		.name           = "u-boot",
 		.offset         = 0,
-		.size           = 12 * NAND_BLOCK_SIZE,
+		.size           = 12 * NAND_BLOCK_SIZE, /* 1,536 MByte*/
 		.mask_flags     = MTD_WRITEABLE, /* force read-only */
 	}, {
 		/* U-Boot environment */
 		.name           = "u-boot e",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = 2 * NAND_BLOCK_SIZE,
+		.size           = 2 * NAND_BLOCK_SIZE, /* 256 kByte*/
 		.mask_flags     = 0,
 	}, {	/* Recovery copy of kernel */
 		.name           = "kernel_c",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = SZ_8M,
+		.size           = SZ_8M, /* 8 MByte*/
 		.mask_flags     = 0,
 	}, {	/* Recovery copy of rootfs */
 		.name           = "rootfs_c",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = 20 * SZ_1M,
+		.size           = 40 * SZ_1M, /* 40 MByte */
 		.mask_flags     = 0,
 	}, {	/* Primary copy of kernel */
 		.name           = "kernel",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = SZ_8M,
+		.size           = SZ_8M, /* 8 MByte */
 		.mask_flags     = 0,
 	}, {	/* Primary copy of rootfs */
 		.name           = "rootfs",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = SZ_70M,
+		.size           = SZ_128M + 10 * SZ_1M, /* 138 MByte */
 		.mask_flags     = 0,
 	}, {	/* Configurations and extras */
 		.name           = "extras",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = MTDPART_SIZ_FULL,
+		.size           = MTDPART_SIZ_FULL, /* Circa 66 MByte */
 		.mask_flags     = 0,
 	}
 	/* two blocks with bad block table (and mirror) at the end */
@@ -401,7 +401,7 @@ static void pinmux_check(void)
 
 		for (i = 0; i < 5; i++) {
 			pinmux[i] = __raw_readl(pinmux_reg[i]);
-		printk("pinmux%d=%X\n",i,pinmux[i]);
+		printk(KERN_INFO "pinmux%d=%X\n",i,pinmux[i]);
 	}
 }
 
