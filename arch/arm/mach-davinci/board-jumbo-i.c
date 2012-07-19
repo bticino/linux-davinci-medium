@@ -204,12 +204,18 @@ static struct tda9885_platform_data tda9885_defaults = {
 	.power = poENABLE_VIDEO_IN,
 };
 
-/*----------------------------------------------------------------------------*/
-
-/* TVP5146 : Pal Decoder */
+/* TVP5150 : Pal Decoder */
 static struct tvp5150_platform_data tvp5150_pdata = {
 	.pdn = poPDEC_PWRDNn,
 	.resetb = poPDEC_RESETn,
+};
+
+/* mc44cc373 Video Modulator */
+static u8 mc44cc373_pars[] = {0xBA, 0x18, 0x26, 0xE8};
+static struct mc44cc373_platform_data mc44cc373_pdata = {
+	.num_par = 4,
+	.pars = mc44cc373_pars,
+	.power = po_ENABLE_VIDEO_OUT,
 };
 
 /* Inputs available at the TDA9885 */
@@ -222,7 +228,7 @@ static struct v4l2_input tda9885_inputs[] = {
 	},
 };
 
-/* Inputs available at the TVP5146 */
+/* Inputs available at the TVP5150 */
 static struct v4l2_input tvp5151_inputs[] = {
 	{
 		.index = 0,
@@ -231,6 +237,18 @@ static struct v4l2_input tvp5151_inputs[] = {
 		.std = V4L2_STD_PAL,
 	},
 };
+
+/* Output available at the mc44cc373 */
+/*
+static struct v4l2_output mc44cc373_output[] = {
+	{
+		.index = 0,
+		.name = "Video Composite",
+		.type = V4L2_OUTPUT_TYPE_ANALOG,
+		.std = V4L2_STD_PAL,
+	},
+};
+*/
 
 /*
  * this is the route info for connecting each input to decoder
@@ -245,6 +263,17 @@ static struct vpfe_route tvp5151_routes[] = {
 };
 
 static struct vpfe_subdev_info vpfe_sub_devs[] = {
+	{
+		.module_name = "tda9885",
+		.grp_id = VPFE_SUBDEV_TVP5150,
+		.num_inputs = 1,
+		.inputs = tda9885_inputs,
+		.can_route = 1,
+		.board_info = {
+			I2C_BOARD_INFO("tda9885", 0x43),
+			.platform_data = &tda9885_defaults,
+		},
+	},
 	{
 		.module_name = "tvp5150",
 		.grp_id = VPFE_SUBDEV_TVP5150,
@@ -262,18 +291,6 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 			.platform_data = &tvp5150_pdata,
 		},
 	},
-	{
-		.module_name = "tda9885",
-		.grp_id = VPFE_SUBDEV_TVP5150,
-		.num_inputs = 1,
-		.inputs = tda9885_inputs,
-		.can_route = 1,
-		.board_info = {
-			I2C_BOARD_INFO("tda9885", 0x43),
-			.platform_data = &tda9885_defaults,
-		},
-	},
-
 };
 
 /* Set : video_input */
@@ -747,15 +764,15 @@ static void jumbo_gpio_configure(void)
 	gpio_request(0, "GIO0"); /* pi_INTERRUPT */
 	gpio_direction_input(0);
 
-	gpio_configure_in (DM365_GPIO50, piPOWER_FAILn, "piPOWER_FAILn");
-	gpio_configure_in (DM365_GPIO64_57, piINT_UART_An, "piINT_UART_An");
-	gpio_configure_in (DM365_GPIO64_57, piTMK_INTn, "piTMK_INTn (RTC)");
-	gpio_configure_in (DM365_GPIO26, piINT_UART_Bn, "piINT_UART_Bn");
-	gpio_configure_in (DM365_GPIO100, piGPIO_INTn, "piGPIO_INTn");
-	gpio_configure_in (DM365_GPIO101, piOCn, "Over Current VBUS");
-	gpio_configure_in (DM365_GPIO96, piSD_DETECTn, "SD detec");
-	gpio_configure_in (DM365_GPIO88, pi_GPIO_2, "pi_GPIO_2");
-	gpio_configure_in (DM365_GPIO89, pi_GPIO_1, "pi_GPIO_1");
+	gpio_configure_in(DM365_GPIO50, piPOWER_FAILn, "piPOWER_FAILn");
+	gpio_configure_in(DM365_GPIO64_57, piINT_UART_An, "piINT_UART_An");
+	gpio_configure_in(DM365_GPIO64_57, piTMK_INTn, "piTMK_INTn (RTC)");
+	gpio_configure_in(DM365_GPIO26, piINT_UART_Bn, "piINT_UART_Bn");
+	gpio_configure_in(DM365_GPIO100, piGPIO_INTn, "piGPIO_INTn");
+	gpio_configure_in(DM365_GPIO101, piOCn, "Over Current VBUS");
+	gpio_configure_in(DM365_GPIO96, piSD_DETECTn, "SD detec");
+	gpio_configure_in(DM365_GPIO88, pi_GPIO_2, "pi_GPIO_2");
+	gpio_configure_in(DM365_GPIO89, pi_GPIO_1, "pi_GPIO_1");
 
 	/* -- Configure Output -----------------------------------------------*/
 
@@ -763,40 +780,45 @@ static void jumbo_gpio_configure(void)
 	//gpio_configure_out (DM365_GPIO89, poEN_SOUND_DIFF, 0,	/* Fatta Ripresa su GIO89 (su schema GPIO_1) */
 		//"Audio modulator Enable on external connector");
 
-	gpio_configure_out (DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
-	gpio_configure_out (DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
-	gpio_configure_out (DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXT_UART");
-	gpio_configure_out (DM365_GPIO45, poBOOT_FL_WPn, 1, "Protect SPI ChipSelect");
-	gpio_configure_out (DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
-	gpio_configure_out (DM365_GPIO99, poPIC_RESETn, 1,
-				"PIC AV and PIC AI reset");
-	gpio_configure_out (DM365_GPIO28, poRESET_CONFn, 0, "poRESET_CONFn");
-	gpio_configure_out (DM365_GPIO86, po_NAND_WPn, 1, "po_NAND_WriteProtect_n,");
-	gpio_configure_out (DM365_GPIO97, po_EN_SW_USB, 0, "po_EN_SW_USB");
-	gpio_configure_out (DM365_GPIO98, po_EN_PWR_USB, 0, "po_EN_PWR_USB");
+	gpio_configure_out(DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
+	gpio_configure_out(DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
+	gpio_configure_out(DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXT_UART");
+	gpio_configure_out(DM365_GPIO45, poBOOT_FL_WPn, 1,
+			"Protect SPI ChipSelect");
+	gpio_configure_out(DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
+	gpio_configure_out(DM365_GPIO99, poPIC_RESETn, 1,
+			"PIC AV and PIC AI reset");
+	gpio_configure_out(DM365_GPIO28, poRESET_CONFn, 0, "poRESET_CONFn");
+	gpio_configure_out(DM365_GPIO86, po_NAND_WPn, 1,
+			"po_NAND_WriteProtect_n,");
+	gpio_configure_out(DM365_GPIO97, po_EN_SW_USB, 0, "po_EN_SW_USB");
+	gpio_configure_out(DM365_GPIO98, po_EN_PWR_USB, 0, "po_EN_PWR_USB");
 
 	/* enabled, to allow i2c attach */
-	gpio_configure_out (DM365_GPIO64_57, poENABLE_VIDEO_IN, 1,
+	gpio_configure_out(DM365_GPIO64_57, poENABLE_VIDEO_IN, 1,
 				"Enable video demodulator");
-	gpio_configure_out (DM365_GPIO103, poPDEC_PWRDNn, 1,
+	/* Pal Decoder : NON PDW DOWN */
+	gpio_configure_out(DM365_GPIO103, poPDEC_PWRDNn, 1,
 				"Pal-Decoder power down");
         /*
 	 * The I2CSEL tvp5151 input is sampled when its resetb input is down,
          * assigning the i2c address.
 	 */
-	gpio_configure_out (DM365_GPIO102, poPDEC_RESETn, 0,
+	gpio_configure_out(DM365_GPIO102, poPDEC_RESETn, 0,	/* RESET */
 				"PAL decoder Reset");
         mdelay(10);
+	/* NON RESET */
         gpio_direction_output(poPDEC_RESETn, 1);
+
 	gpio_configure_out (DM365_GPIO64_57, po_ENABLE_VIDEO_OUT, 0,
 				"po_ENABLE_VIDEO_OUT");
 
-	gpio_configure_out (DM365_GPIO90, po_AUDIO_RESET, 1, "po_AUDIO_RESET");
-	gpio_configure_out (DM365_GPIO91, po_AUDIO_DEEMP, 0, "po_AUDIO_DEEMP");
-	gpio_configure_out (DM365_GPIO92, po_AUDIO_MUTE, 0, "po_AUDIO_MUTE");
-	gpio_configure_out (DM365_GPIO68, po_EN_FONICA, 1, "po_EN_FONICA");
-	gpio_configure_out (DM365_GPIO64_57, poZARLINK_CS, 1,"poZARLINK_CS");
-	gpio_configure_out (DM365_GPIO72, poZARLINK_RESET, 0,
+	gpio_configure_out(DM365_GPIO90, po_AUDIO_RESET, 1, "po_AUDIO_RESET");
+	gpio_configure_out(DM365_GPIO91, po_AUDIO_DEEMP, 0, "po_AUDIO_DEEMP");
+	gpio_configure_out(DM365_GPIO92, po_AUDIO_MUTE, 0, "po_AUDIO_MUTE");
+	gpio_configure_out(DM365_GPIO68, po_EN_FONICA, 1, "po_EN_FONICA");
+	gpio_configure_out(DM365_GPIO64_57, poZARLINK_CS, 1, "poZARLINK_CS");
+	gpio_configure_out(DM365_GPIO72, poZARLINK_RESET, 0,
 					"poZARLINK_RESET");
 
 	/* -- Export For Debug -----------------------------------------------*/
@@ -930,14 +952,6 @@ static struct platform_device jumbo_asoc_device[] = {
 static struct snd_platform_data dm365_jumbo_snd_data;
 
 /*----------------------------------------------------------------------------*/
-
-static u8 mc44cc373_pars[] = {0xBA, 0x18, 0x26, 0xE8};
-
-static struct mc44cc373_platform_data mc44cc373_pdata = {
-	.num_par = 4,
-	.pars = mc44cc373_pars,
-	.power = po_ENABLE_VIDEO_OUT,
-};
 
 /* I2C 7bit Adr */
 static struct i2c_board_info __initdata jumbo_i2c_info[] = {
