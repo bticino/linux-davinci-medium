@@ -553,11 +553,11 @@ static void enableDigitalOutput(int bEnable)
 			/* Select EXTCLK as video clock source */
 			__raw_writel(0x1a, IO_ADDRESS(SYS_VPSS_CLKCTL));
 
-			/* Set PINMUX for GPIO82 */			
+			/* Set PINMUX for GPIO82 */
 			davinci_cfg_reg(DM365_GPIO82);
-			
+
 			gpio_request(82, "lcd_oe");
-			
+
 			/* Set GPIO82 low */
 			gpio_direction_output(82, 0);
 			gpio_set_value(82, 0);
@@ -686,7 +686,6 @@ static void davinci_enc_set_pal(struct vid_enc_mode_info *mode_info)
 	dispc_reg_merge(VENC_SYNCCTL, 1 << VENC_SYNCCTL_OVD_SHIFT,
 			VENC_SYNCCTL_OVD);
 
-	
 	osd_write_left_margin(mode_info->left_margin);
 	/* PAL display shows shakiness in the OSD0 when
 	 * this is set to upper margin. Need to bump it
@@ -1107,7 +1106,7 @@ static void davinci_enc_set_1080i(struct vid_enc_mode_info *mode_info)
 
 		osd_write_left_margin(mode_info->left_margin);
 		osd_write_upper_margin(mode_info->upper_margin);
-	
+
 		davinci_cfg_reg(DM355_VOUT_FIELD);
 		davinci_cfg_reg(DM355_VOUT_COUTL_EN);
 		davinci_cfg_reg(DM355_VOUT_COUTH_EN);

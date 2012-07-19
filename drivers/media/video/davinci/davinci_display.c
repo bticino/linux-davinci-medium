@@ -107,6 +107,22 @@ static struct v4l2_rect vga_bounds = DAVINCI_DISPLAY_WIN_640_480;
 static struct v4l2_rect hd_720p_bounds = DAVINCI_DISPLAY_WIN_720P;
 static struct v4l2_rect hd_1080i_bounds = DAVINCI_DISPLAY_WIN_1080I;
 
+/* to enable debug
+#define DEBUG
+
+#if defined(DEBUG)
+#define dev_dbg(dev, format, arg...)            \
+	dev_printk(KERN_DEBUG , dev , format , ## arg)
+#elif defined(CONFIG_DYNAMIC_DEBUG)
+#define dev_dbg(dev, format, ...) do { \
+	dynamic_dev_dbg(dev, format, ##__VA_ARGS__); \
+	} while (0)
+#else
+#define dev_dbg(dev, format, arg...)            \
+	({ if (0) dev_printk(KERN_DEBUG, dev, format, ##arg); 0; })
+#endif
+*/
+
 /*
  * davinci_buffer_prepare()
  * This is the callback function called from videobuf_qbuf() function

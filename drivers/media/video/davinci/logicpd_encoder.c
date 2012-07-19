@@ -402,7 +402,8 @@ static int logicpd_encoder_enumoutput(int index, char *output,
 	strncpy(output,
 		logicpd_encoder_configuration.output[index].output_name,
 		VID_ENC_NAME_MAX_CHARS);
-	printk(KERN_DEBUG "</logicpd_encoder_enumoutput>\n");
+	printk(KERN_DEBUG "</logicpd_encoder_enumoutput> index = %d , output = %s \n",
+			index, output);
 	return err;
 }
 

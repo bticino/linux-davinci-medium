@@ -507,6 +507,8 @@ static int __video_register_device(struct video_device *vdev, int type, int nr,
 	vdev->num = nr;
 	devnode_set(vdev);
 
+	/* vdev->debug = V4L2_DEBUG_IOCTL_ARG; */ /* To Enable Debug */
+
 	/* Should not happen since we thought this minor was free */
 	WARN_ON(video_device[vdev->minor] != NULL);
 	vdev->index = get_index(vdev);

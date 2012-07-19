@@ -30,8 +30,8 @@
  *
  *
  *    decoder(TVP5146/		YUV/
- * 	     MT9T001)   -->  Raw Bayer RGB ---> MUX -> VPFE (CCDC/ISIF)
- *    				data input              |      |
+ *	     MT9T001)   -->  Raw Bayer RGB ---> MUX -> VPFE (CCDC/ISIF)
+ *				data input              |      |
  *							V      |
  *						      SDRAM    |
  *							       V
@@ -2631,6 +2631,8 @@ static __init int vpfe_probe(struct platform_device *pdev)
 	unsigned long phys_end_kernel;
 	size_t size;
 
+	/* debug = 1; */ /* To Enable Print for Debug */
+
 	/* Get the pointer to the device object */
 	vpfe_dev = vpfe_initialize();
 
@@ -2734,7 +2736,8 @@ static __init int vpfe_probe(struct platform_device *pdev)
 	vfd->minor		= -1;
 	vfd->tvnorms		= 0;
 	vfd->current_norm	= V4L2_STD_NTSC;
-	vfd->v4l2_dev 		= &vpfe_dev->v4l2_dev;
+	vfd->v4l2_dev		= &vpfe_dev->v4l2_dev;
+	/* vfd->debug		= V4L2_DEBUG_IOCTL; */ /* For Debug */
 	snprintf(vfd->name, sizeof(vfd->name),
 		 "%s_V%d.%d.%d",
 		 CAPTURE_DRV_NAME,

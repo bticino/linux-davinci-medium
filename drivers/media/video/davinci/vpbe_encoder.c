@@ -509,7 +509,7 @@ static int vpbe_encoder_setmode(struct vid_enc_mode_info *mode_info,
 {
 	int err = 0, outindex, i, dm6446 = 0, dm355 = 0, dm365 = 0;
 	char *mode;
-	struct vid_enc_mode_info *my_mode_info;
+	char *mymode = NULL;
 
 	if ((NULL == enc) || (NULL == mode_info)) {
 		printk(KERN_ERR "NULL Pointer\n");
@@ -532,7 +532,6 @@ static int vpbe_encoder_setmode(struct vid_enc_mode_info *mode_info,
 		return -EINVAL;
 
 	if (mode_info->std) {
-		char *mymode = NULL;
 		/* This is a standard mode */
 		for (i = 0;
 		     i <
@@ -714,7 +713,7 @@ static int vpbe_encoder_setmode(struct vid_enc_mode_info *mode_info,
 		printk(KERN_ERR "Mode not supported..\n");
 		return -EINVAL;
 	}
-	printk(KERN_DEBUG "</vpbe_encoder_setmode>\n");
+	printk(KERN_DEBUG "</vpbe_encoder_setmode>,  New MODE = %s \n", mymode);
 	return err;
 }
 
@@ -735,7 +734,8 @@ static int vpbe_encoder_getmode(struct vid_enc_mode_info *mode_info,
 		return -EINVAL;
 	}
 	memcpy(mode_info, my_mode_info, sizeof(struct vid_enc_mode_info));
-	printk(KERN_DEBUG "<vpbe_encoder_getmode/>\n");
+	printk(KERN_DEBUG "<vpbe_encoder_getmode/>  My_mode = %s \n",
+		my_mode_info->name);
 	return err;
 }
 
@@ -850,7 +850,8 @@ static int vpbe_encoder_enumoutput(int index, char *output,
 	strncpy(output,
 		vpbe_encoder_configuration.output[index].output_name,
 		VID_ENC_NAME_MAX_CHARS);
-	printk(KERN_DEBUG "</vpbe_encoder_enumoutput>\n");
+	printk(KERN_DEBUG "</vpbe_encoder_enumoutput> index = %d , out = %s \n",
+			index, output);
 	return err;
 }
 
@@ -971,6 +972,12 @@ static int vpbe_encoder_init(void)
 		    VPBE_DM365_ENCODER_MAX_NO_OUTPUTS;
 		vpbe_encoder_configuration.output[0].no_of_standard =
 		    VPBE_DM365_ENCODER_COMPOSITE_NUM_STD;
+		vpbe_encoder_configuration.output[0].output_name =
+		    VID_ENC_OUTPUT_COMPOSITE,
+		vpbe_encoder_configuration.output[0].standards[0] =
+		    VID_ENC_STD_NTSC,
+		vpbe_encoder_configuration.output[0].standards[1] =
+		    VID_ENC_STD_PAL,
 		vpbe_encoder_configuration.output[1].no_of_standard =
 		    VPBE_DM365_ENCODER_COMPONENT_NUM_STD;
 		vpbe_encoder_configuration.output[1].output_name =
