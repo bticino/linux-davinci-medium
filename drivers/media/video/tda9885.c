@@ -3,6 +3,7 @@
  *
  * Copyright (c) 2010 Rodolfo Giometti <giometti@linux.it>
  * Copyright (c) 2011 Bticino S.p.A. <raffaele.recalcati@bticino.it>
+ * Copyright (c) 2012 Bticino S.p.A. <simone.cianni@bticino.it>
  * The former driver of Rodolfo Giometti has been converted
  * to a subdev one.
  *
@@ -48,25 +49,58 @@ static int tda9885_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	return 0;
 }
 
-static int tda9885_querystd(struct v4l2_subdev *sd, v4l2_std_id *std)
+/* Power On/Of Sequence*/
+static int tda9885_set_status(struct v4l2_subdev *sd, int enable)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct tda9885 *t = to_state(sd);
 	int ret;
+
 	u8 status;
 	u8 buf[] = {
 		0, t->pdata->switching_mode, t->pdata->adjust_mode, t->pdata->data_mode,
 	};
 
-	v4l2_dbg(1, debug, sd, "Switching ON the demodulator\n");
+	if (enable == 1) {
+		/* Power up */
+		v4l2_dbg(1, debug, sd, "Switching ON the demodulator\n");
+		gpio_set_value(t->pdata->power, 1);
 
-	/*
-	 * This chip is very simple, just write first the base address
-	 * and then all registers settings.
-	 */
-	ret = i2c_master_send(client, buf, ARRAY_SIZE(buf));
-	ret = (ret == ARRAY_SIZE(buf)) ? 0 : ret;
-	v4l2_dbg(1, debug, sd, "Reading status byte\n");
+		/* Little delay for power up */
+		mdelay(5);
+
+		/* Setting Up the device */
+		ret = i2c_master_send(client, buf, ARRAY_SIZE(buf));
+		ret = (ret == ARRAY_SIZE(buf)) ? 0 : ret;
+		if (ret != 0)
+			v4l2_dbg(1, debug, sd, "ret=%d", ret);
+		ret = 0;
+
+		v4l2_dbg(1, debug, sd, "Reading status byte\n");
+		ret = i2c_master_recv(client, &status, 1);
+		if (unlikely(ret != 1))
+			dev_err(&client->dev, "wanted %d bytes, got %d\n",
+				1, ret);
+		v4l2_dbg(1, debug, sd, "Status byte 0x%02X\n", status);
+		ret = 0;
+	} else {
+		/* Power Down */
+		v4l2_dbg(1, debug, sd, "Switching OFF the demodulator\n");
+		gpio_set_value(t->pdata->power, 0);
+		ret = 0;
+	}
+	return ret;
+}
+
+static int tda9885_querystd(struct v4l2_subdev *sd, v4l2_std_id *std)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	int ret;
+	u8 status;
+
+	/* Power Up */
+	tda9885_set_status(sd, 1);
+
 	ret = i2c_master_recv(client, &status, 1);
 	if (unlikely(ret != 1))
 		dev_err(&client->dev, "wanted %d bytes, got %d\n",
@@ -88,66 +122,13 @@ static int tda9885_querystd(struct v4l2_subdev *sd, v4l2_std_id *std)
 
 static int tda9885_s_stream(struct v4l2_subdev *sd, int enable)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct tda9885 *t = to_state(sd);
-	int ret;
-	u8 buf[] = {
-		0, t->pdata->switching_mode, t->pdata->adjust_mode, t->pdata->data_mode,
-	};
-
-	switch (enable) {
-	case 0:
-	{
-		v4l2_dbg(1, debug, sd, "Switching OFF the demodulator\n");
-		/* Power Down */
-		gpio_set_value(t->pdata->power, 0);
-		ret = 0;
-		break;
-	}
-	case 1:
-	{
-		v4l2_dbg(1, debug, sd, "Switching ON the demodulator\n");
-		/* Power up */
-		gpio_set_value(t->pdata->power, 1);
-
-		/*
-		 * Little delay for power up
-		 * datasheet: time constant (R × C) for network
-		 * without i2c bus is 1.2 usec
-		*/
-		mdelay(1);
-
-		/*
-		 * This chip is very simple, just write first the base address
-		 * and then all registers settings.
-		 */
-		ret = i2c_master_send(client, buf, ARRAY_SIZE(buf));
-		ret = (ret == ARRAY_SIZE(buf)) ? 0 : ret;
-
-		v4l2_dbg(1, debug, sd, "Reading status byte\n");
-		ret = i2c_master_recv(client, buf, 1);
-		if (unlikely(ret != 1))
-			dev_err(&client->dev, "wanted %d bytes, got %d\n",
-				1, ret);
-		v4l2_dbg(1, debug, sd, "Status byte 0x%02X\n", buf[0]);
-		ret = 0;
-		break;
-	}
-	default:
-		return -ENODEV;
-		break;
-	}
-
-	return ret;
+	return tda9885_set_status(sd, enable);
 }
 
 static int tda9885_s_power(struct v4l2_subdev *sd, int power)
 {
-	struct tda9885 *t = to_state(sd);
-
-	return tda9885_s_stream(sd, power);
+	return tda9885_set_status(sd, power);
 }
-
 
 static const struct v4l2_subdev_video_ops tda9885_video_ops = {
 	.s_stream = tda9885_s_stream,
@@ -173,6 +154,8 @@ static int tda9885_probe(struct i2c_client *client,
 	struct tda9885 *data;
 	struct v4l2_subdev *sd;
 	int err = 0;
+
+	/* debug = 1; */
 
 	v4l_info(client, "chip found @ 0x%02x (%s)\n",
 			client->addr << 1, client->adapter->name);
