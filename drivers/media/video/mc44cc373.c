@@ -103,7 +103,12 @@ static int mc44cc373_s_std_output(struct v4l2_subdev *sd, v4l2_std_id std)
 
 int mc44cc373_s_stream(struct v4l2_subdev *sd, int enable)
 {
-	return mc44cc373_s_power(sd,1);
+	if (enable == 1)
+		v4l2_dbg(0, debug, sd, "Power Up Sequence \n");
+	else
+		v4l2_dbg(0, debug, sd, "Power Down Sequence \n");
+
+	return mc44cc373_s_power(sd, enable);
 }
 
 static const struct v4l2_subdev_video_ops mc44cc373_video_ops = {
@@ -152,9 +157,9 @@ static ssize_t enable_show(struct device *cdev, struct device_attribute *attr,
 
         p = sprintf(buf, name);
 	if (dev->status)
-        	p += sprintf(buf + p, "on \n");
+		p += sprintf(buf + p, "on \n");
 	else
-        	p += sprintf(buf + p, "off \n");
+		p += sprintf(buf + p, "off \n");
 
         return p;
 
@@ -264,7 +269,7 @@ static void remove_sysfs_files(struct mc44cc373_device *dev)
 /*----------------------------------------------------------------------------*/
 
 /*******************************************************************************
- 			 i2c interface functions 
+			 i2c interface functions
 *******************************************************************************/
 
 //static struct mc44cc373 *mc44cc373_data;
@@ -272,6 +277,8 @@ static int mc44cc373_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
 	struct v4l2_subdev *sd;
+
+	/* debug = 1; */
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -ENODEV;
@@ -302,7 +309,7 @@ static int mc44cc373_probe(struct i2c_client *client,
 	for (i=0; i < mc44cc373_data->pdata->num_par; i++)
 		v4l2_dbg(1, debug, sd, "Par %d=%x", i, mc44cc373_data->pdata->pars[i]);
 
-	v4l2_info(sd, "%s Video Modulator Driver registered (ver. %s)\n", 
+	v4l2_info(sd, "%s Video Modulator Driver registered (ver. %s)\n",
 			sd->name, DRIVER_VERSION);
 	}
 

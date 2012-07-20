@@ -85,7 +85,7 @@ struct work_struct late_init_work;
 static struct timer_list startup_timer;
 #define TIME_TO_LATE_INIT 1500
 
-static int jumbo_debug = 1;
+static int jumbo_debug;
 module_param(jumbo_debug, int, 0644);
 MODULE_PARM_DESC(jumbo_debug, "Debug level 0-1");
 
@@ -108,7 +108,6 @@ static struct at24_platform_data at24_info = {
 	.context = (void *)0x19e,       /* where it gets the mac-address */
 	.wpset = wp_set,
 };
-
 /*----------------------------------------------------------------------------*/
 
 static struct mtd_partition jumbo_nand_partitions[] = {
@@ -196,7 +195,7 @@ static struct platform_device davinci_nand_device = {
 };
 /*----------------------------------------------------------------------------*/
 
-/* TDA9885 : Video Demolutator */
+/* [VideoIn] TDA9885 : Video Demolutator */
 static struct tda9885_platform_data tda9885_defaults = {
 	.switching_mode = 0xf2,
 	.adjust_mode = 0xd0,
@@ -204,13 +203,13 @@ static struct tda9885_platform_data tda9885_defaults = {
 	.power = poENABLE_VIDEO_IN,
 };
 
-/* TVP5150 : Pal Decoder */
+/* [VideoIn] TVP5150 : Pal Decoder */
 static struct tvp5150_platform_data tvp5150_pdata = {
 	.pdn = poPDEC_PWRDNn,
 	.resetb = poPDEC_RESETn,
 };
 
-/* mc44cc373 Video Modulator */
+/* [VideoOut] mc44cc373 Video Modulator */
 static u8 mc44cc373_pars[] = {0xBA, 0x18, 0x26, 0xE8};
 static struct mc44cc373_platform_data mc44cc373_pdata = {
 	.num_par = 4,
@@ -239,16 +238,14 @@ static struct v4l2_input tvp5151_inputs[] = {
 };
 
 /* Output available at the mc44cc373 */
-/*
-static struct v4l2_output mc44cc373_output[] = {
+static struct v4l2_input mc44cc373_input[] = {
 	{
 		.index = 0,
 		.name = "Video Composite",
-		.type = V4L2_OUTPUT_TYPE_ANALOG,
+		.type = V4L2_INPUT_TYPE_CAMERA,
 		.std = V4L2_STD_PAL,
 	},
 };
-*/
 
 /*
  * this is the route info for connecting each input to decoder
@@ -269,12 +266,11 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 		.num_inputs = 1,
 		.inputs = tda9885_inputs,
 		.can_route = 1,
-		.board_info = {
+		.board_info = {	/* Video Demodulator */
 			I2C_BOARD_INFO("tda9885", 0x43),
 			.platform_data = &tda9885_defaults,
 		},
-	},
-	{
+	},	{
 		.module_name = "tvp5150",
 		.grp_id = VPFE_SUBDEV_TVP5150,
 		.num_inputs = ARRAY_SIZE(tvp5151_inputs),
@@ -286,9 +282,22 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 			.hdpol = VPFE_PINPOL_POSITIVE,
 			.vdpol = VPFE_PINPOL_POSITIVE,
 		},
-		.board_info = {
+		.board_info = {	/* Pal Decoder */
 			I2C_BOARD_INFO("tvp5150", 0x5d),
 			.platform_data = &tvp5150_pdata,
+		},
+	},	{
+		/* Nota in realta e' una uscita ma questo kernel non
+		permette di gestirlo via "vpbe", nel kernel 2.6.37
+		e stata migliorata la gestione del video out */
+		.module_name = "mc44cc73",
+		.grp_id = VPFE_SUBDEV_TVP5150,
+		.num_inputs = 1,
+		.inputs = mc44cc373_input,
+		.can_route = 1,
+		.board_info = {	/*Video Modulator*/
+			I2C_BOARD_INFO("mc44cc373", 0x65),
+			.platform_data = &mc44cc373_pdata,
 		},
 	},
 };
@@ -309,7 +318,6 @@ static struct vpfe_config vpfe_cfg = {
 	.num_clocks = 1,
 	.clocks = {"vpss_master"},
 };
-
 /*----------------------------------------------------------------------------*/
 
 void jumbo_phy_power(int on)
@@ -796,22 +804,22 @@ static void jumbo_gpio_configure(void)
 
 	/* enabled, to allow i2c attach */
 	gpio_configure_out(DM365_GPIO64_57, poENABLE_VIDEO_IN, 1,
-				"Enable video demodulator");
+			"Enable video demodulator");
 	/* Pal Decoder : NON PDW DOWN */
 	gpio_configure_out(DM365_GPIO103, poPDEC_PWRDNn, 1,
-				"Pal-Decoder power down");
+			"Pal-Decoder power down");
         /*
 	 * The I2CSEL tvp5151 input is sampled when its resetb input is down,
          * assigning the i2c address.
 	 */
 	gpio_configure_out(DM365_GPIO102, poPDEC_RESETn, 0,	/* RESET */
-				"PAL decoder Reset");
+			"PAL decoder Reset");
         mdelay(10);
 	/* NON RESET */
         gpio_direction_output(poPDEC_RESETn, 1);
 
 	gpio_configure_out (DM365_GPIO64_57, po_ENABLE_VIDEO_OUT, 0,
-				"po_ENABLE_VIDEO_OUT");
+			"po_ENABLE_VIDEO_OUT");
 
 	gpio_configure_out(DM365_GPIO90, po_AUDIO_RESET, 1, "po_AUDIO_RESET");
 	gpio_configure_out(DM365_GPIO91, po_AUDIO_DEEMP, 0, "po_AUDIO_DEEMP");
@@ -819,7 +827,7 @@ static void jumbo_gpio_configure(void)
 	gpio_configure_out(DM365_GPIO68, po_EN_FONICA, 1, "po_EN_FONICA");
 	gpio_configure_out(DM365_GPIO64_57, poZARLINK_CS, 1, "poZARLINK_CS");
 	gpio_configure_out(DM365_GPIO72, poZARLINK_RESET, 0,
-					"poZARLINK_RESET");
+			"poZARLINK_RESET");
 
 	/* -- Export For Debug -----------------------------------------------*/
 
@@ -856,9 +864,9 @@ static void jumbo_gpio_configure(void)
 		gpio_export(po_EN_PWR_USB, 0);
 	}
 }
-
 /*----------------------------------------------------------------------------*/
 
+#if 0
 static int jumbo_mmc_get_ro(int module)
 {
 	// high == card's write protect switch active
@@ -899,7 +907,6 @@ static void jumbo_mmc0_configure(void)
 
 	return;
 }
-/*----------------------------------------------------------------------------*/
 
 static void jumbo_mmc1_sd1_configure(void)
 {
@@ -915,7 +922,7 @@ static void jumbo_mmc1_sd1_configure(void)
 
 	return;
 }
-/*----------------------------------------------------------------------------*/
+#endif
 
 static void jumbo_usb_configure(void)
 {
@@ -966,10 +973,13 @@ static struct i2c_board_info __initdata jumbo_i2c_info[] = {
 	{	/*Video HD*/
 		I2C_BOARD_INFO("ths7303", 0x2c),
 	},
-	{	/*Video Modulator*/
+	/*Video Modulator*/
+/*
+	{
 		I2C_BOARD_INFO("mc44cc373", 0x65),
 		.platform_data = &mc44cc373_pdata,
 	},
+*/
 };
 
 static struct davinci_i2c_platform_data i2c_pdata = {
@@ -1082,9 +1092,11 @@ static __init void jumbo_init(void)
 
 	jumbo_gpio_configure();
 	jumbo_led_init();
+
 	/* uart for expansion */
-	//davinci_cfg_reg(DM365_UART1_RXD_34);
-	//davinci_cfg_reg(DM365_UART1_TXD_25);
+	/* davinci_cfg_reg(DM365_UART1_RXD_34); */
+	/* davinci_cfg_reg(DM365_UART1_TXD_25); */
+
 	/* 2 usart for pic */
 	davinci_serial_init(&uart_config);
 	mdelay(1);
@@ -1095,11 +1107,12 @@ static __init void jumbo_init(void)
 	jumbo_init_i2c();
 
 	jumbo_emac_configure();
+
 	/* SPI for Zarlink*/
 	dm365_init_spi0(0, jumbo_spi_info, ARRAY_SIZE(jumbo_spi_info));
 
-	//jumbo_mmc0_configure();
-	//jumbo_mmc1_sd1_configure();
+	/* jumbo_mmc0_configure(); */
+	/* jumbo_mmc1_sd1_configure(); */
 
 	jumbo_usb_configure();
 	jumbo_uart_configure();
@@ -1131,5 +1144,4 @@ MACHINE_START(JUMBO_I, "BTicino Jumbo-i board")
 	.init_machine = jumbo_init,
 MACHINE_END
 
-/* End Of File */
-
+/* End Of File -------------------------------------------------------------- */
