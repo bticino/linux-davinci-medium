@@ -21,7 +21,6 @@ MODULE_DESCRIPTION("Texas Instruments TVP5150A video decoder driver");
 MODULE_AUTHOR("Mauro Carvalho Chehab");
 MODULE_LICENSE("GPL");
 
-
 static int debug;
 module_param(debug, int, 0);
 MODULE_PARM_DESC(debug, "Debug level (0-2)");
@@ -78,6 +77,11 @@ static struct v4l2_queryctrl tvp5150_qctrl[] = {
 	}
 };
 
+struct i2c_reg_value {
+	unsigned char reg;
+	unsigned char value;
+};
+
 static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable);
 static int tvp5150_try_fmt_cap(struct v4l2_subdev *sd,
 				struct v4l2_format *f);
@@ -104,29 +108,29 @@ struct tvp5150_std_info {
 static struct tvp5150_std_info tvp5150_std_list[] = {
 	/* Standard: STD_NTSC_MJ */
 	[STD_NTSC_MJ] = {
-	 .width = NTSC_NUM_ACTIVE_PIXELS,
-	 .height = NTSC_NUM_ACTIVE_LINES,
-	 .video_std = VIDEO_STD_NTSC_MJ_BIT,
-	 .standard = {
-		      .index = 0,
-		      .id = V4L2_STD_NTSC,
-		      .name = "NTSC",
-		      .frameperiod = {1001, 30000},
-		      .framelines = 525
-		     },
-	/* Standard: STD_PAL_BDGHIN */
+		.width = NTSC_NUM_ACTIVE_PIXELS,
+		.height = NTSC_NUM_ACTIVE_LINES,
+		.video_std = VIDEO_STD_NTSC_MJ_BIT,
+		.standard = {
+			.index = 0,
+			.id = V4L2_STD_NTSC,
+			.name = "NTSC",
+			.frameperiod = {1001, 30000},
+			.framelines = 525
+		},
 	},
+	/* Standard: STD_PAL_BDGHIN */
 	[STD_PAL_BDGHIN] = {
-	 .width = PAL_NUM_ACTIVE_PIXELS,
-	 .height = PAL_NUM_ACTIVE_LINES,
-	 .video_std = VIDEO_STD_PAL_BDGHIN_BIT,
-	 .standard = {
-		      .index = 1,
-		      .id = V4L2_STD_PAL,
-		      .name = "PAL",
-		      .frameperiod = {1, 25},
-		      .framelines = 625
-		     },
+		.width = PAL_NUM_ACTIVE_PIXELS,
+		.height = PAL_NUM_ACTIVE_LINES,
+		.video_std = VIDEO_STD_PAL_BDGHIN_BIT,
+		.standard = {
+			.index = 1,
+			.id = V4L2_STD_PAL,
+			.name = "PAL",
+			.frameperiod = {1, 25},
+			.framelines = 625
+		},
 	},
 	/* Standard: need to add for additional standard */
 };
@@ -135,9 +139,6 @@ struct tvp5150 {
 	struct v4l2_subdev sd;
         const struct tvp5150_platform_data *pdata;
 
-	int ver_maj;
-	int ver_min;
-	v4l2_std_id norm;	/* Current set standard */
 	u32 input;
 	u32 output;
 	int enable;
@@ -359,7 +360,8 @@ static inline void tvp5150_selmux(struct v4l2_subdev *sd)
 
 	if ((decoder->output & TVP5150_BLACK_SCREEN) || !decoder->enable)
 		input = 8;
-
+	/* FIX */
+	decoder->input = TVP5150_COMPOSITE0;
 	switch (decoder->input) {
 	case TVP5150_COMPOSITE1:
 		input |= 2;
@@ -376,6 +378,10 @@ static inline void tvp5150_selmux(struct v4l2_subdev *sd)
 			"=> tvp5150 input=%i, opmode=%i\n",
 			decoder->input, decoder->output,
 			input, opmode);
+	printk(KERN_INFO "Selecting video route: route input=%i, output=%i "
+			"=> tvp5150 input=%i, opmode=%i\n",
+			decoder->input, decoder->output,
+			input, opmode);
 
 	tvp5150_write(sd, TVP5150_OP_MODE_CTL, opmode);
 	tvp5150_write(sd, TVP5150_VD_IN_SRC_SEL_1, input);
@@ -389,11 +395,6 @@ static inline void tvp5150_selmux(struct v4l2_subdev *sd)
 	else
 		val = (val & ~0x10) | 0x40;
 	tvp5150_write(sd, TVP5150_MISC_CTL, val);
-};
-
-struct i2c_reg_value {
-	unsigned char reg;
-	unsigned char value;
 };
 
 /* Default values as sugested at TVP5150AM1 datasheet */
@@ -532,38 +533,40 @@ static const struct i2c_reg_value tvp5150_init_default[] = {
 	}
 };
 
+/* Default values as sugested at TVP5151 datasheet */
+static const struct i2c_reg_value tvp5151_init_enable[] = {
+	{       /* Activate YCrCb output 0x9 */
+		TVP5150_VD_IN_SRC_SEL_1, 0x0
+	}, {     /* Default format: 0x47. For 4:2:2: 0x40 */
+		TVP5150_MISC_CTL, 0x9
+	}, {	/* Activates video std autodetection for all standards */
+		TVP5150_AUTOSW_MSK, 0x0
+	}, {     /* Default format: 0x47. For 4:2:2: 0x40 */
+		TVP5150_DATA_RATE_SEL, 0x47
+	}, {
+		0xff, 0xff
+	}
+};
+
 /* Default values as sugested at TVP5150AM1 datasheet */
 static const struct i2c_reg_value tvp5150_init_enable[] = {
 	{
 		TVP5150_CONF_SHARED_PIN, 2
-	},{	/* Automatic offset and AGC enabled */
+	}, {	/* Automatic offset and AGC enabled */
 		TVP5150_ANAL_CHL_CTL, 0x15
-	},{	/* Activate YCrCb output 0x9 or 0xd ? */
+	}, {	/* Activate YCrCb output 0x9 or 0xd ? */
 		TVP5150_MISC_CTL, 0x6f
-	},{	/* Activates video std autodetection for all standards */
+	}, {	/* Activates video std autodetection for all standards */
 		TVP5150_AUTOSW_MSK, 0x0
-	},{	/* Default format: 0x47. For 4:2:2: 0x40 */
+	}, {	/* Default format: 0x47. For 4:2:2: 0x40 */
 		TVP5150_DATA_RATE_SEL, 0x47
-	},{
+	}, {
 		TVP5150_CHROMA_PROC_CTL_1, 0x0c
-	},{
+	}, {
 		TVP5150_CHROMA_PROC_CTL_2, 0x54
-	},{	/* Non documented, but initialized on WinTV USB2 */
+	}, {	/* Non documented, but initialized on WinTV USB2 */
 		0x27, 0x20
-	},{
-		0xff,0xff
-	}
-};
-
-/* Default values as sugested at TVP5151 datasheet */
-static const struct i2c_reg_value tvp5151_init_enable[] = {
-	{	/* Activate YCrCb output 0x9 */
-		TVP5150_VD_IN_SRC_SEL_1, 0x0
-	},{	/* Default format: 0x47. For 4:2:2: 0x40 */
-		TVP5150_MISC_CTL, 0x9
-	},{	/* Default format: 0x47. For 4:2:2: 0x40 */
-		TVP5150_DATA_RATE_SEL, 0x47
-	},{
+	}, {
 		0xff,0xff
 	}
 };
@@ -738,13 +741,13 @@ static int tvp5150_g_sliced_vbi_cap(struct v4l2_subdev *sd,
  *	LSB = field1
  *	MSB = field2
  */
+static enum tvp5150_std tvp5150_read_std(struct v4l2_subdev *sd);
 static int tvp5150_set_vbi(struct v4l2_subdev *sd,
 			const struct i2c_vbi_ram_value *regs,
 			unsigned int type,u8 flags, int line,
 			const int fields)
 {
-	struct tvp5150 *decoder = to_tvp5150(sd);
-	v4l2_std_id std = decoder->norm;
+	enum tvp5150_std std = tvp5150_read_std(sd);
 	u8 reg;
 	int pos=0;
 
@@ -790,8 +793,7 @@ static int tvp5150_set_vbi(struct v4l2_subdev *sd,
 static int tvp5150_get_vbi(struct v4l2_subdev *sd,
 			const struct i2c_vbi_ram_value *regs, int line)
 {
-	struct tvp5150 *decoder = to_tvp5150(sd);
-	v4l2_std_id std = decoder->norm;
+	enum tvp5150_std std = tvp5150_read_std(sd);
 	u8 reg;
 	int pos, type = 0;
 
@@ -821,13 +823,10 @@ static int tvp5150_get_vbi(struct v4l2_subdev *sd,
 
 static int tvp5150_set_std(struct v4l2_subdev *sd, v4l2_std_id std)
 {
-	struct tvp5150 *decoder = to_tvp5150(sd);
 	int fmt = 0;
-
-	decoder->norm = std;
+	int video_std = tvp5150_read(sd, TVP5150_VIDEO_STD);
 
 	/* First tests should be against specific std */
-
 	if (std == V4L2_STD_ALL) {
 		fmt = 0;	/* Autodetect mode */
 	} else if (std & V4L2_STD_NTSC_443) {
@@ -846,54 +845,22 @@ static int tvp5150_set_std(struct v4l2_subdev *sd, v4l2_std_id std)
 			fmt = 0xc;
 	}
 
-	v4l2_dbg(1, debug, sd, "Set video std register to %d.\n", fmt);
-	tvp5150_write(sd, TVP5150_VIDEO_STD, fmt);
+
+	video_std = (video_std & 0xf0) | fmt;
+	tvp5150_write(sd, TVP5150_VIDEO_STD, video_std);
+	v4l2_dbg(1, debug, sd, "Set video std register to std=%d., Val=%d. \n",
+			fmt, video_std);
 	return 0;
 }
 
 static int tvp5150_s_std(struct v4l2_subdev *sd, v4l2_std_id std)
 {
-	struct tvp5150 *decoder = to_tvp5150(sd);
-
-	if (decoder->norm == std)
-		return 0;
-
 	return tvp5150_set_std(sd, std);
 }
 
 static int tvp5150_reset(struct v4l2_subdev *sd, u32 val)
 {
 	struct tvp5150 *decoder = to_tvp5150(sd);
-	u8 msb_id, lsb_id, msb_rom, lsb_rom;
-
-	msb_id = tvp5150_read(sd, TVP5150_MSB_DEV_ID);
-	lsb_id = tvp5150_read(sd, TVP5150_LSB_DEV_ID);
-	msb_rom = tvp5150_read(sd, TVP5150_ROM_MAJOR_VER);
-	lsb_rom = tvp5150_read(sd, TVP5150_ROM_MINOR_VER);
-
-	if (msb_rom == 4 && lsb_rom == 0) { /* Is TVP5150AM1 */
-		v4l2_info(sd, "tvp%02x%02xam1 detected.\n", msb_id, lsb_id);
-
-		/* ITU-T BT.656.4 timing */
-		tvp5150_write(sd, TVP5150_REV_SELECT, 0);
-		/* Initializes TVP515X to its default values */
-		tvp5150_write_inittab(sd, tvp5150_init_default);
-	} else {
-		if (msb_rom == TVP515X_CHIP_ID_MSB || lsb_rom == TVP5151_CHIP_ID_LSB) {
-			/* Is TVP5151 */
-			v4l2_info(sd, "tvp%02x%02x detected.\n", msb_id, lsb_id);
-			v4l2_info(sd, "*** Rom ver is %d.%d\n", msb_rom, lsb_rom);
-		} else {
-			if (msb_rom == 3 || lsb_rom == 0x21) { /* Is TVP5150A */
-				v4l2_info(sd, "tvp%02x%02xa detected.\n", msb_id, lsb_id);
-			} else {
-				v4l2_info(sd, "*** unknown tvp%02x%02x chip detected.\n",
-					msb_id, lsb_id);
-				v4l2_info(sd, "*** Rom ver is %d.%d\n", msb_rom, lsb_rom);
-			}
-		}
-		tvp5150_write_inittab(sd, tvp5151_init_enable);
-	}
 
 	/* Initializes VDP registers */
 	tvp5150_vdp_init(sd, vbi_ram_default);
@@ -901,6 +868,8 @@ static int tvp5150_reset(struct v4l2_subdev *sd, u32 val)
 	/* Selects decoder input */
 	tvp5150_selmux(sd);
 
+	/* Initializes TVP5150 to stream enabled values */
+	tvp5150_write_inittab(sd, tvp5151_init_enable);
 
 	/* Initialize image preferences */
 	tvp5150_write(sd, TVP5150_BRIGHT_CTL, decoder->bright);
@@ -908,7 +877,7 @@ static int tvp5150_reset(struct v4l2_subdev *sd, u32 val)
 	tvp5150_write(sd, TVP5150_SATURATION_CTL, decoder->contrast);
 	tvp5150_write(sd, TVP5150_HUE_CTL, decoder->hue);
 
-	tvp5150_set_std(sd, decoder->norm);
+	tvp5150_set_std(sd, V4L2_STD_PAL); /* V4L2_STD_ALL */
 	return 0;
 };
 
@@ -966,38 +935,50 @@ static int tvp5150_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	return -EINVAL;
 }
 
-/**
- * tvp5150_get_current_std() : Get the current standard detected by TVP5150
- * @sd: ptr to v4l2_subdev struct
- *
- * Get current standard detected by TVP5150, STD_INVALID if there is no
- * standard detected.
- */
-static enum tvp5150_std tvp5150_get_current_std(struct v4l2_subdev *sd)
+static enum tvp5150_std tvp5150_read_std(struct v4l2_subdev *sd)
 {
-	u8 std, std_status;
+	enum tvp5150_std ret = STD_INVALID;
+	u8 video_std = tvp5150_read(sd, TVP5150_VIDEO_STD);
+	u8 std_status = tvp5150_read(sd, TVP5150_STATUS_REG_5);
 
-	std = tvp5150_read(sd, TVP5150_VIDEO_STD);
+	video_std = video_std & 0x0f;
 
-	if ((std & VIDEO_STD_MASK) == VIDEO_STD_AUTO_SWITCH_BIT) {
-		/* use the standard status register */
-		std_status = tvp5150_read(sd, TVP5150_STATUS_REG_5);
+	if (video_std == VIDEO_STD_AUTO_SWITCH_BIT) {
+		/* Use TVP5150_STATUS_REG_5 reg*/
+		switch (std_status & 0x0F) {
+		case 0x01:
+		case 0x09:
+			ret = STD_NTSC_MJ;
+		break;
+		case 0x03:
+		case 0x05:
+		case 0x07:
+			ret = STD_PAL_BDGHIN;
+		break;
+		case 0xb:
+		default:
+			ret = STD_INVALID;
+		break;
+		}
 	} else {
-
-		/* use the standard register itself */
-		std_status = std;
+		/* Use TVP5150_VIDEO_STD reg*/
+		switch (video_std) {
+		case 2:
+			ret = STD_NTSC_MJ;
+		break;
+		case 4:
+			ret = STD_PAL_BDGHIN;
+		break;
+		default:
+			ret = STD_INVALID;
+		break;
+		}
 	}
 
-	switch (std_status & VIDEO_STD_MASK) {
-	case VIDEO_STD_NTSC_MJ_BIT:
-		return STD_NTSC_MJ;
-	case VIDEO_STD_PAL_BDGHIN_BIT:
-		return STD_PAL_BDGHIN;
-	default:
-		return STD_INVALID;
-	}
-
-	return STD_INVALID;
+	v4l2_dbg(1, debug, sd, "Current STD (Read)   = %d \n \
+		TVP5150_VIDEO_STD    = %x \n \
+		TVP5150_STATUS_REG_5 = %x ", ret, video_std, std_status);
+	return ret;
 }
 
 /****************************************************************************
@@ -1007,7 +988,6 @@ static enum tvp5150_std tvp5150_get_current_std(struct v4l2_subdev *sd)
 /**
  * tvp5150_detect() - Detect if an tvp5150 is present, and if so which revision.
  * @sd: pointer to standard V4L2 sub-device structure
- * @decoder: pointer to tvp5150_decoder structure
  *
  * A device is considered to be detected if the chip ID (LSB and MSB)
  * registers match the expected values.
@@ -1015,37 +995,52 @@ static enum tvp5150_std tvp5150_get_current_std(struct v4l2_subdev *sd)
  * Returns ENODEV error number if no device is detected, or zero
  * if a device is detected.
  */
-static int tvp5150_detect(struct v4l2_subdev *sd,
-		struct tvp5150 *decoder)
+static int tvp5150_detect(struct v4l2_subdev *sd)
 {
-	u8 chip_id_msb, chip_id_lsb, rom_ver_maj, rom_ver_min;
+	u8 msb_id, lsb_id, msb_rom, lsb_rom;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 
-	chip_id_msb = tvp5150_read(sd, TVP5150_MSB_DEV_ID);
-	chip_id_lsb = tvp5150_read(sd, TVP5150_LSB_DEV_ID);
-	rom_ver_maj = tvp5150_read(sd, TVP5150_ROM_MAJOR_VER);
-	rom_ver_min = tvp5150_read(sd, TVP5150_ROM_MINOR_VER);
+	msb_id = tvp5150_read(sd, TVP5150_MSB_DEV_ID);
+	lsb_id = tvp5150_read(sd, TVP5150_LSB_DEV_ID);
+	msb_rom = tvp5150_read(sd, TVP5150_ROM_MAJOR_VER);
+	lsb_rom = tvp5150_read(sd, TVP5150_ROM_MINOR_VER);
 
-	v4l2_dbg(1, debug, sd,
-		 "chip id detected msb:0x%x lsb:0x%x rom version:0x%x.0x%x\n",
-		 chip_id_msb, chip_id_lsb, rom_ver_maj, rom_ver_min);
-	if ((chip_id_msb != TVP515X_CHIP_ID_MSB)
-		|| ((chip_id_lsb != TVP5150_CHIP_ID_LSB)
-		&& (chip_id_lsb != TVP5151_CHIP_ID_LSB))) {
-		/* We didn't read the values we expected, so this must not be
-		 * an TVP515x.
-		 */
-		v4l2_err(sd, "chip id mismatch msb:0x%x lsb:0x%x\n",
-				chip_id_msb, chip_id_lsb);
-		return -ENODEV;
+	if (debug == 1) {
+		v4l_info(client, "msb_id=0x%02x\n", msb_id);
+		v4l_info(client, "lsb_id=0x%02x\n", lsb_id);
+		v4l_info(client, "msb_rom=0x%02x\n", msb_rom);
+		v4l_info(client, "lsb_rom=0x%02x\n", lsb_rom);
 	}
 
-	decoder->ver_maj = rom_ver_maj;
-	decoder->ver_min = rom_ver_min;
+	switch ((msb_id << 8) + lsb_id) {
+	case 0x5150:
+		v4l2_info(sd, "tvp%02x%02x (ROM 0x%02x%02x)detected.\n",
+				msb_id, lsb_id, msb_rom, lsb_rom);
+		if (msb_rom == 4 && lsb_rom == 0) { /* Is TVP5150AM1 */
+			v4l2_info(sd, "AM1 type detected.\n");
 
-	v4l2_dbg(1, debug, sd, "%s (Version - 0x%.2x,0x%.2x) found at 0x%x (%s)\n",
-			client->name, decoder->ver_maj, decoder->ver_min,
-			client->addr << 1, client->adapter->name);
+			/* ITU-T BT.656.4 timing */
+			tvp5150_write(sd, TVP5150_REV_SELECT, 0);
+		} else {
+			if (msb_rom == 3 || lsb_rom == 0x21) { /* Is TVP5150A */
+				v4l2_info(sd, "A type detected\n");
+			} else {
+				v4l2_info(sd, "unknown rom chip detected.\n");
+			}
+		}
+		break;
+	case 0x5151:
+		v4l2_info(sd, "5151 type detected.\n");
+
+		/* Initializes TVP5150 to stream enabled values */
+		tvp5150_write_inittab(sd, tvp5151_init_enable);
+
+		break;
+	default:
+		v4l2_info(sd, "*** unknown device id detected.\n");
+		return -ENODEV;
+		/* break; */
+	}
 	return 0;
 }
 
@@ -1055,55 +1050,27 @@ static int tvp5150_detect(struct v4l2_subdev *sd,
  * @std_id: standard V4L2 std_id ioctl enum
  *
  * Returns the current standard detected by TVP5150. If no active input is
- * detected, returns -EINVAL
+ * detected then *std_id is set to 0 and the function returns 0.
  */
 static int tvp5150_querystd(struct v4l2_subdev *sd, v4l2_std_id *std_id)
 {
-	struct tvp5150 *decoder = to_tvp5150(sd);
 	enum tvp5150_std current_std;
-	enum tvp5150_input input_sel;
-	u8 sync_lock_status, lock_mask;
+
 	if (std_id == NULL)
 		return -EINVAL;
 
-//	tvp5150_write(sd, TVP5150_VIDEO_STD,VIDEO_STD_AUTO_SWITCH_BIT);
-//
-//	msleep(LOCK_RETRY_DELAY);
-//
-//        printk("%s -%d\n", __func__, __LINE__);
-	/* get the current standard */
-	current_std = tvp5150_get_current_std(sd);
+	*std_id = STD_INVALID;
+
+	/* query the current standard */
+	current_std = tvp5150_read_std(sd);
 	if (current_std == STD_INVALID)
-		return -EINVAL;
+		return 0;
 
-	input_sel = decoder->input;
+	*std_id = tvp5150_std_list[current_std].standard.id;
 
-	switch (input_sel) {
-	case TVP5150_COMPOSITE0:
-	case TVP5150_COMPOSITE1:
-		lock_mask = STATUS_CLR_SUBCAR_LOCK_BIT |
-			STATUS_HORZ_SYNC_LOCK_BIT |
-			STATUS_VIRT_SYNC_LOCK_BIT;
-		break;
+	v4l2_dbg(1, debug, sd, "Current STD: %s\n",
+		tvp5150_std_list[current_std].standard.name);
 
-	case TVP5150_SVIDEO:
-		lock_mask = STATUS_HORZ_SYNC_LOCK_BIT |
-			STATUS_VIRT_SYNC_LOCK_BIT;
-		break;
-		/*Need to add other interfaces*/
-	default:
-		return -EINVAL;
-	}
-	/* check whether signal is locked */
-	sync_lock_status = tvp5150_read(sd, TVP5150_STATUS_REG_1);
-	if (lock_mask != (sync_lock_status & lock_mask))
-		return -EINVAL;	/* No input detected */
-
-	decoder->current_std = current_std;
-	*std_id = decoder->std_list[current_std].standard.id;
-
-	v4l2_dbg(1, debug, sd, "Current STD: %s",
-			decoder->std_list[current_std].standard.name);
 	return 0;
 }
 
@@ -1190,7 +1157,7 @@ static int tvp5150_s_routing(struct v4l2_subdev *sd,
 		msleep(LOCK_RETRY_DELAY);
 
 		/* get the current standard for future reference */
-		current_std = tvp5150_get_current_std(sd);
+		current_std = tvp5150_read_std(sd);
 		if (current_std == STD_INVALID)
 			continue;
 
@@ -1368,7 +1335,6 @@ static int tvp5150_queryctrl(struct v4l2_subdev *sd, struct v4l2_queryctrl *qc)
 	int i;
 
 	v4l2_dbg(1, debug, sd, "queryctrl called\n");
-
 	for (i = 0; i < ARRAY_SIZE(tvp5150_qctrl); i++)
 		if (qc->id && qc->id == tvp5150_qctrl[i].id) {
 			memcpy(qc, &(tvp5150_qctrl[i]),
@@ -1406,7 +1372,7 @@ tvp5150_try_fmt_cap(struct v4l2_subdev *sd, struct v4l2_format *f)
 	pix = &f->fmt.pix;
 
 	/* Calculate height and width based on current standard */
-	current_std = tvp5150_get_current_std(sd);
+	current_std = tvp5150_read_std(sd);
 	if (current_std == STD_INVALID)
 		return -EINVAL;
 
@@ -1464,7 +1430,7 @@ tvp5150_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
 	a->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
 	/* get the current standard */
-	current_std = tvp5150_get_current_std(sd);
+	current_std = tvp5150_read_std(sd);
 	if (current_std == STD_INVALID)
 		return -EINVAL;
 
@@ -1503,7 +1469,7 @@ tvp5150_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
 	timeperframe = &a->parm.capture.timeperframe;
 
 	/* get the current standard */
-	current_std = tvp5150_get_current_std(sd);
+	current_std = tvp5150_read_std(sd);
 	if (current_std == STD_INVALID)
 		return -EINVAL;
 
@@ -1534,6 +1500,7 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 	case 0:
 	{
 		/* Power Down Sequence */
+		v4l2_dbg(0, debug, sd, "Power Down Sequence \n");
 		tvp5150_write(sd, TVP5150_OP_MODE_CTL, 0x01);
 		decoder->streaming = enable;
 
@@ -1542,10 +1509,11 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 	case 1:
 	{
 		/* Power Up Sequence */
+		v4l2_dbg(0, debug, sd, "Power Up Sequence \n");
 		tvp5150_write(sd, TVP5150_OP_MODE_CTL, 0x00);
 
 		/* Detect if not already detected */
-		err = tvp5150_detect(sd, decoder);
+		err = tvp5150_detect(sd);
 		if (err) {
 			v4l2_err(sd, "Unable to detect decoder\n");
 			return err;
@@ -1658,7 +1626,6 @@ static const struct v4l2_subdev_ops tvp5150_ops = {
 
 static struct tvp5150 tvp5150_dev = {
 	.streaming = 0,
-	.norm = V4L2_STD_ALL,	/* Default is autodetect */
 	.input = TVP5150_COMPOSITE0,
 	.enable = 1,
 	.bright = 128,
@@ -1695,6 +1662,8 @@ static int tvp5150_probe(struct i2c_client *c,
 	struct tvp5150 *core;
 	struct v4l2_subdev *sd;
 
+	/* debug = 1; */
+
 	/* Check if the adapter supports the needed features */
 	if (!i2c_check_functionality(c->adapter,
 	     I2C_FUNC_SMBUS_READ_BYTE | I2C_FUNC_SMBUS_WRITE_BYTE_DATA))
@@ -1723,7 +1692,12 @@ static int tvp5150_probe(struct i2c_client *c,
 	v4l_info(c, "chip found @ 0x%02x (%s)\n",
 		 c->addr << 1, c->adapter->name);
 
-	core->norm = V4L2_STD_ALL;	/* Default is autodetect */
+#if 1
+	/* Detect if not already detected */
+	tvp5150_detect(sd);
+#endif
+
+	tvp5150_set_std(sd, V4L2_STD_PAL); /* V4L2_STD_ALL Def. is autodetect */
 	core->input = TVP5150_COMPOSITE1;
 	core->enable = 1;
 	core->bright = 128;
