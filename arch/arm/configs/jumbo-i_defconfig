@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32.17-davinci1
-# Tue Jul 17 16:34:03 2012
+# Fri Jul 20 16:07:55 2012
 #
 CONFIG_ARM=y
 CONFIG_COMPLETELY_SILENT=y
@@ -213,6 +213,7 @@ CONFIG_ARCH_DAVINCI_DM365=y
 # CONFIG_MACH_DINGO is not set
 # CONFIG_MACH_JUMBO_D is not set
 CONFIG_MACH_JUMBO_I=y
+# CONFIG_MACH_LAGO is not set
 CONFIG_DAVINCI_MUX=y
 # CONFIG_DAVINCI_MUX_DEBUG is not set
 # CONFIG_DAVINCI_MUX_WARNINGS is not set
