@@ -290,19 +290,6 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 			I2C_BOARD_INFO("tvp5150", 0x5d),
 			.platform_data = &tvp5150_pdata,
 		},
-	},	{
-		/* Nota in realta e' una uscita ma questo kernel non
-		permette di gestirlo via "vpbe", nel kernel 2.6.37
-		e stata migliorata la gestione del video out */
-		.module_name = "mc44cc73",
-		.grp_id = VPFE_SUBDEV_TVP5150,
-		.num_inputs = 1,
-		.inputs = mc44cc373_input,
-		.can_route = 1,
-		.board_info = {	/*Video Modulator*/
-			I2C_BOARD_INFO("mc44cc373", 0x65),
-			.platform_data = &mc44cc373_pdata,
-		},
 	},
 };
 
@@ -1010,26 +997,18 @@ static struct i2c_board_info __initdata jumbo_i2c_info[] = {
 	{	/* RTC */
 		I2C_BOARD_INFO("pcf8563", 0x51),
 		.irq = IRQ_DM365_GPIO0_4,
-	},
-	{	/* EEprom */
+	}, {	/* EEprom */
 		I2C_BOARD_INFO("24c256", 0x53),
 		.platform_data = &at24_info,
-	},
-	{	/*Video HD*/
+	}, {	/*Video HD*/
 		I2C_BOARD_INFO("ths7303", 0x2c),
-	},
-	/*Video Modulator*/
-/*
-	{
+	}, {	/*Video Modulator*/
 		I2C_BOARD_INFO("mc44cc373", 0x65),
 		.platform_data = &mc44cc373_pdata,
-	},
-*/
-	{	/* Digital Potentiometer*/
+	}, {	/* Digital Potentiometer*/
 		I2C_BOARD_INFO("mcp4531", 0x2e),
 		.platform_data = &mcp4531_pdata[0],
-	},
-	{	/* Digital Potentiometer*/
+	}, {	/* Digital Potentiometer*/
 		I2C_BOARD_INFO("mcp4531", 0x2f),
 		.platform_data = &mcp4531_pdata[1],
 	},
