@@ -39,3 +39,4 @@ obj-$(CONFIG_MACH_BASI)			+= board-basi.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_DINGO)		+= board-dingo.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_JUMBO_D)		+= board-jumbo-d.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_JUMBO_I)		+= board-jumbo-i.o bt_nexmed-hwmon.o
+obj-$(CONFIG_MACH_LAGO)			+= board-lago.o bt_nexmed-hwmon.o
