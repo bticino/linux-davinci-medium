@@ -137,7 +137,6 @@ obj-$(CONFIG_DM355_IPIPE)	+= imp_common.o
 obj-$(CONFIG_DM365_IPIPE)	+= imp_common.o
 obj-$(CONFIG_IMP_PREVIEWER)	+= imp_prev_driver.o
 obj-$(CONFIG_IMP_RESIZER)	+= imp_rsz_driver.o
-obj-$(CONFIG_ZL38005)		+= zl38005.o
 
 # Files generated that shall be removed upon make clean
 clean-files := consolemap_deftbl.c defkeymap.c

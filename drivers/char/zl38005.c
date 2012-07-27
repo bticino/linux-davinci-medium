@@ -37,6 +37,7 @@
 #include <linux/kthread.h>
 #include <linux/fs.h>
 #include <linux/list.h>
+#include <linux/atomic.h>
 #include <linux/smp_lock.h>
 #include <linux/cdev.h>
 #include <linux/uaccess.h>
@@ -83,6 +84,7 @@ struct zl38005 {
 	struct spi_device	*spi;
 	struct list_head	device_entry;
 	int			chip_select_gpio;
+	atomic_t		usage;
 };
 
 /* For registeration of charatcer device */
@@ -91,10 +93,6 @@ static struct cdev c_dev;
 #define DEVCOUNT 2
 
 static int zl38005_major;
-static int zl38005_minor_used = -1;
-
-static int module_usage_count;
-
 static struct zl38005 *zl38005_table[DEVCOUNT];
 
 static DEFINE_MUTEX(zl38005_list_lock);
@@ -324,9 +322,18 @@ static int zl38005_rd_reg(struct device *dev, u16 addr, int *pval, u8 mem)
 	return 0;
 }
 
-int zl38005_read(u16 addr, int *val)
+int zl38005_read(unsigned int minor, u16 addr, int *val)
 {
-	struct zl38005		*zl38005 = zl38005_table[zl38005_minor_used];
+	struct zl38005 *zl38005;
+
+        if (minor >= DEVCOUNT)
+                return -ENODEV;
+
+        zl38005 = zl38005_table[minor];
+        BUG_ON(!zl38005);
+
+	if (atomic_read(&zl38005->usage) == 0)
+		return -EAGAIN;
 
 	pr_debug_zl2("addr=%04X\n", addr);
 	if (zl38005_rd_reg(&zl38005->spi->dev, addr, val, DMEM))
@@ -366,14 +373,18 @@ static int zl38005_wr_reg(struct device *dev, u16 addr, u32 val, u8 mem)
 	return 0;
 }
 
-int zl38005_write(u16 addr, u16 val)
+int zl38005_write(unsigned int minor, u16 addr, u16 val)
 {
-	struct zl38005		*zl38005;
+	struct zl38005 *zl38005;
 
-	if (zl38005_minor_used == -1)
+        if (minor >= DEVCOUNT)
+                return -ENODEV;
+
+        zl38005 = zl38005_table[minor];
+        BUG_ON(!zl38005);
+
+	if (atomic_read(&zl38005->usage) == 0)
 		return -EAGAIN;
-
-	zl38005 = zl38005_table[zl38005_minor_used];
 
 	return zl38005_wr_reg(&zl38005->spi->dev, addr, val, DMEM);
 }
@@ -407,13 +418,19 @@ static int zl_checkConnection(struct device *dev)
 	return 0;
 }
 
-int zl38005_check_conn(void)
+int zl38005_check_conn(unsigned int minor)
 {
-	struct zl38005		*zl38005;
+	struct zl38005 *zl38005;
 
-	if (zl38005_minor_used == -1)
+        if (minor >= DEVCOUNT)
+                return -ENODEV;
+
+        zl38005 = zl38005_table[minor];
+        BUG_ON(!zl38005);
+
+	if (atomic_read(&zl38005->usage) == 0)
 		return -EAGAIN;
-	zl38005 = zl38005_table[zl38005_minor_used];
+
 	return zl_checkConnection(&zl38005->spi->dev);
 }
 EXPORT_SYMBOL(zl38005_check_conn);
@@ -724,55 +741,58 @@ void zl_hardwareReset(UInt16T reset_mode)
  */
 static int zl38005_open(struct inode *inode, struct file *filp)
 {
-	struct zl38005		*zl38005;
-	int err;
+	struct zl38005 *zl38005;
 	int minor = MINOR(inode->i_rdev);
+	int err;
 
-	if (minor < DEVCOUNT) {
-		if (module_usage_count) {
-			printk(KERN_ERR "at least one zl38005 device already opened\n");
-			return -EBUSY;
-		}
-		module_usage_count++;
-		zl38005_minor_used = minor;
-		zl38005 = zl38005_table[zl38005_minor_used];
-		zl38005->spi->chip_select_gpio = zl38005->chip_select_gpio;
-		err = spi_setup(zl38005->spi);
-		if (err < 0)
-			return err;
+	if (minor >= DEVCOUNT)
+		return -ENODEV;
 
-		return 0;
-	}
-	return -ENODEV;
+	zl38005 = zl38005_table[minor];
+	BUG_ON(!zl38005);
+
+	/* Only open once */
+	if (atomic_inc_return(&zl38005->usage) > 1) {
+		printk(KERN_ERR "at least one zl38005 device already opened\n");
+                atomic_dec(&zl38005->usage);
+                return -EBUSY;
+        }
+
+	zl38005->spi->chip_select_gpio = zl38005->chip_select_gpio;
+	err = spi_setup(zl38005->spi);
+	if (err < 0)
+		return err;
+
+	return 0;
 }
 
 static int zl38005_close(struct inode *inode, struct file *filp)
 {
-	int minor;
+	struct zl38005 *zl38005;
+	int minor = MINOR(inode->i_rdev);
 
-	minor = MINOR(inode->i_rdev);
-	if (minor < DEVCOUNT) {
-		if (module_usage_count)
-			module_usage_count--;
-		else {
-			printk(KERN_ERR "no one zl38005 device not opened\n");
-			return -EBUSY;
-		}
-		zl38005_minor_used = -1;
-		return 0;
-	}
-	return -ENODEV;
+	if (minor >= DEVCOUNT)
+		return -ENODEV;
+
+	zl38005 = zl38005_table[minor];
+	BUG_ON(!zl38005);
+
+	atomic_dec(&zl38005->usage);
+
+	return 0;
 }
 
 static long zl38005_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
-	struct zl38005		*zl38005;
+	int minor = iminor(f->f_path.dentry->d_inode);
+	struct zl38005 *zl38005;
 	int ret;
 
-	if (zl38005_minor_used == -1)
-		return -EAGAIN;
-	zl38005 = zl38005_table[zl38005_minor_used];
+	if (minor >= DEVCOUNT)
+		return -ENODEV;
 
+	zl38005 = zl38005_table[minor];
+	BUG_ON(!zl38005);
 
 	switch (cmd) {
 	case ZL_WR_DATA_REG:
@@ -925,6 +945,8 @@ static int zl38005_spi_probe(struct spi_device *spi)
 		zl38005 = kzalloc(sizeof(*zl38005), GFP_KERNEL);
 		if (!zl38005)
 			return -ENOMEM;
+		atomic_set(&zl38005->usage, 0);
+
 		/* Initialize driver data */
 		zl38005->chip_select_gpio = pdata[minor].chip_select_gpio;
 		if (zl38005_table[minor])
@@ -949,7 +971,11 @@ static int zl38005_spi_probe(struct spi_device *spi)
 
 static int zl38005_spi_remove(struct spi_device *spi)
 {
-	device_destroy(zl38005_class, MKDEV(zl38005_major, zl38005_minor_used));
+	int minor;
+
+	for (minor = 0; minor < DEVCOUNT; minor++)
+		device_destroy(zl38005_class, MKDEV(zl38005_major, minor));
+
 	class_destroy(zl38005_class);
 	kfree(spi_get_drvdata(spi));
 	return 0;

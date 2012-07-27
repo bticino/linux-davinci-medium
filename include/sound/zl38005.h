@@ -11,12 +11,9 @@
 #ifndef __LINUX_SND_ZL38005_H
 #define __LINUX_SND_ZL38005_H
 
-#define ZL38005_AEC_CTRL0	0x044A
-#define ZL38005_SYSGAIN		0x044D
-#define ZL38005_USRGAIN		0x046B
+#include <sound/soc.h>
 
-int zl38005_write(u16 addr, u16 val);
-int zl38005_read(u16 addr, int *val);
-int zl38005_check_conn(void);
+extern int zl38005_add_controls(unsigned int minor,
+                                        struct snd_soc_codec *codec);
 
 #endif
