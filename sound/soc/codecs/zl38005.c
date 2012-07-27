@@ -81,6 +81,7 @@ struct zl38005 {
 	struct spi_device	*spi;
 	struct list_head	device_entry;
 	int			chip_select_gpio;
+	char			chip_select_gpio_label[15];
 	int			reset_gpio;
 	char			reset_gpio_label[10];
 	atomic_t		usage;
@@ -1020,7 +1021,15 @@ static int zl38005_spi_probe(struct spi_device *spi)
 			gpio_direction_output(zl38005->reset_gpio, 1);
 			gpio_export(zl38005->reset_gpio, 0);
 		}
-
+		sprintf(zl38005->chip_select_gpio_label,
+			"ZL%d chip selet", minor);
+		if (zl38005->chip_select_gpio) {
+			if (gpio_request(zl38005->chip_select_gpio,
+					 zl38005->chip_select_gpio_label) < 0)
+				printk(KERN_ERR "can't get %s reset\n",
+				       zl38005->reset_gpio_label);
+			gpio_direction_output(zl38005->chip_select_gpio, 1);
+		}
 		if (zl38005_table[minor])
 			continue;
 		zl38005_table[minor] = zl38005;
