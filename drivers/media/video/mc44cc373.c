@@ -1,7 +1,7 @@
 /*
- * mc44cc373- THS7303 Video Amplifier driver
+ * mc44cc373- Video Modulator Driver
  *
- * Copyright (C) 2009 Texas Instruments Incorporated - http://www.ti.com/
+ * Copyright (C) 2012 bticino s.p.a
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -42,6 +42,8 @@ MODULE_LICENSE("GPL");
 static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "Debug level 0-1");
+
+struct v4l2_subdev *sd;
 
 struct mc44cc373 {
         struct v4l2_subdev sd;
@@ -109,6 +111,12 @@ int mc44cc373_s_stream(struct v4l2_subdev *sd, int enable)
 		v4l2_dbg(0, debug, sd, "Power Down Sequence \n");
 
 	return mc44cc373_s_power(sd, enable);
+}
+
+/* to have simple power on/of without v4l2 */ 
+int mc44cc373_Setting(int status)
+{
+	return mc44cc373_s_stream(sd, status);
 }
 
 static const struct v4l2_subdev_video_ops mc44cc373_video_ops = {
@@ -276,7 +284,7 @@ static void remove_sysfs_files(struct mc44cc373_device *dev)
 static int mc44cc373_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
-	struct v4l2_subdev *sd;
+	/* struct v4l2_subdev *sd; */ 
 
 	/* debug = 1; */
 

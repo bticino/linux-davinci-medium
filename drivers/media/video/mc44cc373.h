@@ -13,5 +13,5 @@
 
 /* all supported modes */
 
-int mc44cc373_setvals(u8 *value, u8 num);
+int mc44cc373_Setting(int status);
 

@@ -16,6 +16,10 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 
+#ifdef CONFIG_VIDEO_MC44CC373
+#include "mc44cc373.h"
+#endif
+
 #define __OLD_VIDIOC_ /* To allow fixing old calls */
 #include <linux/videodev.h>
 #include <linux/videodev2.h>
@@ -1024,6 +1028,10 @@ static long __video_do_ioctl(struct file *file,
 	{
 		enum v4l2_buf_type i = *(int *)arg;
 
+#ifdef CONFIG_VIDEO_MC44CC373
+		mc44cc373_Setting(1); /* PowerOn and Setup */
+#endif
+
 		if (!ops->vidioc_streamon)
 			break;
 		dbgarg(cmd, "type=%s\n", prt_names(i, v4l2_type_names));
@@ -1033,6 +1041,10 @@ static long __video_do_ioctl(struct file *file,
 	case VIDIOC_STREAMOFF:
 	{
 		enum v4l2_buf_type i = *(int *)arg;
+
+#ifdef CONFIG_VIDEO_MC44CC373
+		mc44cc373_Setting(0); /* Power Off */
+#endif
 
 		if (!ops->vidioc_streamoff)
 			break;
