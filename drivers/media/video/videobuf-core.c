@@ -717,7 +717,8 @@ int videobuf_streamon(struct videobuf_queue *q)
 static int __videobuf_streamoff(struct videobuf_queue *q)
 {
 	if (!q->streaming)
-		return -EINVAL;
+		/* videobuf_queue_cancel already called, nothing to done */
+		return 0;
 
 	videobuf_queue_cancel(q);
 
