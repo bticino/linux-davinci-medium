@@ -42,8 +42,6 @@
 
 static struct platform_device *owl_snd_device[1];
 
-#define AUDIO_FORMAT (SND_SOC_DAIFMT_DSP_B | \
-		SND_SOC_DAIFMT_CBM_CFM | SND_SOC_DAIFMT_IB_NF)
 static int owl_hw_params_cq93(struct snd_pcm_substream *substream,
 			struct snd_pcm_hw_params *params)
 {
@@ -64,17 +62,13 @@ static struct snd_soc_ops owl_ops_cq93 = {
 
 /* davinci-owl machine dapm widgets */
 static const struct snd_soc_dapm_widget cq93_dapm_widgets[] = {
-	SND_SOC_DAPM_HP("Speakers out", NULL),
+	SND_SOC_DAPM_MIC("Microphone", NULL),
 };
 
 /* davinci-owl machine connections to the codec pins */
 static const struct snd_soc_dapm_route audio_map[] = {
-	/* Speakers connected to SP (actually not connected !) */
-	{ "Speakers out", NULL, "SP", },
-	/* Line output connected to LO */
-	{ "Line Out", NULL, "LINEO", },
 	/* Microphone input connected to MIC */
-	{ "MICIN", NULL, "Microphone" },
+	{ "Mic Bias 2V", NULL, "Microphone" },
 };
 
 static int owl_cq93_init(struct snd_soc_codec *codec)
@@ -89,9 +83,9 @@ static int owl_cq93_init(struct snd_soc_codec *codec)
 
 	/* not connected */
 	snd_soc_dapm_disable_pin(codec, "SP");
+	snd_soc_dapm_disable_pin(codec, "LINEO");
 
 	/* always connected */
-	snd_soc_dapm_enable_pin(codec, "LINEO");
 	snd_soc_dapm_enable_pin(codec, "MICIN");
 
 	snd_soc_dapm_sync(codec);
