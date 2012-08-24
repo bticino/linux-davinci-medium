@@ -1071,18 +1071,21 @@ static int ov971x_get_control(struct v4l2_subdev *sd,
 		break;
 	case V4L2_CID_GAIN:
 		ctrl->value = reg_read(client, OV971x_GAIN);
+		break;
 	case V4L2_CID_PAN_ABSOLUTE:
 		data = reg_read(client, 0x9A);
 		data &= 0x7;
 		data <<= 8;
 		data |= reg_read(client, 0x98);
 		ctrl->value = data;
+		break;
 	case V4L2_CID_TILT_ABSOLUTE:
 		data = reg_read(client, 0x9A);
 		data &= 0x70;
 		data <<= 4;
 		data |= reg_read(client, 0x99);
 		ctrl->value = data;
+		break;
 	}
 	return 0;
 }
