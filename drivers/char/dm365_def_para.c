@@ -310,7 +310,7 @@ struct ipipe_params dm365_ipipe_defs = {
 		.adofs = WIDTH_I * 2,
 		.rsz = 16,	/* resize ratio 16/rsz */
 		.decimation = IPIPEIF_DECIMATION_OFF,
-		.avg_filter = AVG_ON,
+		.avg_filter = AVG_OFF,
 		.gain = 0x200,	/* U10Q9 */
 	},
 	.ipipe_mode = ONE_SHOT,
