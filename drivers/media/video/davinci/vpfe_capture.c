@@ -575,8 +575,13 @@ static int vpfe_set_format_in_sensor(struct vpfe_device *vpfe_dev,
 	memset(&sd_fmt, 0, sizeof(sd_fmt));
 	sd_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	sd_fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_SGRBG10;
-	sd_fmt.fmt.pix.width = fmt->fmt.pix.width;
-	sd_fmt.fmt.pix.height = fmt->fmt.pix.height;
+	/* use a value big enough */
+	sd_fmt.fmt.pix.width = 1 << 31;
+	sd_fmt.fmt.pix.height = 1 << 31;
+	ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
+			sdinfo->grp_id, video, try_fmt, &sd_fmt);
+	if (ret)
+		return ret;
 	ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
 			sdinfo->grp_id, video, s_fmt, &sd_fmt);
 	return ret;
@@ -1466,6 +1471,7 @@ static int vpfe_s_fmt_vid_cap(struct file *file, void *priv,
 	struct vpfe_device *vpfe_dev = video_drvdata(file);
 	const struct vpfe_pixel_format *pix_fmts;
 	struct vpfe_subdev_info *sdinfo;
+	struct v4l2_format sd_fmt;
 	int ret = 0;
 
 	v4l2_dbg(1, debug, &vpfe_dev->v4l2_dev, "vpfe_s_fmt_vid_cap\n");
@@ -1502,8 +1508,14 @@ static int vpfe_s_fmt_vid_cap(struct file *file, void *priv,
 			 * Set Crop size to frame size. Application needs to call
 			 * S_CROP to change it after S_FMT
 			 */
-			vpfe_dev->crop.width = fmt->fmt.pix.width;
-			vpfe_dev->crop.height = fmt->fmt.pix.height;
+			/* use a value big enough */
+			sd_fmt.fmt.pix.width = 1 << 31;
+			sd_fmt.fmt.pix.height = 1 << 31;
+			ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
+					sdinfo->grp_id, video, try_fmt,
+					&sd_fmt);
+			vpfe_dev->crop.width = sd_fmt.fmt.pix.width;
+			vpfe_dev->crop.height = sd_fmt.fmt.pix.height;
 		} else
 			goto s_fmt_out;
 	}
