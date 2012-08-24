@@ -113,7 +113,7 @@ int mc44cc373_s_stream(struct v4l2_subdev *sd, int enable)
 	return mc44cc373_s_power(sd, enable);
 }
 
-/* to have simple power on/of without v4l2 */ 
+/* To have simple power on/of without v4l2 */
 int mc44cc373_Setting(int status)
 {
 	return mc44cc373_s_stream(sd, status);
@@ -213,10 +213,10 @@ static struct device_attribute mc44cc373_device_attributes[] = {
 
 static void mc44cc373_class_release(struct device *cdev)
 {
-        struct mc44cc373_device *dev = to_mc44cc373_dev(cdev);
+	struct mc44cc373_device *dev = to_mc44cc373_dev(cdev);
 
-        if (dev != NULL)
-                kfree(dev);
+	if (dev != NULL)
+		kfree(dev);
 }
 
 struct class mc44cc373_class = {
@@ -284,7 +284,7 @@ static void remove_sysfs_files(struct mc44cc373_device *dev)
 static int mc44cc373_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
-	/* struct v4l2_subdev *sd; */ 
+	/* struct v4l2_subdev *sd; */
 
 	/* debug = 1; */
 
