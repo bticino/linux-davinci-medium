@@ -61,7 +61,7 @@ static struct snd_pcm_hardware pcm_hardware_playback = {
 	.buffer_bytes_max = 128 * 1024,
 	.period_bytes_min = 32,
 	.period_bytes_max = 8 * 1024,
-	.periods_min = 16,
+	.periods_min = 3,
 	.periods_max = 255,
 	.fifo_size = 0,
 };
@@ -83,7 +83,7 @@ static struct snd_pcm_hardware pcm_hardware_capture = {
 	.buffer_bytes_max = 128 * 1024,
 	.period_bytes_min = 32,
 	.period_bytes_max = 8 * 1024,
-	.periods_min = 16,
+	.periods_min = 3,
 	.periods_max = 255,
 	.fifo_size = 0,
 };
