@@ -181,10 +181,6 @@ int previewer_doioctl(struct inode *inode, struct file *file,
 	case PREV_S_PARAM:
 	case PREV_PREVIEW:
 	case PREV_S_CONFIG:
-		{
-			if (!fh->primary_user)
-				return -EACCES;
-		}
 		break;
 	}
 
