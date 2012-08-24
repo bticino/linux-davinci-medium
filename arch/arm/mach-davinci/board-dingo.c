@@ -1053,7 +1053,7 @@ static struct snd_platform_data dm365_dingo_snd_data[] = {
 	{
 	},
 	{
-		.eventq_no = EVENTQ_3,
+		.asp_chan_q = EVENTQ_3,
 		.i2s_accurate_sck = 1,
 		.clk_input_pin = MCBSP_CLKS,
 	},

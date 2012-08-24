@@ -704,7 +704,8 @@ static void __init owl_map_io(void)
 
 static struct snd_platform_data dm365_owl_snd_data[] = {
 	{
-		.eventq_no = EVENTQ_3,
+		.asp_chan_q = EVENTQ_3,
+		.ram_chan_q = EVENTQ_2,
 		.i2s_accurate_sck = 1,
 		.clk_input_pin = MCBSP_CLKS,
 	},
