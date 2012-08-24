@@ -62,11 +62,13 @@ static void davinci_vcif_start(struct snd_pcm_substream *substream)
 	/* Start the sample generator and enable transmitter/receiver */
 	w = readl(davinci_vc->base + DAVINCI_VC_CTRL);
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		MOD_REG_BIT(w, DAVINCI_VC_CTRL_RSTDAC, 0);
-	else
-		MOD_REG_BIT(w, DAVINCI_VC_CTRL_RSTADC, 0);
-
+	MOD_REG_BIT(w, DAVINCI_VC_CTRL_RSTADC, 1);
+	writel(w, davinci_vc->base + DAVINCI_VC_CTRL);
+	MOD_REG_BIT(w, DAVINCI_VC_CTRL_RSTADC, 0);
+	writel(w, davinci_vc->base + DAVINCI_VC_CTRL);
+	writel(w, davinci_vc->base + DAVINCI_VC_CTRL);
+	MOD_REG_BIT(w, DAVINCI_VC_CTRL_RFIFOEN, 1);
+	MOD_REG_BIT(w, DAVINCI_VC_CTRL_WFIFOEN, 1);
 	writel(w, davinci_vc->base + DAVINCI_VC_CTRL);
 }
 
@@ -98,15 +100,9 @@ static int davinci_vcif_hw_params(struct snd_pcm_substream *substream,
 			&davinci_vcif_dev->dma_params[substream->stream];
 	u32 w;
 
-	/* Restart the codec before setup */
-	davinci_vcif_stop(substream);
-	davinci_vcif_start(substream);
-
 	/* General line settings */
-	writel(DAVINCI_VC_CTRL_MASK, davinci_vc->base + DAVINCI_VC_CTRL);
 
 	writel(DAVINCI_VC_INT_MASK, davinci_vc->base + DAVINCI_VC_INTCLR);
-
 	writel(DAVINCI_VC_INT_MASK, davinci_vc->base + DAVINCI_VC_INTEN);
 
 	w = readl(davinci_vc->base + DAVINCI_VC_CTRL);
@@ -145,7 +141,12 @@ static int davinci_vcif_hw_params(struct snd_pcm_substream *substream,
 
 	dma_params->acnt  = dma_params->data_type;
 
+	dma_params->fifo_level = 8;
+	MOD_REG_BIT(w, DAVINCI_VC_CTRL_RFIFOMD_WORD_1, 0);
+	MOD_REG_BIT(w, DAVINCI_VC_CTRL_WFIFOMD_WORD_1, 0);
 	writel(w, davinci_vc->base + DAVINCI_VC_CTRL);
+
+	writel(1, davinci_vc->base + DAVINCI_VC_REG04);
 
 	return 0;
 }
@@ -173,7 +174,7 @@ static int davinci_vcif_trigger(struct snd_pcm_substream *substream, int cmd,
 	return ret;
 }
 
-#define DAVINCI_VCIF_RATES	SNDRV_PCM_RATE_8000_48000
+#define DAVINCI_VCIF_RATES (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000)
 
 static struct snd_soc_dai_ops davinci_vcif_dai_ops = {
 	.trigger	= davinci_vcif_trigger,
@@ -189,9 +190,11 @@ struct snd_soc_dai davinci_vcif_dai = {
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,},
 	.capture = {
 		.channels_min = 1,
-		.channels_max = 2,
+		.channels_max = 1,
 		.rates = DAVINCI_VCIF_RATES,
-		.formats = SNDRV_PCM_FMTBIT_S16_LE,},
+		.formats = SNDRV_PCM_FMTBIT_S16_LE |
+			   SNDRV_PCM_FORMAT_S8 |
+			   SNDRV_PCM_FORMAT_U8,},
 	.ops = &davinci_vcif_dai_ops,
 
 };
