@@ -1054,6 +1054,12 @@ config SOC_CAMERA_OV772X
 	help
 	  This is a ov772x camera driver
 
+config SOC_CAMERA_OV971X
+	tristate "ov971x support"
+	depends on I2C
+	help
+	  This driver supports OV971X cameras from Omnivision.
+
 config MX1_VIDEO
 	bool
 

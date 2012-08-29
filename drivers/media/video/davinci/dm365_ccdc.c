@@ -34,6 +34,66 @@
 
 static struct device *dev;
 
+struct ccdc_vdfc_entry dfc_table[8] = {
+	{
+		.pos_vert = 20,
+		.pos_horz = 0,
+		.level_at_pos = 8,
+		.level_up_pixels = 4,
+		.level_low_pixels = 4,
+	},
+	{
+		.pos_vert = 20,
+		.pos_horz = 1,
+		.level_at_pos = 8,
+		.level_up_pixels = 4,
+		.level_low_pixels = 4,
+	},
+	{
+		.pos_vert = 20,
+		.pos_horz = 2,
+		.level_at_pos = 8,
+		.level_up_pixels = 4,
+		.level_low_pixels = 4,
+	},
+	{
+		.pos_vert = 20,
+		.pos_horz = 3,
+		.level_at_pos = 8,
+		.level_up_pixels = 4,
+		.level_low_pixels = 4,
+	},
+	{
+		.pos_vert = 20,
+		.pos_horz = 4,
+		.level_at_pos = 8,
+		.level_up_pixels = 4,
+		.level_low_pixels = 4,
+	},
+	{
+		.pos_vert = 20,
+		.pos_horz = 5,
+		.level_at_pos = 8,
+		.level_up_pixels = 4,
+		.level_low_pixels = 4,
+	},
+	{
+		.pos_vert = 20,
+		.pos_horz = 6,
+		.level_at_pos = 8,
+		.level_up_pixels = 4,
+		.level_low_pixels = 4,
+	},
+	{
+		.pos_vert = 20,
+		.pos_horz = 7,
+		.level_at_pos = 8,
+		.level_up_pixels = 4,
+		.level_low_pixels = 4,
+	},
+
+};
+
 /* Defauts for module configuation paramaters */
 static struct ccdc_config_params_raw ccdc_config_defaults = {
 	.linearize = {
@@ -43,15 +103,162 @@ static struct ccdc_config_params_raw ccdc_config_defaults = {
 	},
 	.df_csc = {
 		.df_or_csc = 0,
-		.csc = {
-			.en = 0
+		.df = {
+			.en = 0,
+			.cfg = {
+				.fmtmode = CCDC_COMBINE,
+				.ln_alter_en = 0,
+				.lnum = CCDC_2LINES,
+				.addrinc = 4,
+			},
+			.plen = {
+				.plen0 = 1,
+				.plen1 = 1,
+				.plen2 = 1,
+				.plen3 = 1,
+			},
+			.fmtrlen = 0,
+			.fmthcnt = 2560,
+			/* formatter address pointers */
+			.pgm_en[0] = 1,
+			.pgm_en[1] = 1,
+			.pgm_en[8] = 1,
+			.pgm_en[9] = 1,
+			.fmtpgm_ap[0] = {3, 1},
+			.fmtpgm_ap[1] = {2, 1},
+			.fmtpgm_ap[8] = {1, 1},
+			.fmtpgm_ap[9] = {0, 1},
 		},
+		.csc = {
+			.en = 0,
+			.coeff[0].integer = 3,
+			.coeff[0].decimal = 0xFF,
+			.coeff[1].integer = 0,
+			.coeff[1].decimal = 0,
+			.coeff[2].integer = 0,
+			.coeff[2].decimal = 0,
+			.coeff[3].integer = 0,
+			.coeff[3].decimal = 0,
+			.coeff[4].integer = 0,
+			.coeff[4].decimal = 0,
+			.coeff[5].integer = 3,
+			.coeff[5].decimal = 0xFF,
+			.coeff[6].integer = 0,
+			.coeff[6].decimal = 0,
+			.coeff[7].integer = 0,
+			.coeff[7].decimal = 0,
+			.coeff[8].integer = 0,
+			.coeff[8].decimal = 0,
+			.coeff[9].integer = 0,
+			.coeff[9].decimal = 0,
+			.coeff[10].integer = 3,
+			.coeff[10].decimal = 0xFF,
+			.coeff[11].integer = 0,
+			.coeff[11].decimal = 0,
+			.coeff[12].integer = 0,
+			.coeff[12].decimal = 0,
+			.coeff[13].integer = 0,
+			.coeff[13].decimal = 0,
+			.coeff[14].integer = 0,
+			.coeff[14].decimal = 0,
+			.coeff[15].decimal = 3,
+			.coeff[15].decimal = 0xFF,
+		},
+		.start_pix = 0,
+		.num_pixels = 1280,
+		.start_line = 0,
+		.num_lines = 720,
 	},
 	.dfc = {
-		.en = 0
+		.en = 0,
+		.corr_mode = CCDC_VDFC_HORZ_INTERPOL_IF_SAT,
+		.corr_whole_line = 1,
+		.def_level_shift = CCDC_VDFC_SHIFT_2,
+		.def_sat_level = 20,
+		.num_vdefects = 7,
+		.table = {
+			{
+				.pos_vert = 0,
+				.pos_horz = 1,
+				.level_at_pos = 5,
+				.level_up_pixels = 6,
+				.level_low_pixels = 7,
+			},
+			{
+				.pos_vert = 1,
+				.pos_horz = 2,
+				.level_at_pos = 6,
+				.level_up_pixels = 7,
+				.level_low_pixels = 8,
+			},
+			{
+				.pos_vert = 2,
+				.pos_horz = 3,
+				.level_at_pos = 7,
+				.level_up_pixels = 8,
+				.level_low_pixels = 9,
+			},
+			{
+				.pos_vert = 3,
+				.pos_horz = 4,
+				.level_at_pos = 8,
+				.level_up_pixels = 9,
+				.level_low_pixels = 10,
+			},
+			{
+				.pos_vert = 4,
+				.pos_horz = 5,
+				.level_at_pos = 9,
+				.level_up_pixels = 10,
+				.level_low_pixels = 11,
+			},
+			{
+				.pos_vert = 5,
+				.pos_horz = 6,
+				.level_at_pos = 10,
+				.level_up_pixels = 11,
+				.level_low_pixels = 12,
+			},
+			{
+				.pos_vert = 6,
+				.pos_horz = 7,
+				.level_at_pos = 11,
+				.level_up_pixels = 12,
+				.level_low_pixels = 13,
+			},
+			{
+				.pos_vert = 7,
+				.pos_horz = 8,
+				.level_at_pos = 12,
+				.level_up_pixels = 13,
+				.level_low_pixels = 14,
+			},
+
+		},
 	},
 	.bclamp = {
-		.en = 0
+		.en = 0,
+		.dc_offset = 0,
+		.bc_mode_color = 0,
+		.vert_start_sub = 1,
+		.horz = {
+			.mode = CCDC_SEL_MOST_LEFT_WIN,
+			.clamp_pix_limit = 1,
+			.win_count_calc = 16,
+			.win_start_h_calc = 0,
+			.win_start_v_calc = 0,
+			.win_h_sz_calc = CCDC_HORZ_BC_SZ_H_8PIXELS,
+			.win_v_sz_calc = CCDC_HORZ_BC_SZ_H_64PIXELS,
+		},
+		.vert = {
+			.reset_val_sel = CCDC_VERT_BC_NO_UPDATE,
+			.reset_clamp_val = 0x10,
+			.line_ave_coef = 0x80,
+			.ob_h_sz_calc = CCDC_VERT_BC_SZ_H_16PIXELS,
+			.ob_v_sz_calc = 32,
+			.ob_start_h = 0,
+			.ob_start_v = 0,
+		},
 	},
 	.gain_offset = {
 		.gain = {
@@ -60,6 +267,13 @@ static struct ccdc_config_params_raw ccdc_config_defaults = {
 			.gb_g = {1, 0},
 			.b_mg = {1, 0},
 		},
+		.gain_ipipe_en = 1,
+		.offset_ipipe_en = 1,
+		.offset = 0,
+		.gain_sdram_en = 0,
+		.gain_h3a_en = 0,
+		.offset_sdram_en = 0,
+		.offset_h3a_en = 0,
 	},
 	.culling = {
 		.hcpat_odd = 0xff,
@@ -69,6 +283,21 @@ static struct ccdc_config_params_raw ccdc_config_defaults = {
 	.compress = {
 		.alg = CCDC_ALAW,
 	},
+	.data_size = CCDC_12_BITS,
+	.data_shift = CCDC_NO_SHIFT,
+	.col_pat_field0 = {
+		.olop = CCDC_GREEN_BLUE,
+		.olep = CCDC_BLUE,
+		.elop = CCDC_RED,
+		.elep = CCDC_GREEN_RED,
+			},
+	.col_pat_field1 = {
+		.olop = CCDC_GREEN_BLUE,
+		.olep = CCDC_BLUE,
+		.elop = CCDC_RED,
+		.elep = CCDC_GREEN_RED,
+	},
+
 };
 
 /* ISIF operation configuration */
@@ -96,7 +325,7 @@ static struct ccdc_oper_config ccdc_cfg = {
 	.bayer = {
 		.pix_fmt = CCDC_PIXFMT_RAW,
 		.frm_fmt = CCDC_FRMFMT_PROGRESSIVE,
-		.win = CCDC_WIN_VGA,
+		.win = {0, 0, 1280, 720},
 		.fid_pol = VPFE_PINPOL_POSITIVE,
 		.vd_pol = VPFE_PINPOL_POSITIVE,
 		.hd_pol = VPFE_PINPOL_POSITIVE,
@@ -107,7 +336,7 @@ static struct ccdc_oper_config ccdc_cfg = {
 			.b_mg = {1, 0},
 		},
 		.cfa_pat = CCDC_CFA_PAT_MOSAIC,
-		.data_msb = CCDC_BIT_MSB_11,
+		.data_msb = CCDC_BIT_MSB_9,
 		.config_params = {
 			.data_size = CCDC_12_BITS,
 			.data_shift = CCDC_NO_SHIFT,
@@ -124,6 +353,14 @@ static struct ccdc_oper_config ccdc_cfg = {
 				.elep = CCDC_GREEN_RED,
 			},
 			.test_pat_gen = 0,
+			.compress = {
+				.alg = CCDC_ALAW,
+			},
+			.linearize = {
+				.en = 0,
+				.corr_shft = CCDC_NO_SHIFT,
+				.scale_fact = {1, 0},
+			},
 		},
 	},
 	.data_pack = CCDC_DATA_PACK8,
@@ -337,6 +574,7 @@ static void ccdc_setwin(struct v4l2_rect *image_win,
 	regw(vert_start & START_VER_ONE_MASK, SLV0);
 	regw(vert_start & START_VER_TWO_MASK, SLV1);
 	regw(vert_nr_lines & NUM_LINES_VER, LNV);
+	dev_dbg(dev, "vert_nr_lines = %d\n", vert_nr_lines);
 }
 
 static void ccdc_config_bclamp(struct ccdc_black_clamp *bc)
@@ -630,6 +868,30 @@ static void ccdc_config_csc(struct ccdc_df_csc *df_csc)
 	regw(1, CSCCTL);
 }
 
+
+/*TODO*/
+static void  ccdc_confg_df(struct ccdc_df_csc *df_csc)
+{
+	u32 val1 = 0;
+
+	if (!df_csc->df.en) {
+		regw(0, FMTCFG);
+		return;
+	}
+
+	val1 = (df_csc->df.cfg.fmtmode) << 1 | (df_csc->df.cfg.lnum) << 4
+		| (df_csc->df.cfg.addrinc) << 8;
+	regw(val1, FMTCFG);
+
+	val1 = (df_csc->df.plen.plen0) << 0 | (df_csc->df.plen.plen1) << 4
+		| (df_csc->df.plen.plen2) << 8 | (df_csc->df.plen.plen3) << 12;
+	regw(val1, FMTPLEN);
+
+	regw(df_csc->df.fmtrlen, FMTSPH);
+	regw(df_csc->df.fmthcnt, FMTLNH);
+	/* ... */
+}
+
 static int ccdc_config_raw(int mode)
 {
 	struct ccdc_params_raw *params = &ccdc_cfg.bayer;
@@ -779,6 +1041,8 @@ static int ccdc_config_raw(int mode)
 	if (!module_params->df_csc.df_or_csc)
 		/* Configure Color Space Conversion */
 		ccdc_config_csc(&module_params->df_csc);
+	else
+		ccdc_confg_df(&module_params->df_csc);
 
 	ccdc_config_linearization(&module_params->linearize);
 
@@ -1415,11 +1679,12 @@ static struct ccdc_hw_device ccdc_hw_dev = {
 
 static int __init dm365_ccdc_probe(struct platform_device *pdev)
 {
-	void (*setup_pinmux)(void);
+	void (*setup_pinmux)(enum ccdc_bus_width);
 	static resource_size_t  res_len;
 	struct resource	*res;
 	void *__iomem addr;
 	int status = 0, i;
+	struct ccdc_platform_data *pdata;
 
 	/**
 	 * first try to register with vpfe. If not correct platform, then we
@@ -1465,17 +1730,19 @@ static int __init dm365_ccdc_probe(struct platform_device *pdev)
 		i++;
 	}
 
+	pdata = pdev->dev.platform_data;
 	/* Platform data holds setup_pinmux function ptr */
-	if (NULL == pdev->dev.platform_data) {
+	if ((NULL == pdata) || (NULL == pdata->setup_pinmux)) {
 		status = -ENODEV;
 		goto fail_platform_data;
 	}
-	setup_pinmux = pdev->dev.platform_data;
+
+	setup_pinmux = pdata->setup_pinmux;
 	/*
 	 * setup Mux configuration for ccdc which may be different for
 	 * different SoCs using this CCDC
 	 */
-	setup_pinmux();
+	setup_pinmux(pdata->bus_width);
 
 	printk(KERN_NOTICE "%s is registered with vpfe.\n",
 		ccdc_hw_dev.name);

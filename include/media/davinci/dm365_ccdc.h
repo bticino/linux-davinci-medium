@@ -56,6 +56,24 @@ struct ccdc_cropwin {
 	unsigned int height;
 };
 
+
+/************************************************************************
+ *   Platform definition parameters
+ ***********************************************************************/
+enum ccdc_bus_width {
+	/* 8bit */
+	DM365_ISIF_8BIT,
+	/* 10bit */
+	DM365_ISIF_10BIT,
+	/* 16 bit */
+	DM365_ISIF_16BIT,
+};
+
+struct ccdc_platform_data {
+	void (*setup_pinmux)(enum ccdc_bus_width);
+	enum ccdc_bus_width bus_width;
+};
+
 /************************************************************************
  *   Vertical Defect Correction parameters
  ***********************************************************************/

@@ -63,6 +63,7 @@
 #include <linux/i2c/tda9885.h>
 #include <linux/i2c/tvp5150.h>
 #include <mach/aemif.h>
+#include <media/davinci/dm365_ccdc.h>
 #include <sound/davinci_basi_asoc.h>
 #include <linux/irq_gpio.h>
 
@@ -869,6 +870,7 @@ static struct davinci_uart_config uart_config __initdata = {
 static void __init basi_map_io(void)
 {
 	dm365_set_vpfe_config(&vpfe_cfg);
+	dm365_init_isif(DM365_ISIF_8BIT);
 	dm365_init();
 }
 

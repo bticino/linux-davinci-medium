@@ -69,6 +69,16 @@ config SND_DAVINCI_SOC_DINGO
 	  Say Y if you want to add support for SoC audio on
 	  Bticino dingo board.
 
+config SND_DAVINCI_SOC_OWL
+	tristate "SoC Audio support for DM365 owl board"
+	depends on SND_DAVINCI_SOC && MACH_OWL
+	select SND_DM365_VOICE_CODEC
+	select SND_SOC_CQ0093VC
+	select SND_DAVINCI_SOC_VCIF
+	help
+	  Say Y if you want to add support for SoC audio on
+	  Bticino owl board.
+
 config SND_DM365_UDA134X_CODEC
 	bool "Audio Codec - UDA134X"
 	select SND_DAVINCI_SOC_I2S

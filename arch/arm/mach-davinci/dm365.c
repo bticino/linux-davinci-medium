@@ -39,6 +39,7 @@
 #include <mach/adc.h>
 #include <video/davinci_osd.h>
 #include <video/davinci_vpbe.h>
+#include <media/davinci/dm365_ccdc.h>
 
 #include "clock.h"
 #include "mux.h"
@@ -619,6 +620,7 @@ MUX_CFG(DM365,	GPIO43,		0,   16,    3,    0,     false)
 MUX_CFG(DM365,	GPIO44,		0,   18,    1,    0,     false)
 MUX_CFG(DM365,	GPIO45,		0,   19,    1,    0,     false)
 MUX_CFG(DM365,	GPIO46,		0,   20,    1,    0,     false)
+MUX_CFG(DM365,	GPIO48,		0,   22,    1,    0,     false)
 MUX_CFG(DM365,	GPIO50,		2,   12,    1,    1,     false)
 MUX_CFG(DM365,	GPIO51,		2,   11,    1,    1,     false)
 MUX_CFG(DM365,	GPIO64_57,	2,   6,     1,	  0,	 false)
@@ -626,7 +628,7 @@ MUX_CFG(DM365,	GPIO68,		2,   2,     3,	  0,	 false)
 // MUX_CFG(DM365,	GPIO69,		2,   6,     1,	  0,	 false)
 MUX_CFG(DM365,	GPIO72,		2,   4,     3,	  0,	 false)
 MUX_CFG(DM365,	GPIO81,		0,   11,    1,	  1,	 false)
-MUX_CFG(DM365,	GPIO80,		1,   20,    3,	  1,	 false)
+MUX_CFG(DM365,	GPIO80,		1,   20,    3,	  0,	 false)
 MUX_CFG(DM365,	GPIO82,		1,   17,    1,    1,     false)
 MUX_CFG(DM365,	GPIO86,		1,   12,    3,    0,     false)
 MUX_CFG(DM365,	VCLK,		1,   22,    1,    0,     false)
@@ -660,6 +662,7 @@ MUX_CFG(DM365,	VIN_CAM_VD,	0,   13,    1,	  0,	 false)
 MUX_CFG(DM365,	VIN_CAM_HD,	0,   12,    1,	  0,	 false)
 MUX_CFG(DM365,	VIN_YIN4_7_EN,	0,   0,     0xff, 0,	 false)
 MUX_CFG(DM365,	VIN_YIN0_3_EN,	0,   8,     0xf,  0,	 false)
+MUX_CFG(DM365,	VIN_YIN0_1_EN,	0,   10,    3,    0,	 false)
 MUX_CFG(DM365,	VOUT_B0,	4,   0,     3,    3,	 false)
 MUX_CFG(DM365,	VOUT_B1,	4,   2,     3,    3,	 false)
 MUX_CFG(DM365,	VOUT_B2,	1,   20,    3,    2,	 false)
@@ -1461,15 +1464,18 @@ static struct platform_device vpfe_capture_dev = {
 	},
 };
 
-static void dm365_isif_setup_pinmux(void)
+struct ccdc_platform_data dm365_ccdc_platform_data;
+
+static void dm365_isif_setup_pinmux(enum ccdc_bus_width bw)
 {
 	davinci_cfg_reg(DM365_VIN_CAM_WEN);
 	davinci_cfg_reg(DM365_VIN_CAM_VD);
 	davinci_cfg_reg(DM365_VIN_CAM_HD);
-#ifdef DM365_ISIF_16BIT
-	davinci_cfg_reg(DM365_VIN_YIN4_7_EN);
-	davinci_cfg_reg(DM365_VIN_YIN0_3_EN);
-#endif
+	if (bw == DM365_ISIF_16BIT) {
+		davinci_cfg_reg(DM365_VIN_YIN4_7_EN);
+		davinci_cfg_reg(DM365_VIN_YIN0_3_EN);
+	} else if (bw == DM365_ISIF_10BIT)
+		davinci_cfg_reg(DM365_VIN_YIN0_1_EN);
 }
 
 static struct resource isif_resource[] = {
@@ -1500,9 +1506,15 @@ static struct platform_device dm365_isif_dev = {
 	.dev = {
 		.dma_mask               = &vpfe_capture_dma_mask,
 		.coherent_dma_mask      = DMA_BIT_MASK(32),
-		.platform_data		= dm365_isif_setup_pinmux,
 	},
 };
+
+void dm365_init_isif(enum ccdc_bus_width bw)
+{
+	dm365_ccdc_platform_data.setup_pinmux = dm365_isif_setup_pinmux;
+	dm365_ccdc_platform_data.bus_width = bw;
+	dm365_isif_dev.dev.platform_data = &dm365_ccdc_platform_data;
+}
 
 static int __init dm365_init_devices(void)
 {

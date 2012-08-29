@@ -376,7 +376,7 @@ static int request_ping_pong(struct snd_pcm_substream *substream,
 	/* Request ram master channel */
 	link = prtd->ram_channel = edma_alloc_channel(EDMA_CHANNEL_ANY,
 				  davinci_pcm_dma_irq, substream,
-				  EVENTQ_1);
+				  prtd->params->ram_chan_q);
 	if (link < 0)
 		goto exit1;
 
@@ -472,7 +472,8 @@ static int davinci_pcm_dma_request(struct snd_pcm_substream *substream)
 
 	/* Request master DMA channel */
 	link = prtd->asp_channel = edma_alloc_channel(params->channel,
-			davinci_pcm_dma_irq, substream, EVENTQ_0);
+			davinci_pcm_dma_irq, substream,
+			prtd->params->asp_chan_q);
 	if (link < 0)
 		goto exit1;
 

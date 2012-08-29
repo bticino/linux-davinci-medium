@@ -83,7 +83,7 @@
 
 #include "ccdc_hw_device.h"
 
-#define HD_IMAGE_SIZE		(1920 * 1080 * 2)
+#define HD_IMAGE_SIZE		(1280 * 720 * 2)
 #define PAL_IMAGE_SIZE		(720 * 576 * 2)
 #define SECOND_IMAGE_SIZE_MAX	(640 * 480 * 2)
 
@@ -145,8 +145,8 @@ struct ccdc_config {
 static struct vpfe_config_params config_params = {
 	.min_numbuffers = 3,
 	.numbuffers = 3,
-	.min_bufsize = 1280 * 720 * 2,
-	.device_bufsize = 1920 * 1080 * 2,
+	.min_bufsize = 160 * 100 * 2,
+	.device_bufsize = 1280 * 720 * 2,
 };
 
 /* ccdc device registered */
@@ -173,6 +173,11 @@ const struct vpfe_standard vpfe_standards[] = {
 	{V4L2_STD_1080P_30, 1920, 1080, {1, 1}, 0, {1, 30} },
 	{V4L2_STD_1080P_50, 1920, 1080, {1, 1}, 0, {1, 50} },
 	{V4L2_STD_1080P_60, 1920, 1080, {1, 1}, 0, {1, 60} },
+	{V4L2_STD_640x400_30, 640, 400, {1, 1}, 0, {1, 30} },
+	{V4L2_STD_640x480_30, 640, 480, {1, 1}, 0, {1, 30} },
+	{V4L2_STD_352x288_30, 352, 288, {1, 1}, 0, {1, 30} },
+	{V4L2_STD_320x240_30, 320, 240, {1, 1}, 0, {1, 30} },
+	{V4L2_STD_160x120_30, 160, 120, {1, 1}, 0, {1, 30} },
 };
 
 /* Used when raw Bayer image from ccdc is directly captured to SDRAM */
@@ -570,8 +575,13 @@ static int vpfe_set_format_in_sensor(struct vpfe_device *vpfe_dev,
 	memset(&sd_fmt, 0, sizeof(sd_fmt));
 	sd_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	sd_fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_SGRBG10;
-	sd_fmt.fmt.pix.width = fmt->fmt.pix.width;
-	sd_fmt.fmt.pix.height = fmt->fmt.pix.height;
+	/* use a value big enough */
+	sd_fmt.fmt.pix.width = 1 << 31;
+	sd_fmt.fmt.pix.height = 1 << 31;
+	ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
+			sdinfo->grp_id, video, try_fmt, &sd_fmt);
+	if (ret)
+		return ret;
 	ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
 			sdinfo->grp_id, video, s_fmt, &sd_fmt);
 	return ret;
@@ -583,6 +593,7 @@ static int vpfe_initialize_device(struct vpfe_device *vpfe_dev)
 
 	/* set first input of current subdevice as the current input */
 	vpfe_dev->current_input = 0;
+	ret = ccdc_dev->hw_ops.set_hw_if_params(&vpfe_dev->current_subdev->ccdc_if_params);
 	/*
 	 * set default standard. For camera device, we cannot set standard.
 	 * So we set it to -1. Otherwise, first entry in the standard is the
@@ -671,6 +682,9 @@ static int vpfe_initialize_device(struct vpfe_device *vpfe_dev)
 	}
 
 	ret = ccdc_dev->hw_ops.open(vpfe_dev->pdev);
+	if (ret)
+		goto unlock_out;
+
 	if (!ret)
 		vpfe_dev->initialized = 1;
 unlock_out:
@@ -1457,6 +1471,7 @@ static int vpfe_s_fmt_vid_cap(struct file *file, void *priv,
 	struct vpfe_device *vpfe_dev = video_drvdata(file);
 	const struct vpfe_pixel_format *pix_fmts;
 	struct vpfe_subdev_info *sdinfo;
+	struct v4l2_format sd_fmt;
 	int ret = 0;
 
 	v4l2_dbg(1, debug, &vpfe_dev->v4l2_dev, "vpfe_s_fmt_vid_cap\n");
@@ -1493,8 +1508,14 @@ static int vpfe_s_fmt_vid_cap(struct file *file, void *priv,
 			 * Set Crop size to frame size. Application needs to call
 			 * S_CROP to change it after S_FMT
 			 */
-			vpfe_dev->crop.width = fmt->fmt.pix.width;
-			vpfe_dev->crop.height = fmt->fmt.pix.height;
+			/* use a value big enough */
+			sd_fmt.fmt.pix.width = 1 << 31;
+			sd_fmt.fmt.pix.height = 1 << 31;
+			ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
+					sdinfo->grp_id, video, try_fmt,
+					&sd_fmt);
+			vpfe_dev->crop.width = sd_fmt.fmt.pix.width;
+			vpfe_dev->crop.height = sd_fmt.fmt.pix.height;
 		} else
 			goto s_fmt_out;
 	}
@@ -2481,6 +2502,31 @@ static int vpfe_g_parm(struct file *file, void *priv,
 	return 0;
 }
 
+int vpfe_enum_framesizes(struct file *file, void *fh,
+			struct v4l2_frmsizeenum *fsize)
+{
+	if (fsize->index >= ARRAY_SIZE(vpfe_standards))
+		return -EINVAL;
+
+	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+	fsize->discrete.width = vpfe_standards[fsize->index].width;
+	fsize->discrete.height = vpfe_standards[fsize->index].height;
+	return 0;
+}
+
+static int vpfe_enum_frameintervals(struct file *filp, void *priv,
+			struct v4l2_frmivalenum *fival)
+{
+	if (fival->index > 0)
+		return -EINVAL;
+
+	fival->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+	fival->discrete.numerator = 1;
+	fival->discrete.denominator = 30;
+
+	return 0;
+}
+
 /* vpfe capture ioctl operations */
 static const struct v4l2_ioctl_ops vpfe_ioctl_ops = {
 	.vidioc_querycap	 = vpfe_querycap,
@@ -2508,6 +2554,8 @@ static const struct v4l2_ioctl_ops vpfe_ioctl_ops = {
 	.vidioc_s_crop		 = vpfe_s_crop,
 	.vidioc_s_parm		 = vpfe_s_parm,
 	.vidioc_g_parm		 = vpfe_g_parm,
+	.vidioc_enum_framesizes  = vpfe_enum_framesizes,
+	.vidioc_enum_frameintervals = vpfe_enum_frameintervals,
 };
 
 static struct vpfe_device *vpfe_initialize(void)
