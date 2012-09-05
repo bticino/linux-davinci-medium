@@ -444,11 +444,11 @@ static irqreturn_t owl_powerfail_stop(int irq, void *dev_id)
 
 enum owl_pwrfail_prio {
 	OWL_PWR_FAIL_PRIO_0,
-	OWL_PWR_FAIL_MIN_PRIO = DINGO_PWR_FAIL_PRIO_0,
+	OWL_PWR_FAIL_MIN_PRIO = OWL_PWR_FAIL_PRIO_0,
 	OWL_PWR_FAIL_PRIO_1,
 	OWL_PWR_FAIL_PRIO_2,
 	OWL_PWR_FAIL_PRIO_3,
-	OWL_PWR_FAIL_MAX_PRIO = DINGO_PWR_FAIL_PRIO_3,
+	OWL_PWR_FAIL_MAX_PRIO = OWL_PWR_FAIL_PRIO_3,
 };
 
 struct pm_loss_default_policy_item owl_pm_loss_policy_items[] = {
