@@ -121,6 +121,7 @@ typedef union
 }t_CFGR;
 
 #define ZL38005_AEC_CTRL0       0x044A
+#define ZL38005_AEC_CTRL1       0x044B
 #define ZL38005_SYSGAIN         0x044D
 #define ZL38005_USRGAIN         0x046B
 

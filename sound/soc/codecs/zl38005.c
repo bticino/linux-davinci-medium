@@ -771,6 +771,8 @@ static const struct snd_kcontrol_new zl38005_controls[] = {
                         zl38005_spi_read, zl38005_spi_write),
         SOC_SINGLE_ZEXT("ZLx-MUTE_R", ZL38005_AEC_CTRL0 , 7, 1, 0,
                         zl38005_spi_read, zl38005_spi_write),
+	SOC_SINGLE_ZEXT("ZLx-INJDIS", ZL38005_AEC_CTRL1, 6, 1, 0,
+                        zl38005_spi_read, zl38005_spi_write),
 };
 
 /* This function is called from ASoC machine driver */
