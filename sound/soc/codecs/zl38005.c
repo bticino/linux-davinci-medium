@@ -75,16 +75,68 @@ static const char module_name[] = "zl38005";
 #define pr_debug_zl3(s, args...)
 #endif
 
+/*
+ * zl38005 register default settings
+ */
+static struct zl38005_regs_s {
+	u16 reg;
+	u16 val;
+} zl38005_default_reg[] = {
+	/* dummy registers */
+	{ 0x0000, 0x0000 },		/* on/off status */
+
+	/* real registers */
+	{ 0x044a, 0x7e1c },
+	{ 0x044b, 0x1072 },
+	{ 0x047b, 0x0072 },
+	{ 0x0529, 0x7fff },
+	{ 0x044d, 0x8710 },
+	{ 0x05e8, 0x0043 },
+	{ 0x0451, 0x7fff },
+	{ 0x0450, 0xd3d3 },
+	{ 0x05ec, 0x0043 },
+	{ 0x046b, 0x0037 },
+	{ 0x0472, 0x7fff },
+	{ 0x0473, 0x7fff },
+	{ 0x0453, 0x7fff },
+
+	/* terminator */
+	{ 0xffff, 0xffff }
+};
+
+#if 0
+/*
+ * zl38005 register AEC enabled settings
+ */
+static u16 zl38005_reg_aec[] = {
+        0x044a, 0x7e1c,
+       * 0x044b, 0x1032,
+       0x047b, 0x0072, /* AEC and LEC disabled and Bypass enable */
+        0x0529, 0x7fff, /* Noise canceller reset */
+        *0x044d, 0x8810, /* SOUT from +6dB to -3dB */
+        0x05e8, 0x0043, /* ANA0 set from 12dB to 0dB */
+       0x0451, 0x7fff, /* Sout upper limiter */
+        0x0450, 0xd3d3, /* HPASS FILTER from 320 to 98Hz */
+        0x05ec, 0x0043, /* ANA1 set from +6dB to 0dB */
+        *0x046b, 0x0060, /* ROUT to -3.37dB */
+        0x0472, 0x7fff,
+       0x0473, 0x7fff, /* COMPRESS set to zero */
+        0x0453, 0x7fff, /* ROUT limiter set to zero */
+};
+#endif
+
 /* ZL38005 driver private data */
 struct zl38005 {
 	dev_t			dev;
+	int			minor;
 	struct spi_device	*spi;
 	struct list_head	device_entry;
-	int			chip_select_gpio;
 	char			chip_select_gpio_label[15];
 	int			reset_gpio;
 	char			reset_gpio_label[10];
 	atomic_t		usage;
+
+	struct zl38005_regs_s	reg_cache[0];	/* must be the last one! */
 };
 
 /* For registeration of charatcer device */
@@ -683,64 +735,148 @@ void zl_hardwareReset(UInt16T reset_mode)
  * SoC stuff
  */
 
-struct soc_mixer_zcontrol {
-	struct spi_device *spi;
-        int min, max, platform_max;
-        unsigned int reg, rreg, shift, rshift, invert;
-};
+static void zl38005_reg_cache_write(struct zl38005_regs_s *reg_cache,
+					u16 reg, u16 val)
+{
+	int i;
+
+	for (i = 0; reg_cache[i].reg != 0xffff; i++)
+		if (reg == reg_cache[i].reg) {
+			reg_cache[i].val = val;
+			return;
+		}
+	BUG();
+}
+
+static u16 zl38005_reg_cache_read(struct zl38005_regs_s *reg_cache, u16 reg)
+{
+	int i;
+
+	for (i = 0; reg_cache[i].reg != 0xffff; i++)
+		if (reg == reg_cache[i].reg)
+			return reg_cache[i].val;
+	BUG();
+}
+
+static int zl38005_is_on(struct zl38005_regs_s *reg_cache)
+{
+	return !!zl38005_reg_cache_read(reg_cache, 0x0000);
+}
+
+static int zl38005_reg_is_dummy(u16 reg)
+{
+	return reg <= 0x0000;
+}
+
+static int zl38005_sync_cache(struct spi_device *spi,
+				struct zl38005_regs_s *reg_cache)
+{
+	int i;
+	int ret;
+
+	i = 0;
+	do {
+		msleep(60);
+		ret = zl_checkConnection(&spi->dev);
+	} while (ret & (i++ < 10));
+
+	if (i == 10)
+		return -EIO;
+
+	for (i = 0; reg_cache[i].reg != 0xffff; i++) {
+		if (zl38005_reg_is_dummy(reg_cache[i].reg))
+			continue;
+
+		ret = zl38005_wr_reg(&spi->dev, reg_cache[i].reg,
+				reg_cache[i].val, DMEM);
+		if (ret)
+			return -EIO;
+	}
+
+	return 0;
+}
 
 static int zl38005_spi_write(struct snd_kcontrol *kcontrol,
                 struct snd_ctl_elem_value *ucontrol)
 {
-        struct soc_mixer_zcontrol *mc =
-                (struct soc_mixer_zcontrol *) kcontrol->private_value;
-
-	struct spi_device *spi = mc->spi;
+        struct soc_mixer_control *mc =
+                (struct soc_mixer_control *) kcontrol->private_value;
+	struct zl38005 *zl38005;
+	struct spi_device *spi;
         unsigned int reg = mc->reg;
         unsigned int shift = mc->shift;
         unsigned int mask = mc->max;
         unsigned int invert = mc->invert;
         unsigned int val = (ucontrol->value.integer.value[0] & mask);
-        int valt;
-	int ret;
+	int minor, valt;
+        int ret;
 
-	BUG_ON(!spi);
+	/* Dirty hack to get proper spi device... */
+	minor = kcontrol->id.name[2] - '0';
+	BUG_ON(minor >= DEVCOUNT);
+	zl38005 = zl38005_table[minor];
+	BUG_ON(!zl38005);
+	spi = zl38005->spi;
 
         if (invert)
                 val = mask - val;
 
-	ret = zl38005_rd_reg(&spi->dev, reg, &valt, DMEM);
-        if (ret)
-                return -EIO;
-
-        if (((valt >> shift) & mask) == val)
-                return 0;
+	if (zl38005_is_on(zl38005->reg_cache) && !zl38005_reg_is_dummy(reg)) {
+		ret = zl38005_rd_reg(&spi->dev, reg, &valt, DMEM);
+		if (ret)
+			return -EIO;
+	} else
+		valt = zl38005_reg_cache_read(zl38005->reg_cache, reg);
 
         valt &= ~(mask << shift);
         valt |= val << shift;
 
-	return zl38005_wr_reg(&spi->dev, reg, valt, DMEM);
+	zl38005_reg_cache_write(zl38005->reg_cache, reg, valt);
+
+	switch (reg) {
+	case 0x0000:
+		if (zl38005_is_on(zl38005->reg_cache)) {
+			gpio_set_value(zl38005->reset_gpio, 1);
+			ret = zl38005_sync_cache(spi, zl38005->reg_cache);
+			if (ret)
+				return ret;
+		} else
+			gpio_set_value(zl38005->reset_gpio, 0);
+		break;
+
+	default:
+		zl38005_wr_reg(&spi->dev, reg, valt, DMEM);
+	}
+	return 1;
 }
 
 static int zl38005_spi_read(struct snd_kcontrol *kcontrol,
                 struct snd_ctl_elem_value *ucontrol)
 {
-        struct soc_mixer_zcontrol *mc =
-                (struct soc_mixer_zcontrol *) kcontrol->private_value;
-
-	struct spi_device *spi = mc->spi;
+        struct soc_mixer_control *mc =
+                (struct soc_mixer_control *) kcontrol->private_value;
+	struct zl38005 *zl38005;
+	struct spi_device *spi;
         unsigned int reg = mc->reg;
         unsigned int shift = mc->shift;
         unsigned int mask = mc->max;
         unsigned int invert = mc->invert;
-        int val;
-	int ret;
+        int minor, val;
+        int ret;
 
-	BUG_ON(!spi);
+	/* Dirty hack to get proper spi device... */
+	minor = kcontrol->id.name[2] - '0';
+	BUG_ON(minor >= DEVCOUNT);
+	zl38005 = zl38005_table[minor];
+	BUG_ON(!zl38005);
+	spi = zl38005->spi;
 
-	ret = zl38005_rd_reg(&spi->dev, reg, &val, DMEM);
-        if (ret)
-                return -EIO;
+	if (zl38005_is_on(zl38005->reg_cache) && !zl38005_reg_is_dummy(reg)) {
+		ret = zl38005_rd_reg(&spi->dev, reg, &val, DMEM);
+		if (ret)
+			return -EIO;
+	} else
+		val = zl38005_reg_cache_read(zl38005->reg_cache, reg);
 
         ucontrol->value.integer.value[0] = ((val >> shift) & mask);
 
@@ -751,28 +887,17 @@ static int zl38005_spi_read(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-#define SOC_SINGLE_ZVALUE(xreg, xshift, xmax, xinvert) \
-        ((unsigned long)&(struct soc_mixer_zcontrol) \
-        {.spi = NULL, \
-	.reg = xreg, .shift = xshift, .rshift = xshift, .max = xmax, \
-        .platform_max = xmax, .invert = xinvert})
-
-#define SOC_SINGLE_ZEXT(xname, xreg, xshift, xmax, xinvert,\
-         xhandler_get, xhandler_put) \
-{       .iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
-        .info = snd_soc_info_volsw, \
-        .get = xhandler_get, .put = xhandler_put, \
-        .private_value = SOC_SINGLE_ZVALUE(xreg, xshift, xmax, xinvert) }
-
 static const struct snd_kcontrol_new zl38005_controls[] = {
-        SOC_SINGLE_ZEXT("ZLx-UGAIN", ZL38005_USRGAIN , 0, 0xffff, 0,
+        SOC_SINGLE_EXT("ZLx-UGAIN", ZL38005_USRGAIN , 0, 0xffff, 0,
                         zl38005_spi_read, zl38005_spi_write),
-        SOC_SINGLE_ZEXT("ZLx-SOUTGN", ZL38005_SYSGAIN , 8, 0xf, 0,
+        SOC_SINGLE_EXT("ZLx-SOUTGN", ZL38005_SYSGAIN , 8, 0xf, 0,
                         zl38005_spi_read, zl38005_spi_write),
-        SOC_SINGLE_ZEXT("ZLx-MUTE_R", ZL38005_AEC_CTRL0 , 7, 1, 0,
+        SOC_SINGLE_EXT("ZLx-MUTE_R", ZL38005_AEC_CTRL0 , 7, 1, 0,
                         zl38005_spi_read, zl38005_spi_write),
-	SOC_SINGLE_ZEXT("ZLx-INJDIS", ZL38005_AEC_CTRL1, 6, 1, 0,
+	SOC_SINGLE_EXT("ZLx-INJDIS", ZL38005_AEC_CTRL1, 6, 1, 0,
                         zl38005_spi_read, zl38005_spi_write),
+	SOC_SINGLE_EXT("ZLx-ON", 0x0000, 0, 1, 0,
+			zl38005_spi_read, zl38005_spi_write),
 };
 
 /* This function is called from ASoC machine driver */
@@ -780,18 +905,17 @@ int zl38005_add_controls(unsigned int minor, struct snd_soc_codec *codec)
 {
 	struct zl38005 *zl38005;
 	int i;
-	struct soc_mixer_zcontrol *p;
+	struct soc_mixer_control *p;
 
-	if (minor >= DEVCOUNT)
+	if (minor >= DEVCOUNT || !zl38005_table[minor])
 		return -ENODEV;
 
 	zl38005 = zl38005_table[minor];
 	BUG_ON(!zl38005);
 
 	for (i = 0; i < ARRAY_SIZE(zl38005_controls); i++) {
-		p = (struct soc_mixer_zcontrol *)
+		p = (struct soc_mixer_control *)
 				zl38005_controls[i].private_value;
-		p->spi = zl38005->spi;
 		zl38005_controls[i].name[2] = '0' + minor;
 	}
 
@@ -808,9 +932,8 @@ static int zl38005_open(struct inode *inode, struct file *filp)
 {
 	struct zl38005 *zl38005;
 	int minor = MINOR(inode->i_rdev);
-	int err;
 
-	if (minor >= DEVCOUNT)
+	if (minor >= DEVCOUNT || !zl38005_table[minor])
 		return -ENODEV;
 
 	zl38005 = zl38005_table[minor];
@@ -823,11 +946,6 @@ static int zl38005_open(struct inode *inode, struct file *filp)
                 return -EBUSY;
         }
 
-	zl38005->spi->chip_select_gpio = zl38005->chip_select_gpio;
-	err = spi_setup(zl38005->spi);
-	if (err < 0)
-		return err;
-
 	return 0;
 }
 
@@ -836,7 +954,7 @@ static int zl38005_close(struct inode *inode, struct file *filp)
 	struct zl38005 *zl38005;
 	int minor = MINOR(inode->i_rdev);
 
-	if (minor >= DEVCOUNT)
+	if (minor >= DEVCOUNT || !zl38005_table[minor])
 		return -ENODEV;
 
 	zl38005 = zl38005_table[minor];
@@ -853,7 +971,7 @@ static long zl38005_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	struct zl38005 *zl38005;
 	int ret;
 
-	if (minor >= DEVCOUNT)
+	if (minor >= DEVCOUNT || !zl38005_table[minor])
 		return -ENODEV;
 
 	zl38005 = zl38005_table[minor];
@@ -1006,61 +1124,72 @@ static int zl38005_spi_probe(struct spi_device *spi)
 
 	dev_dbg(&spi->dev, "probing zl38005 spi device\n");
 
-	for (minor = 0; minor < DEVCOUNT; minor++) {
-		/* Allocate driver data */
-		zl38005 = kzalloc(sizeof(*zl38005), GFP_KERNEL);
-		if (!zl38005)
-			return -ENOMEM;
-		atomic_set(&zl38005->usage, 0);
+	minor = pdata->minor;
+	if (minor >= DEVCOUNT)
+		return -ENODEV;
 
-		/* Initialize driver data */
-		zl38005->chip_select_gpio = pdata[minor].chip_select_gpio;
-		zl38005->reset_gpio = pdata[minor].reset_gpio;
-		sprintf(zl38005->reset_gpio_label, "ZL%d reset", minor);
-		if (zl38005->reset_gpio) {
-			if (gpio_request(zl38005->reset_gpio, zl38005->reset_gpio_label) < 0)
-				printk(KERN_ERR "can't get %s reset\n", zl38005->reset_gpio_label);
-			gpio_direction_output(zl38005->reset_gpio, 1);
-			gpio_export(zl38005->reset_gpio, 0);
-		}
-		sprintf(zl38005->chip_select_gpio_label,
-			"ZL%d chip selet", minor);
-		if (zl38005->chip_select_gpio) {
-			if (gpio_request(zl38005->chip_select_gpio,
-					 zl38005->chip_select_gpio_label) < 0)
-				printk(KERN_ERR "can't get %s reset\n",
-				       zl38005->reset_gpio_label);
-			gpio_direction_output(zl38005->chip_select_gpio, 1);
-		}
-		if (zl38005_table[minor])
-			continue;
-		zl38005_table[minor] = zl38005;
-		dev = device_create(zl38005_class, NULL,
-				    MKDEV(zl38005_major, minor),
-				    NULL, "%s%d", module_name, minor);
-		status = IS_ERR(dev) ? PTR_ERR(dev) : 0;
+	/* Allocate driver data */
+	zl38005 = kzalloc(sizeof(*zl38005) +
+			ARRAY_SIZE(zl38005_default_reg) *
+				sizeof(struct zl38005_regs_s),
+			GFP_KERNEL);
+	if (!zl38005)
+		return -ENOMEM;
+	zl38005->minor = minor;
+	atomic_set(&zl38005->usage, 0);
 
-		spi->bits_per_word = 8;
-		spi->mode = SPI_MODE_0;
-		err = spi_setup(spi);
-		if (err < 0)
-			return err;
-		zl38005->spi = spi;
-		spi_set_drvdata(spi, zl38005);
+	/* Initialize driver data */
+	zl38005->reset_gpio = pdata->reset_gpio;
+	sprintf(zl38005->reset_gpio_label, "ZL%d reset", minor);
+	if (zl38005->reset_gpio) {
+		if (gpio_request(zl38005->reset_gpio, zl38005->reset_gpio_label) < 0)
+			printk(KERN_ERR "can't get %s reset\n", zl38005->reset_gpio_label);
+		gpio_direction_output(zl38005->reset_gpio, 0);
+		gpio_export(zl38005->reset_gpio, 0);
 	}
+	sprintf(zl38005->chip_select_gpio_label,
+		"ZL%d chip selet", minor);
+	if (gpio_request(spi->chip_select_gpio,
+				 zl38005->chip_select_gpio_label) < 0)
+			printk(KERN_ERR "can't get %s reset\n",
+			       zl38005->reset_gpio_label);
+	gpio_direction_output(spi->chip_select_gpio, 1);
+	memcpy(zl38005->reg_cache, zl38005_default_reg,
+		ARRAY_SIZE(zl38005_default_reg) *
+			sizeof(struct zl38005_regs_s));
+
+	dev = device_create(zl38005_class, NULL,
+			    MKDEV(zl38005_major, minor),
+			    NULL, "%s%d", module_name, minor);
+	status = IS_ERR(dev) ? PTR_ERR(dev) : 0;
+
+	spi->bits_per_word = 8;
+	spi->mode = SPI_MODE_0;
+	err = spi_setup(spi);
+	if (err < 0)
+		goto error;
+	zl38005->spi = spi;
+	spi_set_drvdata(spi, zl38005);
+
+	/* Save device data for the char device! */
+	zl38005_table[minor] = zl38005;
 
 	return 0;
+
+error:
+	kfree(zl38005);
+
+	return err;
 }
 
 static int zl38005_spi_remove(struct spi_device *spi)
 {
-	int minor;
+	struct zl38005 *zl38005 = spi_get_drvdata(spi);
+	int minor = zl38005->minor;
 
-	for (minor = 0; minor < DEVCOUNT; minor++)
-		device_destroy(zl38005_class, MKDEV(zl38005_major, minor));
+	device_destroy(zl38005_class, MKDEV(zl38005_major, minor));
+	kfree(zl38005);
 
-	class_destroy(zl38005_class);
-	kfree(spi_get_drvdata(spi));
 	return 0;
 }
 
@@ -1130,6 +1259,7 @@ static void __exit zl38005_exit(void)
 	spi_unregister_driver(&zl38005_spi);
 	cdev_del(&c_dev);
 	unregister_chrdev_region(zl38005_major, DEVCOUNT);
+	class_destroy(zl38005_class);
 }
 module_exit(zl38005_exit);
 
