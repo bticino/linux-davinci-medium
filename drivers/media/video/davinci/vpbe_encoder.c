@@ -291,12 +291,28 @@ static struct vid_enc_mode_info vpbe_encoder_modes[VPBE_ENCODER_MAX_NUM_STD] = {
 	 .pixclock = 125000,
 	 .dofst = DOFST_PLUS_0_5,
 	 .flags = 0},
-
+	{
+	 .name = VID_ENC_STD_800x480,
+	 .std = 0,
+	 .if_type = VID_ENC_IF_PRGB,
+	 .interlaced = 1,
+	 .xres = 800,
+	 .yres = 480,
+	 .fps = {60, 1},
+	 .left_margin = 46,
+	 .right_margin = 210,
+	 .upper_margin = 23,
+	 .lower_margin = 22,
+	 .hsync_len = 1,
+	 .vsync_len = 1,
+	 .pixclock = 30030,
+	 .dofst = DOFST_NONE,
+	 .flags = 0},
 };
 
 static struct vpbe_encoder_config vpbe_encoder_configuration = {
 //	.vencregs = DM644X_VENC_REG_BASE,
-	.no_of_outputs = VPBE_DM644X_ENCODER_MAX_NO_OUTPUTS,
+	.no_of_outputs = VPBE_DM365_ENCODER_MAX_NO_OUTPUTS,
 	.output[0] = {
 		      .output_name = VID_ENC_OUTPUT_COMPOSITE,
 		      .no_of_standard = VPBE_DM644X_ENCODER_COMPOSITE_NUM_STD,
@@ -320,7 +336,9 @@ static struct vpbe_encoder_config vpbe_encoder_configuration = {
 	.output[3] = {
 		      .output_name = VID_ENC_OUTPUT_LCD,
 		      .no_of_standard = VPBE_DM644X_ENCODER_PRGB_NUM_STD,
-		      .standards = {VID_ENC_STD_NON_STANDARD},
+		      .standards = {VID_ENC_STD_NON_STANDARD,
+					VID_ENC_STD_800x480
+					},
 		      },
 };
 
@@ -520,6 +538,7 @@ static int vpbe_encoder_setmode(struct vid_enc_mode_info *mode_info,
 		printk(KERN_ERR "NULL Pointer\n");
 		return -EINVAL;
 	}
+
 	printk(KERN_DEBUG "Start of vpbe_encoder_setmode..\n");
 	outindex = vpbe_encoder_channel_info.params.outindex;
 	if (cpu_is_davinci_dm644x())
@@ -710,7 +729,7 @@ static int vpbe_encoder_setmode(struct vid_enc_mode_info *mode_info,
 		   save the timing info and return */
 			enc->start_display(enc);
 			return 0;
-		printk(KERN_ERR "Mode not supported..\n");
+		printk(KERN_ERR "Mode not supported..@lin-2\n");
 		return -EINVAL;
 	}
 	printk(KERN_DEBUG "</vpbe_encoder_setmode>,  New MODE = %s \n", mymode);
@@ -729,6 +748,10 @@ static int vpbe_encoder_getmode(struct vid_enc_mode_info *mode_info,
 	}
 	printk(KERN_DEBUG "<vpbe_encoder_getmode>\n");
 	my_mode_info = get_modeinfo(vpbe_encoder_channel_info.params.mode);
+
+	printk(KERN_DEBUG "<vpbe_encoder_getmode/>  My_mode = %s \n",
+		my_mode_info->name);
+
 	if (NULL == my_mode_info) {
 		printk(KERN_ERR "NULL Pointer for current mode info\n");
 		return -EINVAL;
@@ -785,7 +808,6 @@ static int vpbe_encoder_setoutput(char *output, struct vid_encoder_device *enc)
 	/* set default standard */
 	vpbe_encoder_channel_info.params.mode
 	    = vpbe_encoder_configuration.output[index].standards[0];
-
 	my_mode_info = get_modeinfo(vpbe_encoder_channel_info.params.mode);
 	if (NULL == my_mode_info) {
 		printk(KERN_ERR "No matching mode_info entry found\n");
@@ -874,7 +896,7 @@ static int vpbe_encoder_start_display(struct vid_encoder_device *enc)
 	clk_enable(clk);
 	clk_put(clk);
 
-	vpbe_encoder_channel_info.params.mode = VID_ENC_STD_NON_STANDARD;
+	vpbe_encoder_channel_info.params.mode = VID_ENC_STD_800x480;
 	venc_reg_out(VENC_VMOD, 0x0);
 	venc_reg_out(VENC_VIDCTL, 0x0);
 
@@ -907,7 +929,7 @@ static int vpbe_encoder_start_display(struct vid_encoder_device *enc)
 		clk_set_rate(clk6, pllfreq * 4);
 	} else
 		venc_reg_out(VENC_DCLKCTL,
-			tmp<<VENC_DCLKCTL_DOFST_SHIFT | 0x801);
+			tmp<<VENC_DCLKCTL_DOFST_SHIFT | 0x800);
 	pllfreq = clk_get_rate(clk6);
 	clk_put(clk6);
 
@@ -1000,12 +1022,13 @@ static int vpbe_encoder_init(void)
 		    VID_ENC_STD_1080I_25;
 		vpbe_encoder_configuration.output[1].standards[8] =
 		    VID_ENC_STD_1080I_30;
-		vpbe_encoder_configuration.output[2].no_of_standard = 1;
+		vpbe_encoder_configuration.output[2].no_of_standard = 2;
 		vpbe_encoder_configuration.output[2].output_name =
 		    VID_ENC_OUTPUT_LCD;
 		vpbe_encoder_configuration.output[2].standards[0] =
 		    VID_ENC_STD_NON_STANDARD;
-
+		vpbe_encoder_configuration.output[2].standards[1] =
+		    VID_ENC_STD_800x480;
   } else
 		return -1;
 

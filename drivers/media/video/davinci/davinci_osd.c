@@ -1881,7 +1881,10 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 		osd_write(lconfig->line_length >> 5, OSD_OSDWIN0OFST);
 		osd_write(lconfig->xpos, OSD_OSDWIN0XP);
 		osd_write(lconfig->xsize * clk_div, OSD_OSDWIN0XL);
-		if (lconfig->interlaced) {
+
+		if ((lconfig->interlaced) &&
+		    (lconfig->pixfmt != PIXFMT_RGB888) &&
+		    (lconfig->pixfmt != PIXFMT_RGB565)) {
 			osd_write(lconfig->ypos >> 1, OSD_OSDWIN0YP);
 			osd_write(lconfig->ysize >> 1, OSD_OSDWIN0YL);
 		} else {

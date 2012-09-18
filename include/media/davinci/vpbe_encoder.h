@@ -30,7 +30,7 @@ int get_vpbe_encoder_clock_divisor(void);
 #ifdef __KERNEL__
 /* encoder standard related strctures */
 #define VPBE_ENCODER_MAX_NO_OUTPUTS		            (4)
-#define VPBE_ENCODER_MAX_NUM_STD			(14)
+#define VPBE_ENCODER_MAX_NUM_STD			(15)
 #define VPBE_DM355_ENCODER_MAX_NO_OUTPUTS		    (1)
 #define VPBE_DM355_ENCODER_COMPOSITE_NUM_STD        (2)
 #define VPBE_DM355_ENCODER_MAX_NUM_STD              (2)
