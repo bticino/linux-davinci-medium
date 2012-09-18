@@ -41,3 +41,4 @@ obj-$(CONFIG_MACH_JUMBO_D)		+= board-jumbo-d.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_JUMBO_I)		+= board-jumbo-i.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_LAGO)			+= board-lago.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_OWL)			+= board-owl.o bt_nexmed-hwmon.o
+obj-$(CONFIG_MACH_AMICO_I)		+= board-amico-i.o bt_nexmed-hwmon.o
