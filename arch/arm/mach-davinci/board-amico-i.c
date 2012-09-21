@@ -446,16 +446,15 @@ static struct platform_device davinci_fb_device = {
 
 int amico_get_pendown_state(void)
 {
-	/*return !gpio_get_value(PENIRQn);*/
-	return 0;
+	return !gpio_get_value(piPENIRQn);
 }
 
 static struct ads7846_platform_data amico_ads7846_info = {
 	.model = 7846,
 	.x_max = 0x0fff,
 	.y_max = 0x0fff,
-	.x_plate_ohms = 600,
-	.y_plate_ohms = 350,
+	.x_plate_ohms = 240,
+	.y_plate_ohms = 700,
 	.keep_vref_on = 1,
 	.settle_delay_usecs = 500,
 	.penirq_recheck_delay_usecs = 100,
@@ -463,7 +462,7 @@ static struct ads7846_platform_data amico_ads7846_info = {
 	.debounce_tol = 50,
 	.debounce_max = 20,
 	.debounce_rep = 3,
-	.sampling_period = 50 * 1000 * 1000,
+	.sampling_period = 20 * 1000 * 1000,
 	.pressure_max = 1024,
 
 	.vref_mv = 3300,
@@ -471,14 +470,13 @@ static struct ads7846_platform_data amico_ads7846_info = {
 };
 
 static struct spi_board_info amico_spi3_info[] = {
-	{
-		.modalias = "ads7846",
-		.platform_data = &amico_ads7846_info,
-		.max_speed_hz = 2000000, /* Max 2.5MHz for the chip*/
-		.bus_num = 3,
-		.chip_select = 0,
-		.mode = SPI_MODE_0,
-		.irq = IRQ_DM365_GPIO0_4,
+	{	/* dm365 spi work between 600000 and 50000000 */
+		.modalias       = "zl38005",
+		.max_speed_hz   = 2 * 1000 * 1000,
+		.bus_num        = 3,
+		.controller_data = poZARLINK_CS,
+		/* .chip_select	= poZARLINK_CS, cosi non va... */
+		.mode           = SPI_MODE_0,
 	},
 #if 0
 	{
@@ -539,7 +537,7 @@ static void __init amico_led_init(void)
 	platform_device_register(&amico_leds_gpio_device);
 }
 #endif
-
+#if 0
 static struct generic_bl_info amico_bl_machinfo = {
 	.max_intensity = 0xff,
 	.default_intensity = 0xf0,
@@ -613,7 +611,7 @@ static void amico_bl_set_intensity(int level)
 
 	return ;
 };
-
+#endif
 static void pinmux_check(void)
 {
 	void __iomem *pinmux_reg[] = {
@@ -630,7 +628,7 @@ static void pinmux_check(void)
 		printk(KERN_INFO "pinmux%d=%X\n", i, pinmux[i]);
 	}
 }
-
+#if 0
 static struct plat_serial8250_port amico_dm365_serial_platform_data[] = {
 	{
 		.mapbase        = DM365_ASYNC_EMIF_DATA_CE1_BASE,
@@ -730,7 +728,7 @@ static void amico_uart_configure(void)
 	set_irq_type(gpio_to_irq(0), IRQ_TYPE_EDGE_BOTH);
 	platform_device_register(&amico_dm365_serial_device);
 }
-
+#endif
 static struct irq_on_gpio amico_irq_on_gpio0[] = {
 	{
 		.gpio = piPOWER_FAILn,
@@ -754,18 +752,19 @@ static struct irq_on_gpio amico_irq_on_gpio0[] = {
 		.irq = IRQ_DM365_GPIO0_3,
 		.type = LEVEL,
 		.mode = GPIO_EDGE_FALLING,
-	}, {
+	},
+#endif
+	{
 		.gpio = piTMK_INTn,
 		.irq = IRQ_DM365_GPIO0_4,
 		.type = LEVEL,
 		.mode = GPIO_EDGE_FALLING,
 	}, {
-		.gpio = piGPIO_INTn,
+		.gpio = piPENIRQn,
 		.irq = IRQ_DM365_GPIO0_5,
 		.type = EDGE,
 		.mode = GPIO_EDGE_FALLING,
 	},
-#endif
 };
 
 static struct irq_gpio_platform_data amico_irq_gpio_platform_data = {
@@ -977,16 +976,11 @@ static void amico_gpio_configure(void)
 	gpio_direction_input(0);
 	gpio_configure_in(DM365_GPIO50, piPOWER_FAILn, "piPOWER_FAILn");
 	gpio_configure_in(DM365_GPIO35, piINT_I2Cn, "piINT_I2Cn");
-
-#if 0
-	gpio_configure_in(DM365_GPIO64_57, piINT_UART_An, "piINT_UART_An");
 	gpio_configure_in(DM365_GPIO64_57, piTMK_INTn, "piTMK_INTn (RTC)");
-	gpio_configure_in(DM365_GPIO26, piINT_UART_Bn, "piINT_UART_Bn");
-	gpio_configure_in(DM365_GPIO100, piGPIO_INTn, "piGPIO_INTn");
-#endif
+	gpio_configure_in(DM365_GPIO64_57, piPENIRQn, "piPENIRQn");
+
 	gpio_configure_in(DM365_GPIO96, piSD_DETECTn, "SD detec");
-	gpio_configure_in(DM365_GPIO40, piIN_MUX_READ, "piIN_MUX_READ");
-	gpio_configure_in(DM365_GPIO59, piTOUCH_BUSY, "piTOUCH_BUSY");
+	gpio_configure_in(DM365_GPIO64_57, piTOUCH_BUSY, "piTOUCH_BUSY");
 
 	/* -- Configure Output -----------------------------------------------*/
 	gpio_configure_out(DM365_GPIO34, poAUDIO_SEP_ZL, 0, "AUDIO SEP ZALINK");
@@ -997,19 +991,14 @@ static void amico_gpio_configure(void)
 	gpio_configure_out(DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
 	gpio_configure_out(DM365_GPIO45, poBOOT_FL_WPn, 1,
 			"Protect SPI ChipSelect");
-	gpio_configure_out(DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXT_UART");
-	gpio_configure_out(DM365_GPIO57, poEN_LCD_3_3V, 1, "Enable LCD 3.3V");
-	gpio_configure_out(DM365_GPIO58, poENABLE_VIDEO_IN, 1,
+	gpio_configure_out(DM365_GPIO64_57, poEN_LCD_3_3V, 1,
+			"Enable LCD 3.3V");
+	gpio_configure_out(DM365_GPIO64_57, poENABLE_VIDEO_IN, 1,
 			"Enable video demodulator");
-	gpio_configure_out(DM365_GPIO60, poAUDIO_DM365_ZL, 0,
+	gpio_configure_out(DM365_GPIO64_57, poAUDIO_DM365_ZL, 0,
 			"AUDIO DM365 ZALINK");
-	gpio_configure_out(DM365_GPIO61, poE2_WPn, 0, "EEprom write protect");
-	gpio_configure_out(DM365_GPIO62, poSEL_MUX_2, 0,
-			"74hc4051, 1 of 4, interrupt scan");
-	gpio_configure_out(DM365_GPIO63, poSEL_MUX_1, 0,
-			"74hc4051, 1 of 4, interrupt scan");
-	gpio_configure_out(DM365_GPIO64, poSEL_MUX_0, 0,
-			"74hc4051, 1 of 4, interrupt scan");
+	gpio_configure_out(DM365_GPIO64_57, poE2_WPn, 0,
+			"EEprom write protect");
 
 	/* Pal Decoder : NON PDW DOWN */
 	gpio_configure_out(DM365_GPIO38, poPDEC_PWRDNn, 1,
@@ -1028,16 +1017,16 @@ static void amico_gpio_configure(void)
 			"Speaker power control");
 	gpio_configure_out(DM365_GPIO72, poEN_BACKLIGHT, 0,
 			"Lcd backlight control");
-	gpio_configure_out(DM365_GPIO73, poLCD_GAMMA_CTRL, 1,
+	gpio_configure_out(DM365_GPIO78_73, poLCD_GAMMA_CTRL, 1,
 			"Lcd gamma control");
-	/*gpio_configure_out(DM365_GPIO74, poTOUCH_CSn, 1,
-	 * "Touch screen chip select");*/
-	gpio_configure_out(DM365_GPIO75, poEN_LCD_5V, 1, "Enable LCD 5V");
-	gpio_configure_out(DM365_GPIO76, poSN74CBT_S1, 0,
+	gpio_configure_out(DM365_GPIO51, poTOUCH_CSn, 1,
+			"Touch screen chip select");
+	gpio_configure_out(DM365_GPIO78_73, poEN_LCD_5V, 1, "Enable LCD 5V");
+	gpio_configure_out(DM365_GPIO78_73, poSN74CBT_S1, 0,
 				"SN74CBT16214 switch video channel");
-	gpio_configure_out(DM365_GPIO77, poSN74CBT_S0, 0,
+	gpio_configure_out(DM365_GPIO78_73, poSN74CBT_S0, 0,
 				"SN74CBT16214 switch video channel");
-	gpio_configure_out(DM365_GPIO78, poZARLINK_RESET, 0,
+	gpio_configure_out(DM365_GPIO78_73, poZARLINK_RESET, 0,
 				"poZARLINK_RESET");
 	gpio_configure_out(DM365_GPIO101, poZARLINK_CS, 1,
 				"poZARLINK_CS");
@@ -1046,12 +1035,15 @@ static void amico_gpio_configure(void)
 	gpio_configure_out(DM365_GPIO98, poWATCHDOG, 0,
 			"Emulate feed watchdog, output to mcu");
 
+	/* only for V0.1*/
+	gpio_configure_out(DM365_GPIO41, poBL_PWM, 0, "poBL_PWM");
 	/* -- Export For Debug -----------------------------------------------*/
 
 	if (amico_debug) {
 		gpio_export(piPOWER_FAILn, 0);
 		gpio_export(piINT_I2Cn, 0);
-		gpio_export(piIN_MUX_READ, 0);
+		gpio_export(piTMK_INTn, 0);
+		gpio_export(piPENIRQn, 0);
 		gpio_export(piSD_DETECTn, 0);
 		gpio_export(piTOUCH_BUSY, 0);
 
@@ -1060,15 +1052,10 @@ static void amico_gpio_configure(void)
 		gpio_export(poEN_LOCAL_MIC, 0);
 		gpio_export(poENET_RESETn, 0);
 		gpio_export(poBOOT_FL_WPn, 0); /* danger */
-		gpio_export(poRES_EXTUART, 0);
 		gpio_export(poEN_LCD_3_3V, 0);
 		gpio_export(poENABLE_VIDEO_IN, 0);
 		gpio_export(poAUDIO_DM365_ZL, 0);
 		gpio_export(poE2_WPn, 0);
-		gpio_export(poSEL_MUX_2, 0);
-		gpio_export(poSEL_MUX_1, 0);
-		gpio_export(poSEL_MUX_0, 0);
-
 		gpio_export(poPDEC_PWRDNn, 0);
 		gpio_export(poPDEC_RESETn, 0);
 		gpio_export(poSPK_PWR, 0);
@@ -1081,6 +1068,9 @@ static void amico_gpio_configure(void)
 		gpio_export(poZARLINK_CS, 0);
 		gpio_export(poPIC_RESETn, 0);
 		gpio_export(poWATCHDOG, 0);
+
+		gpio_export(poBL_PWM, 0);	/* only for V0.1*/
+		gpio_export(poTOUCH_CSn, 0);
 	}
 }
 
@@ -1156,7 +1146,7 @@ static struct platform_device *amico_devices[] __initdata = {
 	&amico_hwmon_device,
 	&amico_irq_gpio_device,
 	&davinci_fb_device,
-	&amico_bl_device,
+	/*&amico_bl_device,*/ /*v0.1 no pwm control,only Enable*/
 };
 
 static struct davinci_uart_config uart_config __initdata = {
@@ -1192,15 +1182,16 @@ static struct spi_board_info amico_spi_info[] __initconst = {
 		.mode           = SPI_MODE_0,
 	},
 #endif
-	{	/* dm365 spi work between 600000 and 50000000 */
-		.modalias       = "zl38005",
-		.max_speed_hz   = 2 * 1000 * 1000,
-		.bus_num        = 3,
-		.controller_data = poZARLINK_CS,
-		/* .chip_select	= poZARLINK_CS, cosi non va... */
-		.mode           = SPI_MODE_0,
+	{
+		.modalias = "ads7846",
+		.platform_data = &amico_ads7846_info,
+		.max_speed_hz = 2 * 1000 * 1000, /* Max 2.5MHz for the chip*/
+		.bus_num = 0,
+		.controller_data = (void *)poTOUCH_CSn,
+		.chip_select = 1,
+		.mode = SPI_MODE_0,
+		.irq = IRQ_DM365_GPIO0_5,
 	},
-
 };
 
 static void amico_late_init(unsigned long data)
@@ -1255,7 +1246,7 @@ static __init void amico_init(void)
 	amico_emac_configure();
 	amico_lcd_configure();
 
-	/* SPI for Zarlink*/
+	/* SPI0 for touchscreen, SPI3 for Zarlink*/
 	dm365_init_spi0(0, amico_spi_info, ARRAY_SIZE(amico_spi_info));
 	dm365_init_spi3(BIT(0), amico_spi3_info, ARRAY_SIZE(amico_spi3_info));
 

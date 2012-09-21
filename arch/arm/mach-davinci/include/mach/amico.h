@@ -12,15 +12,16 @@
 
 /* -- IRQ (GPIO) ------------------------------------------------------------ */
 #define piINTERRUPT		0	/* Interrup Pin */
-#define piPOWER_FAILn		50	/* IRQ_PowerFail */
+#define piPOWER_FAILn	50	/* IRQ_PowerFail */
 #define piINT_I2Cn		35	/* I2C interrupt between DM365 and MCU*/
+#define piTMK_INTn		62	/* IRQ_RTC */
+#define piPENIRQn		64	/* IRQ_TouchScreen */
 
 /* -- GPIO ------------------------------------------------------------------ */
-#define poBL_PWM			25  /* Backlight control */
-#define poAUDIO_SEP_ZL		34	/* AUDIO SEP ZALINK */
+#define poBL_PWM			41  /* Backlight control */
+#define poAUDIO_SEP_ZL		42	/* AUDIO SEP ZALINK */
 #define poNAND_WPn			36	/* Nand flash write protect */
 #define poENET_RESETn		44	/* ETH phy reset */
-#define poRES_EXTUART		51	/* Extend uart reset */
 #define poBOOT_FL_WPn		45	/* Protecting SPI chip select */
 #define poENABLE_VIDEO_IN	58	/* Enable DEM_VIDEO */
 #define poPDEC_PWRDNn		38	/* PalDecoder PWRDown */
@@ -31,19 +32,20 @@
 #define piSD_DETECTn		96	/* Detect MicroSD*/
 #define po_NAND_WPn	36	/* Nand flash write protect*/
 #define poWATCHDOG	98	/* Emulate feed watchdog,output mcu*/
-#define piIN_MUX_READ		40	/* In mux read*/
 #define poEN_LOCAL_MIC		43	/* Enable local microphone */
 #define poEN_LCD_3_3V	    57	/* Enable LCD 3.3V */
 #define piTOUCH_BUSY		59	/* Touch screen busy */
 #define poAUDIO_DM365_ZL	60	/* AUDIO DM365 ZALINK */
 #define poE2_WPn		61	/* E2prom Write Protect */
+#if 0
 #define poSEL_MUX_2		62	/* 74hc4051, 1 of 4, interrupt scan */
 #define poSEL_MUX_1             63	/* */
 #define poSEL_MUX_0             64	/* */
+#endif
 #define poSPK_PWR		68	/* Speaker power control,H:enable */
 #define poEN_BACKLIGHT		72	/* Lcd backlight control */
 #define poLCD_GAMMA_CTRL	73	/* Lcd gamma control */
-#define poTOUCH_CSn		74	/* Touch screen chip select */
+#define poTOUCH_CSn		51	/* Touch screen chip select */
 #define poEN_LCD_5V		75	/* Enable LCD 5v */
 #define poSN74CBT_S1		76	/* SN74CBT16214 switch video channel */
 #define poSN74CBT_S0		77	/* */
