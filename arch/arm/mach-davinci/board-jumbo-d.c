@@ -23,7 +23,7 @@
 #include <linux/clk.h>
 #include <linux/i2c/at24.h>
 #include <linux/i2c/mc44cc373.h>
-#include <linux/i2c/mcp4531.h>
+#include <linux/mcp453x.h>
 #include <linux/leds.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
@@ -872,18 +872,14 @@ static struct snd_platform_data dm365_jumbo_snd_data[] = {
         },
 };
 
-struct mcp4531_platform_data mcp4531_pdata[] = {
-	{
-		.id = 0,
-		.wiper0_def = 0x40,
-		.wiper1_def = 0x40,
-		.tcon_def = 0x1ff,
-	}, {
-		.id = 1,
-		.wiper0_def = 0x40,
-		.wiper1_def = 0x40,
-		.tcon_def = 0x1ff,
-	},
+static struct mcp453x_platform_data mcp453x_2e_data = {
+       .volatile_wiper0 = 0x5b,
+       .volatile_tcon = 0xf,
+};
+
+static struct mcp453x_platform_data mcp453x_2f_data = {
+       .volatile_wiper0 = 0x78,
+       .volatile_tcon = 0xf,
 };
 
 /* I2C 7bit Adr */
@@ -900,11 +896,11 @@ static struct i2c_board_info __initdata jumbo_i2c_info[] = {
 	}, {	/*Video HD*/
 		I2C_BOARD_INFO("ths7303", 0x2c),
 	}, {	/* Digital Potentiometer*/
-		I2C_BOARD_INFO("mcp4531", 0x2e),
-		.platform_data = &mcp4531_pdata[0],
+		I2C_BOARD_INFO("mcp453x", 0x2e),
+		.platform_data = &mcp453x_2e_data,
 	}, {	/* Digital Potentiometer*/
-		I2C_BOARD_INFO("mcp4531", 0x2f),
-		.platform_data = &mcp4531_pdata[1],
+		I2C_BOARD_INFO("mcp453x", 0x2f),
+		.platform_data = &mcp453x_2f_data,
 	},
 };
 
