@@ -138,6 +138,16 @@ config ICS932S401
 	  This driver can also be built as a module. If so, the module
 	  will be called ics932s401.
 
+config MCP453X
+	tristate "MCP453X potentiometer"
+	depends on I2C
+	help
+	  If you say yes here you get support for the Mcp453X
+	  potentiometer.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called mcp453x.
+
 config ATMEL_SSC
 	tristate "Device driver for Atmel SSC peripheral"
 	depends on AVR32 || ARCH_AT91
@@ -245,14 +255,6 @@ config EP93XX_PWM
 
 	  To compile this driver as a module, choose M here: the module will
 	  be called ep93xx_pwm.
-
-config MICROCHIP_MCP4531
-	tristate "Microchip Digital Potentiometers "
-	depends on I2C
-	help
-	  This option enables device driver support for the Microchip 
-	  Digital Potentiometers.
-	  Device MCP4531 (10kohm , 129 Step)	
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
