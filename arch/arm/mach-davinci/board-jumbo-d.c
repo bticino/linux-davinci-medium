@@ -866,9 +866,9 @@ static struct snd_platform_data dm365_jumbo_snd_data[] = {
         {
         },
         {
-                .eventq_no = EVENTQ_3,
-                .i2s_accurate_sck = 1,
-                .clk_input_pin = MCBSP_CLKS,
+		.asp_chan_q = EVENTQ_3,
+		.i2s_accurate_sck = 1,
+		.clk_input_pin = MCBSP_CLKS,
         },
 };
 
