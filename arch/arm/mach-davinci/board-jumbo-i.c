@@ -913,6 +913,7 @@ static struct davinci_uart_config uart_config __initdata = {
 static void __init jumbo_map_io(void)
 {
 	dm365_set_vpfe_config(&vpfe_cfg);
+	dm365_init_isif(DM365_ISIF_8BIT);
 	dm365_init();
 }
 

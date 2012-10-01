@@ -85,7 +85,7 @@ struct work_struct late_init_work;
 static struct timer_list startup_timer;
 #define TIME_TO_LATE_INIT 1500
 
-static int jumbo_debug;
+static int jumbo_debug = 1;
 module_param(jumbo_debug, int, 0644);
 MODULE_PARM_DESC(jumbo_debug, "Debug level 0-1");
 
@@ -929,6 +929,7 @@ static struct davinci_uart_config uart_config __initdata = {
 static void __init jumbo_map_io(void)
 {
 	dm365_set_vpfe_config(&vpfe_cfg);
+	dm365_init_isif(DM365_ISIF_8BIT);
 	dm365_init();
 }
 
