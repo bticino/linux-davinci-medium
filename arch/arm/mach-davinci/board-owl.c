@@ -107,6 +107,9 @@ static int owl_debug = 1;
 module_param(owl_debug, int, 0644);
 MODULE_PARM_DESC(dowl_debug, "Debug level 0-1");
 
+extern unsigned int system_rev;
+extern int lookup_resistors(int cnt);
+
 /*
 wp_set: set/unset the at24 eeprom write protect
 */
@@ -710,6 +713,8 @@ struct device my_device;
 static void owl_late_init(unsigned long data)
 {
 	int status;
+	void __iomem *adc_mem;
+	u32 regval, index;
 
 	del_timer(&startup_timer);
 	davinci_cfg_reg(DM365_GPIO45);
@@ -720,6 +725,21 @@ static void owl_late_init(unsigned long data)
 		return;
 	}
 	gpio_direction_output(BOOT_FL_WP, 1);
+
+	/* setting /proc/cpuinfo hardware_version information */
+
+	index = 1;
+
+	adc_mem = ioremap(DM365_ADCIF_BASE, SZ_1K);
+	__raw_writel(1 << index, adc_mem + CHSEL);
+	regval = ADCTL_SCNIEN | ADCTL_SCNFLG;
+	__raw_writel(regval, adc_mem + ADCTL);
+	regval |= ADCTL_START;
+	__raw_writel(regval, adc_mem + ADCTL);
+	do { } while (__raw_readl(adc_mem + ADCTL) & ADCTL_START);
+	regval = __raw_readl(adc_mem + AD_DAT(index));
+
+	system_rev = lookup_resistors(regval);
 
 	davinci_cfg_reg(DM365_UART1_RXD_34);
 	davinci_cfg_reg(DM365_UART1_TXD_25);
