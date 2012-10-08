@@ -645,19 +645,13 @@ static struct ov971x_platform_data ov971x_pdata = {
 	.out_drive_capability = OV971x_DRIVE_CAP_X1,
 };
 
-/*
-#define V4L2_STD_OV971X_STD_ALL (v4l2_std_id)(V4L2_STD_720P_30 \
-		| V4L2_STD_640x400_30 | V4L2_STD_320x240_30  \
-		| V4L2_STD_160x120_30)
-*/
-
 /* Input available at the ov971x */
 static struct v4l2_input ov971x_inputs[] = {
 	{
 		.index = 0,
 		.name = "Camera",
 		.type = V4L2_INPUT_TYPE_CAMERA,
-		/* .std = V4L2_STD_OV971X_STD_ALL, */
+		.std = V4L2_STD_OV971x_STD_ALL,
 	}
 };
 
