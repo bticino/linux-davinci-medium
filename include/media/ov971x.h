@@ -87,6 +87,12 @@ struct ov971x_edge_ctrl {
 	.threshold = (t & EDGE_THRESHOLD_MASK),				\
 }
 
+#define V4L2_STD_OV971x_STD_ALL (v4l2_std_id)(V4L2_STD_720P_30 \
+				| V4L2_STD_640x400_30 \
+				| V4L2_STD_352x288_30 \
+				| V4L2_STD_320x240_30 \
+				| V4L2_STD_160x120_30)
+
 /*
  * ov971x camera info
  */
