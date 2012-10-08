@@ -33,6 +33,8 @@
 #include <linux/videodev2.h>
 #include <media/davinci/dm365_ipipe.h>
 #include <media/davinci/imp_hw_if.h>
+#include <media/davinci/vpfe_capture.h>
+#include <linux/clk.h>
 
 #include <mach/irqs.h>
 
@@ -599,6 +601,54 @@ static void calculate_resize_ratios(struct ipipe_params *param, int index)
 	    (param->rsz_rsc_param[index].o_vsz + 1);
 }
 
+/* calculate_sdram_dma_divide_ratio()
+ *   calculate the divide ratio of the SDRAM(DMA). This is called after setting
+ * the input/output size since the speed depends on video size and framrate
+ */
+static void calculate_sdram_dma_divide_ratio(struct ipipe_params *param,
+					     struct v4l2_fract *fps)
+{
+	struct clk *vpss_clk;
+	unsigned long vpss_rate, pixels = 0;
+	unsigned int n, d;
+
+	if (!fps) {
+		n = 1;
+		d = 30;
+	} else {
+		n = fps->numerator;
+		d = fps->denominator;
+	}
+
+	vpss_clk = clk_get(NULL, "vpss_master");
+	vpss_rate = clk_get_rate(vpss_clk);
+	clk_put(vpss_clk);
+
+	pixels = (param->ipipe_hsz + 1) * (param->ipipe_vsz + 1);
+	if (param->rsz_en[RSZ_A]) {
+		if (pixels < (param->rsz_rsc_param[RSZ_A].o_hsz + 1) *
+			     (param->rsz_rsc_param[RSZ_A].o_vsz + 1))
+			pixels = (param->rsz_rsc_param[RSZ_A].o_hsz + 1) *
+				 (param->rsz_rsc_param[RSZ_A].o_vsz + 1);
+	}
+	if (param->rsz_en[RSZ_B]) {
+		if (pixels < (param->rsz_rsc_param[RSZ_B].o_hsz + 1) *
+			     (param->rsz_rsc_param[RSZ_B].o_vsz + 1))
+			pixels = (param->rsz_rsc_param[RSZ_B].o_hsz + 1) *
+				 (param->rsz_rsc_param[RSZ_B].o_vsz + 1);
+	}
+	param->ipipeif_param.var.if_5_1.clk_div.m = 1; /*numerator*/
+	/* apply a 12.5% of margin for front/back porch */
+	pixels += pixels >> 3;
+	param->ipipeif_param.var.if_5_1.clk_div.n = vpss_rate /
+				(pixels * d / n);
+	if (param->ipipeif_param.var.if_5_1.clk_div.n < 2)
+		param->ipipeif_param.var.if_5_1.clk_div.n = 2;
+	if (param->ipipeif_param.var.if_5_1.clk_div.n > 255)
+		param->ipipeif_param.var.if_5_1.clk_div.n = 255;
+	param->ipipeif_param.clock_select = SDRAM_CLK;
+}
+
 static int ipipe_do_hw_setup(struct device *dev, void *config)
 {
 	struct ipipe_params *param = (struct ipipe_params *)config;
@@ -617,6 +667,9 @@ static int ipipe_do_hw_setup(struct device *dev, void *config)
 			calculate_resize_ratios(param, RSZ_B);
 		ret = ipipe_hw_setup(param);
 	}
+		calculate_sdram_dma_divide_ratio(param,
+					&((struct vpfe_device *)
+					dev_get_drvdata(dev))->std_info.fps);
 	mutex_unlock(&oper_state.lock);
 	return ret;
 }
@@ -3134,6 +3187,7 @@ static int configure_resizer_in_ss_mode(struct device *dev,
 				    (param->rsz_rsc_param[RSZ_B].o_vsz + 1);
 			}
 		}
+		calculate_sdram_dma_divide_ratio(param, NULL);
 	}
 	mutex_unlock(&oper_state.lock);
 	return 0;
@@ -3599,6 +3653,7 @@ static int configure_previewer_in_ss_mode(struct device *dev,
 				calculate_resize_ratios(param, RSZ_B);
 				calculate_sdram_offsets(param, RSZ_B);
 			}
+			calculate_sdram_dma_divide_ratio(param, NULL);
 		} else {
 			struct rsz_output_spec *output_specs =
 				kmalloc(sizeof(struct rsz_output_spec),
