@@ -150,6 +150,17 @@ static struct v4l2_input tda9885_inputs[] = {
 
 static struct vpfe_subdev_info vpfe_sub_devs[] = {
 	{
+		.module_name = "tda9885",
+		.grp_id = VPFE_SUBDEV_TVP5150,
+		.num_inputs = 1,
+		.inputs = tda9885_inputs,
+		.can_route = 1,
+		.board_info = {
+			I2C_BOARD_INFO("tda9885", 0x43),
+			.platform_data = &tda9885_defaults,
+		},
+	},
+	{
 		.module_name = "tvp5150",
 		.grp_id = VPFE_SUBDEV_TVP5150,
 		.num_inputs = ARRAY_SIZE(tvp5151_inputs),
@@ -166,18 +177,6 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 			.platform_data = &tvp5150_pdata,
 		},
 	},
-	{
-		.module_name = "tda9885",
-		.grp_id = VPFE_SUBDEV_TVP5150,
-		.num_inputs = 1,
-		.inputs = tda9885_inputs,
-		.can_route = 1,
-		.board_info = {
-			I2C_BOARD_INFO("tda9885", 0x43),
-			.platform_data = &tda9885_defaults,
-		},
-	},
-
 };
 
 static int basi_setup_video_input(enum vpfe_subdev_id id)
