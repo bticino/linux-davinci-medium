@@ -378,10 +378,6 @@ static inline void tvp5150_selmux(struct v4l2_subdev *sd)
 			"=> tvp5150 input=%i, opmode=%i\n",
 			decoder->input, decoder->output,
 			input, opmode);
-	printk(KERN_INFO "Selecting video route: route input=%i, output=%i "
-			"=> tvp5150 input=%i, opmode=%i\n",
-			decoder->input, decoder->output,
-			input, opmode);
 
 	tvp5150_write(sd, TVP5150_OP_MODE_CTL, opmode);
 	tvp5150_write(sd, TVP5150_VD_IN_SRC_SEL_1, input);
@@ -874,7 +870,7 @@ static int tvp5150_reset(struct v4l2_subdev *sd, u32 val)
 	/* Initialize image preferences */
 	tvp5150_write(sd, TVP5150_BRIGHT_CTL, decoder->bright);
 	tvp5150_write(sd, TVP5150_CONTRAST_CTL, decoder->contrast);
-	tvp5150_write(sd, TVP5150_SATURATION_CTL, decoder->contrast);
+	tvp5150_write(sd, TVP5150_SATURATION_CTL, decoder->sat);
 	tvp5150_write(sd, TVP5150_HUE_CTL, decoder->hue);
 
 	tvp5150_set_std(sd, V4L2_STD_PAL); /* V4L2_STD_ALL */
@@ -1030,7 +1026,7 @@ static int tvp5150_detect(struct v4l2_subdev *sd)
 		}
 		break;
 	case 0x5151:
-		v4l2_info(sd, "5151 type detected.\n");
+		v4l2_dbg(1, debug, sd, "5151 type detected.\n");
 
 		/* Initializes TVP5150 to stream enabled values */
 		tvp5150_write_inittab(sd, tvp5151_init_enable);
@@ -1317,7 +1313,6 @@ static int tvp5150_s_register(struct v4l2_subdev *sd, struct v4l2_dbg_register *
 static int tvp5150_s_power(struct v4l2_subdev *sd, int power)
 {
 	struct tvp5150 *decoder = to_tvp5150(sd);
-
 	gpio_set_value(decoder->pdata->pdn, power);
 	return 0;
 }
@@ -1499,17 +1494,22 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 	switch (enable) {
 	case 0:
 	{
-		/* Power Down Sequence */
-		v4l2_dbg(0, debug, sd, "Power Down Sequence \n");
+		/* Stream off Sequence */
+		v4l2_dbg(1, debug, sd, "Power Down Sequence \n");
 		tvp5150_write(sd, TVP5150_OP_MODE_CTL, 0x01);
 		decoder->streaming = enable;
-
 		break;
 	}
 	case 1:
 	{
-		/* Power Up Sequence */
-		v4l2_dbg(0, debug, sd, "Power Up Sequence \n");
+		/* Stream on Sequence */
+		v4l2_dbg(1, debug, sd, "Power Up Sequence \n");
+		/* resetting the decoder */
+		gpio_set_value(decoder->pdata->resetb, enable);
+		mdelay(2); /* 500 nsec is enough */
+		schedule();
+		gpio_set_value(decoder->pdata->resetb, enable);
+		mdelay(2); /* 200 usec is enough */
 		tvp5150_write(sd, TVP5150_OP_MODE_CTL, 0x00);
 
 		/* Detect if not already detected */
@@ -1520,11 +1520,7 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 		}
 
 		/* TODO FIXING TVP5150 support */
-		tvp5150_write_inittab(sd, tvp5151_init_enable);
-		if (err) {
-			v4l2_err(sd, "Unable to configure decoder\n");
-			return err;
-		}
+		tvp5150_reset(sd, 0);
 		decoder->streaming = enable;
 		break;
 	}
