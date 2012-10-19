@@ -1743,6 +1743,12 @@ static int __init dm365_ccdc_probe(struct platform_device *pdev)
 	 * different SoCs using this CCDC
 	 */
 	setup_pinmux(pdata->bus_width);
+	if (pdata->bus_width == DM365_ISIF_16BIT)
+		ccdc_cfg.bayer.data_msb = CCDC_BIT_MSB_15;
+	else if  (pdata->bus_width == DM365_ISIF_10BIT)
+		ccdc_cfg.bayer.data_msb = CCDC_BIT_MSB_9;
+	else if (pdata->bus_width == DM365_ISIF_8BIT)
+		ccdc_cfg.bayer.data_msb = CCDC_BIT_MSB_7;
 
 	printk(KERN_NOTICE "%s is registered with vpfe.\n",
 		ccdc_hw_dev.name);
