@@ -2353,6 +2353,8 @@ static int davincifb_probe(struct device *dev)
 				  OSD1_FBNAME);
 	if (err)
 		goto osd1_out;
+	/* default close the osd1 */
+	davinci_disp_disable_layer(WIN_OSD1);
 
 	/* initialize VID1 */
 	dm->win[WIN_VID1].layer = WIN_VID1;

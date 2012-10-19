@@ -2020,14 +2020,17 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 		}
 
 		winmd_mask |= OSD_OSDWIN1MD_OFF1;
-		if (lconfig->interlaced)
+		if (!lconfig->interlaced)
 			winmd |= OSD_OSDWIN1MD_OFF1;
 
 		osd_merge(winmd_mask, winmd, OSD_OSDWIN1MD);
 		osd_write(lconfig->line_length >> 5, OSD_OSDWIN1OFST);
 		osd_write(lconfig->xpos, OSD_OSDWIN1XP);
 		osd_write(lconfig->xsize, OSD_OSDWIN1XL);
-		if (lconfig->interlaced) {
+
+		if ((lconfig->interlaced) &&
+		    (lconfig->pixfmt != PIXFMT_RGB888) &&
+		    (lconfig->pixfmt != PIXFMT_RGB565)) {
 			osd_write(lconfig->ypos >> 1, OSD_OSDWIN1YP);
 			osd_write(lconfig->ysize >> 1, OSD_OSDWIN1YL);
 		} else {

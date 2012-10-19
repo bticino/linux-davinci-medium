@@ -129,12 +129,29 @@ static struct logicpd_encoder_config logicpd_encoder_configuration = {
 				       .hsync_len = 0,
 				       .vsync_len = 0,
 				       .flags = 0},
+			 .standards[5] = {
+				       .name = VID_ENC_STD_800x480,
+				       .std = 1,
+				       .if_type = VID_ENC_IF_PRGB,
+				       .interlaced = 0,
+				       .xres = 800,
+				       .yres = 480,
+				       .fps = {60, 1},
+				       .left_margin = 46,
+				       .right_margin = 210,
+				       .upper_margin = 23,
+				       .lower_margin = 22,
+				       .hsync_len = 1,
+				       .vsync_len = 1,
+				       .pixclock = 30030,
+					   .dofst = DOFST_NONE,
+				       .flags = 0},
 		      },
 };
 
 static struct logicpd_encoder_channel logicpd_encoder_channel_info = {
 	.params.outindex = 0,
-	.params.mode = VID_ENC_STD_640x480,
+	.params.mode = VID_ENC_STD_800x480,
 	.enc_device = NULL
 };
 
@@ -340,9 +357,9 @@ static int logicpd_encoder_setoutput(char *output,
 		return -EINVAL;
 	}
 	logicpd_encoder_channel_info.params.mode
-	    = logicpd_encoder_configuration.output[0].standards[0].name;
+	    = logicpd_encoder_configuration.output[0].standards[5].name;
 
-	my_mode_info = &logicpd_encoder_configuration.output[0].standards[0];
+	my_mode_info = &logicpd_encoder_configuration.output[0].standards[5];
 	err |= logicpd_encoder_setmode(my_mode_info, enc);
 	if (err < 0) {
 		printk(KERN_ERR "Error in setting default mode\n");
