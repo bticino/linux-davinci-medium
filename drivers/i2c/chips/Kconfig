@@ -26,4 +26,14 @@ config SENSORS_TSL2550
 	  This driver can also be built as a module.  If so, the module
 	  will be called tsl2550.
 
+config I2C_IRQ
+	tristate "Driver that allows to read from I2C channel using a GPIO as interrupt that signals when data is available"
+	depends on EXPERIMENTAL
+	help
+	  If you say yes here you get support for the I2C device driver with
+	  a GPIO as interrupt.
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called i2c_irq.
+
 endmenu
