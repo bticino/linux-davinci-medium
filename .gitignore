@@ -45,6 +45,7 @@ Module.symvers
 #
 # Generated include files
 #
+include/asm-arm/
 include/asm
 include/asm-*/asm-offsets.h
 include/config
