@@ -38,6 +38,7 @@
 #include <linux/videodev2.h>
 #include <linux/i2c/tda9885.h>
 #include <linux/i2c/tvp5150.h>
+#include <linux/i2c/i2c_irq.h>
 #include <linux/pm_loss.h>
 #include <linux/irq_gpio.h>
 
@@ -738,7 +739,7 @@ static struct irq_on_gpio amico_irq_on_gpio0[] = {
 	}, {
 		.gpio = piINT_I2Cn,
 		.irq = IRQ_DM365_GPIO0_1,
-		.type = LEVEL,
+		.type = EDGE,
 		.mode = GPIO_EDGE_FALLING,
 	}, {
 		.gpio = piPOWER_FAILn,
@@ -1118,14 +1119,25 @@ static struct snd_platform_data dm365_amico_snd_data[] = {
 #endif
 };
 
+/* gpio info for i2c_irq module */
+static struct i2c_irq_platform_data i2c_irq_info = {
+	.gpio = piINT_I2Cn,
+	.irq = IRQ_DM365_GPIO0_1,
+};
+
 /* I2C 7bit Adr */
 static struct i2c_board_info __initdata amico_i2c_info[] = {
 	{	/* RTC */
 		I2C_BOARD_INFO("pcf8563", 0x51),
 		.irq = IRQ_DM365_GPIO0_4,
-	}, {	/* EEprom */
+	},
+	{	/* EEprom */
 		I2C_BOARD_INFO("24c256", 0x53),
 		.platform_data = &at24_info,
+	},
+	{	/* SDA PIC */
+		I2C_BOARD_INFO("pic16f1939", 0x57),
+		.platform_data = &i2c_irq_info,
 	},
 };
 
