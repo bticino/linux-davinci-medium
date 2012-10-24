@@ -579,7 +579,7 @@ static __init int rsz_init(void)
 	/* Initialize the serializer */
 	imp_init_serializer();
 	imp_hw_if = imp_get_hw_if();
-	printk(KERN_NOTICE "davinci_resizer initialized\n");
+        printk(KERN_NOTICE "davinci_resizer initialized, major#: %d, minor# %d \n", MAJOR(dev), MINOR(dev));
 	return 0;
 }				/* End   of function  resizer_init */
 

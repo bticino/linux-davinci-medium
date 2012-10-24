@@ -942,6 +942,7 @@ static int __init zl38005_init(void)
 		class_destroy(zl38005_class);
 		unregister_chrdev(MAJOR(zl38005->dev), zl38005_spi.driver.name);
 	}
+        printk(KERN_NOTICE "zl38005 initialized, major#: %d, minor# %d \n", MAJOR(zl38005->dev), MINOR(zl38005->dev));
 	return result;
 
 }

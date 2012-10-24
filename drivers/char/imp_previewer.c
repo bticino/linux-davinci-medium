@@ -742,7 +742,7 @@ int __init previewer_init(void)
 	mutex_init(&(prevdevice.lock));
 	mutex_init(&(prevdevice.chan->lock));
 	imp_hw_if = imp_get_hw_if();
-	printk(KERN_NOTICE "davinci_previewer initialized\n");
+	printk(KERN_NOTICE "davinci_previewer initialized, major#: %d, minor# %d \n", MAJOR(dev), MINOR(dev));
 	return 0;
 }
 

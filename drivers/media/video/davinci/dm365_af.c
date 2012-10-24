@@ -723,7 +723,6 @@ int __init af_init(void)
 		printk(KERN_ERR "Error :  Could not register character device");
 		return -ENODEV;
 	}
-	printk(KERN_INFO "af major#: %d, minor# %d\n", MAJOR(dev), MINOR(dev));
 	/* allocate memory for device structure and initialize it with 0 */
 	af_dev_configptr =
 	    kmalloc(sizeof(struct af_device), GFP_KERNEL);
@@ -791,7 +790,7 @@ int __init af_init(void)
 
 	af_dev_configptr->in_use = AF_NOT_IN_USE;
 	af_dev_configptr->buffer_filled = 0;
-	printk(KERN_ERR "AF Driver initialized\n");
+        printk(KERN_NOTICE "AF Driver initialized, major#: %d, minor# %d \n", MAJOR(dev), MINOR(dev));
 	return 0;
 }
 
