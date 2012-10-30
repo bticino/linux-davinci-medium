@@ -984,7 +984,6 @@ static void amico_gpio_configure(void)
 	gpio_configure_in(DM365_GPIO64_57, piTOUCH_BUSY, "piTOUCH_BUSY");
 
 	/* -- Configure Output -----------------------------------------------*/
-	gpio_configure_out(DM365_GPIO34, poAUDIO_SEP_ZL, 0, "AUDIO SEP ZALINK");
 	gpio_configure_out(DM365_GPIO36, poNAND_WPn, 1,
 			"po_NAND_WriteProtect_n,");
 	gpio_configure_out(DM365_GPIO43, poEN_LOCAL_MIC, 0,
@@ -1162,7 +1161,7 @@ static struct platform_device *amico_devices[] __initdata = {
 };
 
 static struct davinci_uart_config uart_config __initdata = {
-	.enabled_uarts = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3),
+	.enabled_uarts = (1 << 0) | (1 << 1),
 };
 
 static void __init amico_map_io(void)
