@@ -22,7 +22,7 @@ make jumbo-i_defconfig
 make -j16 uImage && echo "Jumbo-i OK" >> Test_Compile.log 
 make mrproper
 make owl_defconfig
-make -j16 uImage && echo "Owl-i OK" >> Test_Compile.log 
+make -j16 uImage && echo "Owl OK" >> Test_Compile.log 
 make mrproper
 make jumbo-d_defconfig
 make -j16 uImage && echo "Jumbo-d OK" >> Test_Compile.log 
