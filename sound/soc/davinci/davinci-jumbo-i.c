@@ -20,7 +20,7 @@
 #include <sound/pcm.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
-#include <sound/uda134x.h>
+/* #include <sound/uda134x.h> */
 
 #include <mach/dm365.h>
 #include <mach/jumbo-i.h>
@@ -38,7 +38,7 @@
 #include "../codecs/cq93vc.h"
 #include "../codecs/zl38005.h"
 #include "davinci-pcm.h"
-#include "davinci-i2s.h"
+/*#include "davinci-i2s.h"*/
 #include "davinci-vcif.h"
 #include <sound/davinci_jumbo_asoc.h>
 #include <linux/pm_loss.h>
@@ -46,7 +46,7 @@
 
 static struct jumbo_asoc_platform_data jumbo_i_asoc_priv;
 
-static struct platform_device *jumbo_i_snd_device[1];
+static struct platform_device *jumbo_i_snd_device[0];
 
 #define AUDIO_FORMAT (SND_SOC_DAIFMT_DSP_B | \
 		SND_SOC_DAIFMT_CBM_CFM | SND_SOC_DAIFMT_IB_NF)
@@ -94,9 +94,9 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	/* Speakers connected to SP (actually not connected !) */
 	{ "Speakers out", NULL, "SP", },
 	/* Line output connected to LO */
-	{ "Line Out", NULL, "LINEO", },
+	/* { "Line Out", NULL, "LINEO", }, */
 	/* Microphone input connected to MIC */
-	{ "MICIN", NULL, "Microphone" },
+	/* { "MICIN", NULL, "Microphone" }, */
 };
 
 static void ext_codec_power_work(struct work_struct *work)
@@ -173,7 +173,7 @@ static int jumbo_i_asoc_probe(struct platform_device *pdev)
 	int ret;
 	int id = pdev->id;
 	struct jumbo_asoc_platform_data *pdata = pdev->dev.platform_data;
-	//printk("SIAMO QUIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII\n");
+
 	if (!machine_is_jumbo_i() || (id > 1))
 		return -ENODEV;
 

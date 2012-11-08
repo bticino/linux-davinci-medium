@@ -294,6 +294,7 @@ static struct vpfe_config vpfe_cfg = {
 
 void jumbo_phy_power(int on)
 {
+	printk(KERN_INFO "Reset eth controller \n");
 	gpio_set_value(poENET_RESETn, on);
 	udelay(100);
 }
