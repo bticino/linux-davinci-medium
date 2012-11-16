@@ -14,8 +14,10 @@
 #include <media/v4l2-chip-ident.h>
 #include <linux/gpio.h>
 #include <linux/i2c/tvp5150.h>
+#include <linux/mutex.h>
 
 #include "tvp5150_reg.h"
+
 
 MODULE_DESCRIPTION("Texas Instruments TVP5150A video decoder driver");
 MODULE_AUTHOR("Mauro Carvalho Chehab");
@@ -153,6 +155,8 @@ struct tvp5150 {
 	enum tvp5150_std current_std;
 	int num_stds;
 	struct tvp5150_std_info *std_list;
+
+	struct mutex lock;
 };
 
 static inline struct tvp5150 *to_tvp5150(struct v4l2_subdev *sd)
@@ -1313,7 +1317,13 @@ static int tvp5150_s_register(struct v4l2_subdev *sd, struct v4l2_dbg_register *
 static int tvp5150_s_power(struct v4l2_subdev *sd, int power)
 {
 	struct tvp5150 *decoder = to_tvp5150(sd);
+
+	if (!power)
+		mutex_lock(&decoder->lock);
 	gpio_set_value(decoder->pdata->pdn, power);
+	if (power)
+		mutex_unlock(&decoder->lock);
+
 	return 0;
 }
 
@@ -1505,6 +1515,7 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 		/* Stream on Sequence */
 		v4l2_dbg(1, debug, sd, "Power Up Sequence \n");
 		/* resetting the decoder */
+		mutex_lock(&decoder->lock);
 		gpio_set_value(decoder->pdata->resetb, enable);
 		mdelay(2); /* 500 nsec is enough */
 		schedule();
@@ -1515,12 +1526,14 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 		/* Detect if not already detected */
 		err = tvp5150_detect(sd);
 		if (err) {
+			mutex_unlock(&decoder->lock);
 			v4l2_err(sd, "Unable to detect decoder\n");
 			return err;
 		}
 
 		/* TODO FIXING TVP5150 support */
 		tvp5150_reset(sd, 0);
+		mutex_unlock(&decoder->lock);
 		decoder->streaming = enable;
 		break;
 	}
@@ -1700,6 +1713,8 @@ static int tvp5150_probe(struct i2c_client *c,
 	core->contrast = 128;
 	core->hue = 0;
 	core->sat = 128;
+
+	mutex_init(&core->lock);
 
 	if (debug > 1)
 		tvp5150_log_status(sd);
