@@ -162,6 +162,7 @@ static struct imp_hw_interface *imp_hw_if;
 const struct vpfe_standard vpfe_standards[] = {
 	{V4L2_STD_525_60, 688, 480, {11, 10}, 1, {1, 10} },
 	{V4L2_STD_525_60, 720, 480, {11, 10}, 1, {1, 10} },
+	{V4L2_STD_525_60, 720, 480, {11, 10}, 1, {1, 25} },
 	{V4L2_STD_525_60, 720, 480, {11, 10}, 1, {1001, 30000} },
 	{V4L2_STD_625_50, 720, 576, {54, 59}, 1, {1, 25} },
 	{V4L2_STD_525P_60, 720, 480, {11, 10}, 0, {1001, 30000} },
@@ -2522,7 +2523,7 @@ static int vpfe_enum_frameintervals(struct file *filp, void *priv,
 {
 	struct vpfe_device *vpfe_dev = video_drvdata(filp);
 
-	if (fival->index > 0)
+	if (fival->index >= ARRAY_SIZE(vpfe_standards))
 		return -EINVAL;
 
 	fival->type = V4L2_FRMIVAL_TYPE_DISCRETE;
