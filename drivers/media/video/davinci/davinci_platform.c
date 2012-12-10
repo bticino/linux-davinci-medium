@@ -825,6 +825,35 @@ void davinci_enc_set_display_timing(struct vid_enc_mode_info *mode)
 	dispc_reg_out(VENC_VVALID, mode->yres);
 	dispc_reg_out(VENC_VINT,
 		      mode->yres + mode->upper_margin + mode->lower_margin);
+	if (mode->vzoom || mode->hzoom) {
+		enum davinci_zoom_factor xz, yz;
+		switch (mode->vzoom) {
+		case 2:
+			yz = ZOOM_X2;
+			break;
+		case 4:
+			yz = ZOOM_X4;
+			break;
+		case 1:
+		default:
+			yz = ZOOM_X1;
+			break;
+		}
+		switch (mode->hzoom) {
+		case 2:
+			xz = ZOOM_X2;
+			break;
+		case 4:
+			xz = ZOOM_X4;
+			break;
+		case 1:
+		default:
+			xz = ZOOM_X1;
+			break;
+		}
+		davinci_disp_set_zoom(WIN_OSD0, xz, yz);
+		davinci_disp_set_zoom(WIN_OSD1, xz, yz);
+	}
 };
 
 EXPORT_SYMBOL(davinci_enc_set_display_timing);
@@ -918,6 +947,35 @@ static void davinci_enc_set_prgb(struct vid_enc_mode_info *mode_info)
 		davinci_cfg_reg(DM644X_GPIO3);
 	}
 
+	if (mode_info->vzoom || mode_info->hzoom) {
+		enum davinci_zoom_factor xz, yz;
+		switch (mode_info->vzoom) {
+		case 2:
+			yz = ZOOM_X2;
+			break;
+		case 4:
+			yz = ZOOM_X4;
+			break;
+		case 1:
+		default:
+			yz = ZOOM_X1;
+			break;
+		}
+		switch (mode_info->hzoom) {
+		case 2:
+			xz = ZOOM_X2;
+			break;
+		case 4:
+			xz = ZOOM_X4;
+			break;
+		case 1:
+		default:
+			xz = ZOOM_X1;
+			break;
+		}
+		davinci_disp_set_zoom(WIN_OSD0, xz, yz);
+		davinci_disp_set_zoom(WIN_OSD1, xz, yz);
+	}
 	osd_write_left_margin(mode_info->left_margin);
 	osd_write_upper_margin(mode_info->upper_margin);
 

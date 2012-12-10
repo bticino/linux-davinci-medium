@@ -290,6 +290,8 @@ static struct vid_enc_mode_info vpbe_encoder_modes[VPBE_ENCODER_MAX_NUM_STD] = {
 	 .vsync_len = 1,
 	 .pixclock = 125000,
 	 .dofst = DOFST_PLUS_0_5,
+	 .vzoom = 1,
+	 .hzoom = 4,
 	 .flags = 0},
 	{
 	 .name = VID_ENC_STD_800x480,
@@ -307,6 +309,8 @@ static struct vid_enc_mode_info vpbe_encoder_modes[VPBE_ENCODER_MAX_NUM_STD] = {
 	 .vsync_len = 1,
 	 .pixclock = 30030,
 	 .dofst = DOFST_NONE,
+	 .vzoom = 1,
+	 .hzoom = 1,
 	 .flags = 0},
 };
 
@@ -720,7 +724,10 @@ static int vpbe_encoder_setmode(struct vid_enc_mode_info *mode_info,
 				break;
 			}
 			venc_reg_out(VENC_XHINTVL, xh);
-		} else {
+		} else if ((!strcmp(mymode, VID_ENC_STD_NON_STANDARD) ||
+			   !strcmp(mymode, VID_ENC_STD_800x480)) && dm365)
+			enc->start_display(enc);
+		else {
 			printk(KERN_ERR "Mode not supported..\n");
 			return -EINVAL;
 		}
@@ -896,7 +903,6 @@ static int vpbe_encoder_start_display(struct vid_encoder_device *enc)
 	clk_enable(clk);
 	clk_put(clk);
 
-	vpbe_encoder_channel_info.params.mode = VID_ENC_STD_800x480;
 	venc_reg_out(VENC_VMOD, 0x0);
 	venc_reg_out(VENC_VIDCTL, 0x0);
 
@@ -904,9 +910,6 @@ static int vpbe_encoder_start_display(struct vid_encoder_device *enc)
 	pllfreq *= 1000;
 
 	switch (mode_info.dofst) {
-	case(DOFST_NONE):
-		tmp = 0;
-		break;
 	case (DOFST_MINUS_0_5):
 		tmp = 1;
 		break;
@@ -918,6 +921,10 @@ static int vpbe_encoder_start_display(struct vid_encoder_device *enc)
 		break;
 	case (DOFST_PLUS_1):
 		tmp = 3;
+	case (DOFST_NONE):
+	default:
+		tmp = 0;
+		break;
 	}
 
 	clk6 = clk_get(NULL, "pll1_sysclk6");

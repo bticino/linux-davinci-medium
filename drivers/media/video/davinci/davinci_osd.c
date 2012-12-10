@@ -1822,27 +1822,11 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 			switch (lconfig->pixfmt) {
 			case PIXFMT_RGB565:
 				winmd |= (1 << OSD_OSDWIN0MD_BMP0MD_SHIFT);
-				tmp = get_vpbe_encoder_clock_divisor();
-				tmp %= 8;
-				tmp >>= 1;
-				if (tmp) {
-					winmd |= (tmp << OSD_OSDWIN0MD_OHZ0_SHIFT);
-					tmp >>= 1;
-					winmd |= (tmp << OSD_OSDWIN0MD_OVZ0_SHIFT);
-				}
 				break;
 			case PIXFMT_RGB888:
 				winmd |= (2 << OSD_OSDWIN0MD_BMP0MD_SHIFT);
 				_davinci_disp_enable_rgb888_pixblend
 				    (OSDWIN_OSD0);
-				tmp = get_vpbe_encoder_clock_divisor();
-				tmp %= 8;
-				tmp >>=1;
-				if (tmp) {
-					winmd |= tmp << OSD_OSDWIN0MD_OHZ0_SHIFT;
-					tmp >>= 1;
-					winmd |= tmp << OSD_OSDWIN0MD_OVZ0_SHIFT;
-				}
 				break;
 			case PIXFMT_YCbCrI:
 			case PIXFMT_YCrCbI:
@@ -1853,7 +1837,7 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 			}
 		}
 
-		winmd_mask |= OSD_OSDWIN0MD_BMW0 | OSD_OSDWIN0MD_OFF0 | OSD_OSDWIN0MD_OVZ0 | OSD_OSDWIN0MD_OHZ0;
+		winmd_mask |= OSD_OSDWIN0MD_BMW0 | OSD_OSDWIN0MD_OFF0;
 
 		switch (lconfig->pixfmt) {
 		case PIXFMT_1BPP:
@@ -1873,7 +1857,7 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 		}
 		winmd |= (bmw << OSD_OSDWIN0MD_BMW0_SHIFT);
 
-		if (!lconfig->interlaced)
+		if (lconfig->interlaced)
 			winmd |= OSD_OSDWIN0MD_OFF0;
 
 		clk_div = get_vpbe_encoder_clock_divisor();
