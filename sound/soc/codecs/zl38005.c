@@ -37,7 +37,6 @@
 #include <linux/kthread.h>
 #include <linux/fs.h>
 #include <linux/list.h>
-#include <linux/atomic.h>
 #include <linux/smp_lock.h>
 #include <linux/cdev.h>
 #include <linux/uaccess.h>
