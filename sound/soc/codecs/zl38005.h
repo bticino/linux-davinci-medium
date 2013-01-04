@@ -6,9 +6,8 @@
  * published by the Free Software Foundation.
  */
 
-#ifndef _ZL38005_H
-#define _ZL38005_H
-
+#ifndef __ZL38005_H
+#define __ZL38005_H
 #define DRIVER_NAME	"zl38005"
 
 /* Command Byte */
@@ -76,12 +75,35 @@
 
 #define RETRY_COUNT	10
 
-/* Reg.. */
-#define REG_0402	0x0402
-#define REG_0403	0x0403
-#define	TX_START	0x7e01
-#define	RX_START_OK	0x5e01
-#define REG_0403_ACK	0 // x1
+/* ZL Register */
+#define BOOT_CTRL0	0x0400
+#define BOOT_CTRL1	0x0401
+#define HOST_RQ		0x0402
+#define TARGET_ACK	0x0403
+
+/*Boot Loader Flag */
+#define LD_CFG_END	0x0800 /* 0b_xxxx_1000_0000_xxx0 */
+#define LD_IMG_END	0x0400 /* 0b_xxxx_0100_0000_xxx0 */
+#define GO		0x0200 /* 0b_xxxx_0010_0000_xxx0 */
+#define S_IMG		0x0100 /* 0b_xxxx_0001_0000_xxx0 */
+#define LD_CFG_F	0x0080 /* 0b_xxxx_0000_1000_xxx0 */
+#define LD_IMG_F	0x0040 /* 0b_xxxx_0000_0100_xxx0 */
+#define LD_CFG		0x0020 /* 0b_xxxx_0000_0010_xxx0 */
+#define LD_IMG		0x0010 /* 0b_xxxx_0000_0001_xxx0 */
+
+#define BOOT_MODE	0x0000
+#define USER_MODE	0x0001
+
+#define	BLCNRT		0x0800 /* 0b_xxxx_10xx_xx0x_xxx0 */
+#define	S_CFG		0x0001 /* 0b_xxxx_00xx_xx0x_xxx1 */
+
+#define	TX_START	0x7E01
+
+#define	NOT_DONE	0x0000
+#define	COMM_START_ACK	0x0001
+#define	COMM_OK		0x0002
+#define	COMM_FAIL	0x0003
+#define	RX_START	0x5E01
 
 #define ZL38005_RX_BUF_SIZE	4
 #define ZL38005_TX_BUF_SIZE	4
@@ -125,4 +147,4 @@ typedef union
 #define ZL38005_SYSGAIN         0x044D
 #define ZL38005_USRGAIN         0x046B
 
-#endif
+#endif /* __ZL38005_H */

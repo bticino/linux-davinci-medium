@@ -410,325 +410,31 @@ static int zl38005_wr_reg(struct device *dev, u16 addr, u32 val, u8 mem)
 /*
  * ____ Slave ZL SPI Port Test _________________________________________________
  */
+
+/* Check connection (SPI)
+* write    : HOST_RQ    0x0402 == TX_START 0x7E01
+* and wait : TARGET_ACK	0x0403 == RX_START 0x5E01
+*/
 static int zl_checkConnection(struct device *dev)
 {
 	int Ack = -1;
 	u16 Retry = 0;
 
 	/* Start Tx and verifi Ack */
-	while (Ack != RX_START_OK) {
-		zl38005_wr_reg(dev, REG_0403, 0x0000, DMEM);  /* Clear Ack */
-		zl38005_wr_reg(dev, REG_0402, TX_START, DMEM);
+	while (Ack != RX_START) {
+		zl38005_wr_reg(dev, TARGET_ACK, 0x0000, DMEM);  /* Clear Ack */
+		zl38005_wr_reg(dev, HOST_RQ, TX_START, DMEM);
 		zl_delay();
-		zl38005_rd_reg(dev, REG_0403, &Ack, DMEM);
+		zl38005_rd_reg(dev, TARGET_ACK, &Ack, DMEM);
 		/* pr_debug_zl2("Ack = %X \n", Ack); */
 		Retry++;
 		if (Retry == RETRY_COUNT){
-			pr_debug_zl2("%s-%d: Conn Fail , Retry = %d \n", __FILE__, __LINE__, Retry);
+			pr_debug_zl2("Connection Fail, Retry = %d \n", Retry);
 			return -1;
 		}
 	}
 	return 0;
 }
-
-/*
- *  set the STOP bit in register 0x0401 and to go back to boot mode
- */
-static int zl_go_to_boot_mode(struct device *dev)
-{
-	int Data_Rx = 0;
-	u16 Data = 0;
-
-	/* Set Stop bit to Go to boot mode */
-	zl38005_rd_reg(dev, 0x0401, &Data_Rx, DMEM); /* Read BootCtrl_1 */
-	Data = Data_Rx | 0x0800 ;
-	zl38005_wr_reg(dev, 0x0401, Data , DMEM);
-
-	return 0;
-}
-/*----------------------------------------------------------------------------*/
-
-const int ImageHeaderReg[16] = {
-	0x0404, 0x040F, 0x0415, 0x0410, 0x0411, 0x0417, 0x0418, 0x0419,
-	0x041A, 0x041B, 0x0405, 0x0406, 0x0407, 0x0408, 0x0409, 0x040A };
-
-const int CFGRecordHeaderReg[16] = { 0x040B, 0x040C, 0x040D, 0x040E };
-
-/*
- * __ Upload a romcode ________________________________________________________
- */
-static int Zl_Upload_FWR_IMAGE(struct device *dev)
-{
-	int Retry = 0 ;
-	int Ack = -1 ;
-	int i = 0 ;
-	u32 ZL_Write_Add = 0;
-
-	/* clear status register */
-	zl38005_wr_reg(dev, 0x0403, 0x0000, DMEM);
-
-	/* Set LD_IMG to request load image and to tell
-	 * that we want to boot a romcode */
-	zl38005_wr_reg(dev, 0x0400, 0x0010, DMEM); /* 0b_xxxx_0000_0001_xxx0 */
-
-	/*  wait for COM START ACK */
-	Retry = 0 ;
-	Ack = -1 ;
-	while ( Ack != 0x0001){
-		zl38005_rd_reg(dev, 0x0403, &Ack, DMEM);
-		Retry++;
-		if (Retry == RETRY_COUNT){
-			pr_debug_zl2("Set LD_IMG Fail , Retry = %d \n", Retry);
-			return -1;
-		}
-	}
-
-	 /* clear status register (Target Ack) */
-	zl38005_wr_reg(dev, 0x0403, 0x0000, DMEM);
-
-	/* clear the BOOT_FAIL bit (isn't automagically
-	 * cleared, we have to do it) */
-	zl38005_wr_reg(dev, 0x0412, 0x0000, DMEM);
-
-	/* ____1. Write Fwr Image Header ____ */
-	for(i=0; i<16; i++){
-		if (zl38005_wr_reg(dev, ImageHeaderReg[i], \
-				file_data.FWR_Header->Buff[i], DMEM)){
-			pr_debug_zl2("Write Fwr Image Header Error \n");
-			return -1;
-		}
-	}
-
-	/* ____2. Write Fwr Image Instruction Memory Data ____ */
-	ZL_Write_Add = file_data.FWR_Header->FIH.IMEM_StartAddress;
-	for(i=0; i < file_data.FWR_Header->FIH.IMEM_Size ; i++){
-		if (zl38005_wr_reg(dev, ZL_Write_Add, \
-			file_data.IMEM_DataBuffer[i], IMEM)){
-			pr_debug_zl2(" Write Fwr IMEM Error \n");
-			return -1;
-		}
-		ZL_Write_Add +=1;
-	}
-
-	/* ____ 3. Write Fwr Image  Data Memory Data ____ */
-	ZL_Write_Add = file_data.FWR_Header->FIH.DMEM_StartAddress;
-	for(i=0; i < file_data.FWR_Header->FIH.DMEM_Size ; i++)
-	{
-		if (zl38005_wr_reg(dev, ZL_Write_Add, \
-			file_data.DMEM_DataBuffer[i], DMEM)){
-			pr_debug_zl2(" Write Fwr DMEM Error \n");
-			return -1;
-		}
-		ZL_Write_Add +=1;
-	}
-
-
-	/* clear status register (Target Ack) */
-	zl38005_wr_reg(dev, 0x0403, 0x0000, DMEM);
-
-	/* Set LD_IMG_END : stop upload and check to make sure it uploaded ok */
-	zl38005_wr_reg(dev, 0x0400, 0x0400, DMEM); /* 0b_xxxx_0100_0000_xxx0 */
-
-	/* pr_debug_zl2(" WaitDone + Verifica Comm_OK == 2") */;
-
-	/* Wait Done */
-	Ack = 0;
-	Retry = 0;
-	while ( Ack == 0x0000){ /* NOT_DONE == 0? (Yes..Wait) */
-		zl38005_rd_reg(dev, 0x0403, &Ack, DMEM);
-		mdelay(20);
-		Retry++;
-		if (Retry == RETRY_COUNT){
-			pr_debug_zl2("Set LD_IMG Fail , Retry = %d \n", Retry);
-			return -1;
-		}
-	}
-
-	if (Retry > 1)
-		pr_debug_zl2(" WaitDone + Verifica Comm_OK == 2 : \
-				ACK = %x, in Retry= %d \n", Ack, Retry--);
-
-	/* Verify COMM_OK (== 2) */
-	zl38005_rd_reg(dev, 0x0403, &Ack, DMEM);
-	if (Ack == 0x0002) {
-		/* clear status register (Target Ack) */
-		zl38005_wr_reg(dev, 0x0403, 0x0000, DMEM);
-		return 0;
-	} else {
-		pr_debug_zl2("Set COMM_OK : Fail , bootload romcode failed!");
-		return -1;
-	}
-}
-/*----------------------------------------------------------------------------*/
-
-/*
- * __ Upload a configuration record ____________________________________________
- */
-static int zl_Update_CFGRegister(struct device *dev)
-{
-	int Retry = 0 ;
-	int Ack = -1 ;
-	int i = 0 ;
-	u32 ZL_Write_Add = 0;
-
-	/* clear status register (Target Ack) */
-	zl38005_wr_reg(dev, 0x0403, 0x0000, DMEM);
-
-	/* Set  LD_CONFIG ( 0b_xxxx_0000_0010_xxx0 )to request load image and
-	 * to tell that we want to boot a romcode */
-	zl38005_wr_reg(dev, 0x0400, 0x0020, DMEM); /* set LD_CONFIG */
-
-	/*  wait for COM START ACK */
-	Retry = 0 ;
-	Ack = -1 ;
-	while ( Ack != 0x0001){
-		zl38005_rd_reg(dev, 0x0403, &Ack, DMEM);
-		Retry++;
-		if (Retry == RETRY_COUNT){
-			pr_debug_zl2("Set LD_CONFIG Fail,Retry = %d \n", Retry);
-			return -1;
-		}
-	}
-
-	/* clear status register (Target Ack) */
-	zl38005_wr_reg(dev, 0x0403, 0x0000, DMEM);
-
-	/* ____1. Write Control Registers Header ____ */
-	for(i=0; i<4; i++)
-		if (zl38005_wr_reg(dev, CFGRecordHeaderReg[i], \
-			file_data.CFG_Header->Buff[i], DMEM)) {
-			pr_debug_zl2("Write Control Registers Error \n");
-			return -1;
-	}
-
-	/* ____2. Write Write CFG Record Data ____ */
-	ZL_Write_Add = file_data.CFG_Header->CFGRecord.StartAddress;
-	for(i=0; i < file_data.CFG_Header->CFGRecord.Size ; i++){
-		if (zl38005_wr_reg(dev, ZL_Write_Add, \
-			file_data.CFG_DataBuffer[i], DMEM)) {
-			pr_debug_zl2(" Write Write CFG Record Data Error \n");
-			return -1;
-		}
-		ZL_Write_Add +=1;
-	}
-
-	/* clear status register (Target Ack) */
-	zl38005_wr_reg(dev, 0x0403, 0x0000, DMEM);
-
-	/* Set LD_CFG_END (0b_xxxx_1000_0000_xxx0)
-	*stop upload and check to make sure it uploaded ok */
-	zl38005_wr_reg(dev, 0x0400, 0x0800, DMEM); /* Set LD_CFG_END : */
-
-	/* pr_debug_zl2(" WaitDone + Verifica Comm_OK == 2"); */
-
-	/* Wait Done */
-	Ack = 0;
-	Retry = 0;
-	while ( Ack == 0x0000){ /* NOT_DONE == 0? (Yes..Wait) */
-		zl38005_rd_reg(dev, 0x0403, &Ack, DMEM);
-		mdelay(20);
-		Retry++;
-		if (Retry == RETRY_COUNT){
-			pr_debug_zl2("Set CFG_END Fail,Retry = %d \n", Retry);
-			return -1;
-		}
-	}
-
-	if (Retry > 1)
-		pr_debug_zl2(" WaitDone + Verifica Comm_OK == 2 : \
-		ACK = %x, in Retry= %d \n", Ack, Retry--);
-
-	/* Verify COMM_OK (== 2) */
-	zl38005_rd_reg(dev, 0x0403, &Ack, DMEM);
-	if (Ack == 0x0002) {
-		/* clear status register (Target Ack) */
-		zl38005_wr_reg(dev, 0x0403, 0x0000, DMEM);
-		return 0;
-	} else{
-		pr_debug_zl2("Set COMM_OK : Fail , bootload romcode failed!");
-		return -1;
-	}
-}
-/*----------------------------------------------------------------------------*/
-
-/*
-* __ Save To Flash & Set GO _____________________________________________
-*
-* Sets the bit which initiates a firmware save to flash when the device
-* moves from a STOPPED state to a RUNNING state (by using the GO bit)
-*/
-static int zl38005_Save_To_Flash(struct device *dev)
-{
-	/*
-	* Initiates a configuration record save to flash operation.
-	* In boot mode so just flip the bit config record will actually
-	* be saved when the GO bit is set
-	*/
-	zl38005_wr_reg(dev, 0x0401, 0x0001, DMEM); /* Save Conf : S_CFG = 1 */
-
-	/*
-	* Save image to flash (actually occurs when GO bit is set) &
-	* Set GO Bit to running Fwr (0b_xxxx_0011_0000_xxx0)
-	*/
-	zl38005_wr_reg(dev, 0x0400, 0x0300, DMEM);   /*SaveFWR & GO*/
-
-	return 0;
-}
-/*----------------------------------------------------------------------------*/
-
-/*
-* __ Verify_OPER_MODE __________________________________________________________
-*/
-static int zl38005_Host_Verify_OPER_MODE(struct device *dev)
-{
-	int Data = -1;
-	int Retry = 0;
-
-	/* Verify OPER_MODE reg 0x4000 == 0b_xxxx_xxxx_xxxx_xxx1 */
-	while ((Data & 0x0001) != 0x0001) {
-		zl38005_rd_reg(dev, 0x0400, &Data, DMEM);
-		mdelay(20);
-		Retry++;
-
-		if (Retry == RETRY_COUNT) {
-			pr_debug_zl2("Failure to enter in Normal \
-			Operation Mode, Retry = %d \n", Retry);
-			return -1;
-		}
-	}
-
-	if (Retry > 1)
-		pr_debug_zl2(" Operation Mode, in Retry= %d \n", Retry--);
-
-	return 0;
-}
-/*----------------------------------------------------------------------------*/
-
-/*
-Comandi Riservato .... TODO Lo faccio ??????????
-Comandi Riservato .... TODO Lo faccio ??????????
-Comandi Riservato .... TODO Lo faccio ??????????
-*/
-/* Reset the device using the MAU
-* Parameters:
-* reset_mode = ZL_ROM : Resets the device and reload from FLASH.
-* reset_mode = ZL_RAM : Resets the device and runs from RAM
-*/
-/*
-void zl_hardwareReset(UInt16T reset_mode)
-{
-	// send command
-	zl_writeSPI(0xA0); // 10,1,00,000 - write, 8 bits, MAU Reset register
-	if (reset_mode==ZL_ROM){
-		// tell MAU control register to reset from ROM
-		zl_writeSPI(0x01); // RAM/ROM bit low, reset high
-	} else {
-		// tell MAU control register to reset from RAM
-		zl_writeSPI(0x05); // RAM/ROM bit high, reset high
-	}
-}
-*/
-/*----------------------------------------------------------------------------*/
 
 /*
  * SoC stuff
@@ -978,120 +684,14 @@ static long zl38005_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case ZL_WR_DATA_REG:
-		if (copy_from_user(&zl38005_ioctl_par, \
-			(struct zl38005_ioctl_par *)arg,\
-			 sizeof(struct zl38005_ioctl_par)))
-			return -EFAULT;
-		pr_debug_zl1("ioctl wr ADDR = %X \n", zl38005_ioctl_par.addr);
-		pr_debug_zl1("ioctl wr DATA = %X \n", zl38005_ioctl_par.data);
-		ret = zl38005_wr_reg(&zl38005->spi->dev, \
-			zl38005_ioctl_par.addr, zl38005_ioctl_par.data, DMEM);
 	break;
 	case ZL_RD_DATA_REG:
-		if (copy_from_user(&zl38005_ioctl_par, \
-			(struct zl38005_ioctl_par *)arg,\
-			 sizeof(struct zl38005_ioctl_par)))
-			return -EFAULT;
-		pr_debug_zl1("ioctl wr ADDR = %X \n", zl38005_ioctl_par.addr);
-		ret = zl38005_rd_reg(&zl38005->spi->dev, \
-		 (u16)zl38005_ioctl_par.addr, &zl38005_ioctl_par.data, DMEM);
-		if (!ret) {
-			pr_debug_zl1("ioctl rd DATA = %X \n ", \
-				zl38005_ioctl_par.data);
-			if (copy_to_user((struct zl38005_ioctl_par *)arg,\
-			 &zl38005_ioctl_par, sizeof(struct zl38005_ioctl_par)))
-				return -EFAULT;
-		} else
-			return -EAGAIN;
 	break;
 	case ZL_WR_INSTR_REG :
-		if (copy_from_user(&zl38005_ioctl_par,
-				   (struct zl38005_ioctl_par *)arg,
-				   sizeof(struct zl38005_ioctl_par)))
-			return -EFAULT;
-		pr_debug_zl1("ioctl wr ADDR = %X \n", zl38005_ioctl_par.addr);
-		pr_debug_zl1("ioctl wr DATA = %X \n", zl38005_ioctl_par.data);
-		ret = zl38005_wr_reg(&zl38005->spi->dev,
-				     zl38005_ioctl_par.addr,
-				     zl38005_ioctl_par.data, IMEM);
 	break;
 	case ZL_RD_INSTR_REG :
-		if (copy_from_user(&zl38005_ioctl_par,
-				   (struct zl38005_ioctl_par *)arg,
-				   sizeof(struct zl38005_ioctl_par)))
-			return -EFAULT;
-		pr_debug_zl1("ioctl wr ADDR = %X \n", zl38005_ioctl_par.addr);
-		ret = zl38005_rd_reg(&zl38005->spi->dev, \
-			(u16)zl38005_ioctl_par.addr, &zl38005_ioctl_par.data,\
-			 IMEM);
-		if (!ret) {
-			pr_debug_zl1("ioctl rd DATA = %X\n", \
-					zl38005_ioctl_par.data);
-			if (copy_to_user((struct zl38005_ioctl_par *)arg, \
-				&zl38005_ioctl_par, \
-				sizeof(struct zl38005_ioctl_par)))
-				return -EFAULT;
-		} else
-		return -EAGAIN;
 	break;
 	case ZL_UPDATE:
-		if (copy_from_user(&file_data, (struct file_data *)arg,\
-				sizeof(struct file_data)))
-			return -EFAULT;
-
-	/*
-	pr_debug_zl1();   //printk("%s %d \n", __func__, __LINE__ );
-	printk("FWR_Header        : %04x \n", file_data.FWR_Header->Buff[0]);
-	printk("IMEM_DataBuffer   : %06x \n", file_data.IMEM_DataBuffer[0]);
-	printk("DMEM_DataBuffer   : %04x \n", file_data.DMEM_DataBuffer[0]);
-	printk("CFG_Header        : %04x \n", file_data.CFG_Header->Buff[0]);
-	printk("CFG_DataBuffer    : %04x \n", file_data.CFG_DataBuffer[0]);
-	pr_debug_zl1();   //printk("%s %d \n", __func__, __LINE__ );
-	*/
-
-		ret = 0;
-
-		/* __Fwr Update Procedure:__ */
-		pr_debug_zl2("Fwr_update \n");
-
-		/* __Slave ZL SPI Port Test__ */
-		pr_debug_zl2("checkConnection \n");
-		ret = zl_checkConnection(&zl38005->spi->dev);
-		if (ret < 0)
-			return -1;
-
-		pr_debug_zl2("Goto Boot Mode \n");
-		ret = zl_go_to_boot_mode(&zl38005->spi->dev);
-		if (ret < 0)
-			return -1;
-
-		/* __Update Firmware__ */
-		pr_debug_zl2("Upload_FWR_IMAGE \n");
-		ret = Zl_Upload_FWR_IMAGE (&zl38005->spi->dev);
-		if (ret < 0)
-			return -1;
-
-		/* __Update CFGRegister__ */
-		pr_debug_zl2("Update_CFGRegister \n");
-		ret = zl_Update_CFGRegister (&zl38005->spi->dev);
-		if (ret < 0)
-			return -1;
-
-		/* __Save to Flash__ */
-		pr_debug_zl2("Save to Flash \n");
-		ret = zl38005_Save_To_Flash (&zl38005->spi->dev);
-		if (ret < 0)
-			return -1;
-
-		/* __Host_Verify Op mode__ */
-		pr_debug_zl2("_Host_Verify Op mode \n");
-		ret = zl38005_Host_Verify_OPER_MODE(&zl38005->spi->dev);
-
-		if (ret < 0)
-			return -1;
-
-		pr_debug_zl2("END \n");
-			return 0;
 	break;
 	default:
 		printk(KERN_DEBUG "ioctl: Invalid Command Value");
