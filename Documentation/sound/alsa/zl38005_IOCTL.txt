@@ -1,0 +1,123 @@
+
+		Simone Cianni <simone.cianni@bticino.it>
+
+                      Last revised: 07th January 2013
+
+Intro
+=====
+
+ ZLS38501 is the firmware that runs on the ZL38005 (Advanced Acoustic Echo
+ Canceller with Noise Reduction) hardware platform to realize audio
+ applications requiring acoustic echo cancellation and noise reduction.
+ This firmware and hardware combination is a hands free communication
+ processor that is ideal for Hands-free Car Kit applications.
+
+Driver Status
+=============
+
+The driver is stable.
+The driver have a lot of ioctl API to modify ZL38005 register and for firmware
+upload and upgrade.
+The driver has also the alsa ASoC interface for CONTROLS and DAPM support,
+that changes register value in ZL38005 ram.
+More than one device is supported changing DEVCOUNT define and populating the
+platform data structure.
+
+
+IOCTL API Funcion
+=======================
+
+Reading DMEM Data Memory Register
+	ioctl(fd, ZL_RD_DATA_REG, &zl38005_ioctl_par);
+
+Writing (DMEM) Data Memory Register
+	ioctl(fd, ZL_WR_DATA_REG, &zl38005_ioctl_par);
+
+Reading (IMEM) Instruction Memory Register
+	ioctl(fd, ZL_RD_INSTR_REG, &zl38005_ioctl_par);
+
+Writing (IMEM) Instruction Memory Register
+	ioctl(fd, ZL_WR_INSTR_REG, &zl38005_ioctl_par);
+
+Firmware & CGFRegister Update (DownLoad)
+	ioctl(fd, ZL_UPDATE, &file_data);
+
+Upload Firmware & CGFRegister
+	ioctl(fd, ZL_UPLOAD, &file_data);
+
+Save CGFRegister to Flash-- NOTE: You Lost Old Config
+	ioctl(fd, ZL_SAVE_CFGR, 0); 
+
+Read CGFRegister from Ram -- NOTE: FROM RAM 
+	ioctl(fd, ZL_READ_CURRENT_CFGR, &file_data);
+
+IOCTL stucture
+--------------------
+
+struct zl38005_ioctl_par {
+        unsigned int    addr;
+        unsigned int    value;
+} zl38005_ioctl_par;
+
+typedef union
+{
+  unsigned short Buff[16];
+  struct{
+    unsigned short MagicWord;
+    unsigned short FlashSpeed;
+    unsigned short FWR_Ver;
+    unsigned short FlashADD_CfgRecord_LO;
+    unsigned short FlashADD_CfgRecord_HI;
+    unsigned short Reserved1;
+    unsigned short Reserved2;
+    unsigned short Reserved3;
+    unsigned short FlashADD_SecondFwrImg_LO;
+    unsigned short FlashADD_SecondFwrImg_HI;
+    unsigned short IMEM_StartAddress;
+    unsigned short IMEM_Size;
+    unsigned short DMEM_StartAddress;
+    unsigned short DMEM_Size;
+    unsigned short IMEM_Cks;
+    unsigned short DMEM_Cks;
+  } FIH ; //ZL Fwr Image Header
+}t_FwrImageHeader;
+
+typedef union
+{
+  unsigned short Buff[4];
+  struct{
+    unsigned short MagicWord;
+    unsigned short StartAddress;
+    unsigned short Size;
+    unsigned short Cks;
+  } CFGRecord ; //ZL Fwr Image Header
+}t_CFGR;
+
+t_FwrImageHeader FwrImageHeader;
+t_CFGR           CFGRecordHeader;
+
+struct file_data {
+       t_FwrImageHeader *FWR_Header;
+       unsigned int     *IMEM_DataBuffer;
+       unsigned short   *DMEM_DataBuffer;
+       t_CFGR           *CFG_Header;
+       unsigned short   *CFG_DataBuffer;
+} file_data;
+
+Devices mapping info
+=======================================
+
+ cat /proc/devices 
+ ls -als /dev/zl380050*
+
+Proc interfaces (/proc/..)
+==============================
+
+None.
+
+Links and Addresses
+===================
+
+ Zarlin Site homepage
+	http://www.zarlink.com/
+
