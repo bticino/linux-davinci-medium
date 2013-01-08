@@ -30,6 +30,7 @@
 #include <linux/input.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/eeprom.h>
+#include <linux/spi/zl38005.h>
 #include <linux/delay.h>
 #include <linux/backlight.h>
 #include <linux/serial_8250.h>
@@ -797,10 +798,8 @@ static void jumbo_gpio_configure(void)
 	gpio_configure_out(DM365_GPIO91, po_AUDIO_DEEMP, 0, "po_AUDIO_DEEMP");
 	gpio_configure_out(DM365_GPIO92, po_AUDIO_MUTE, 0, "po_AUDIO_MUTE");
 	gpio_configure_out(DM365_GPIO68, po_EN_FONICA, 1, "po_EN_FONICA");
-	gpio_configure_out(DM365_GPIO64_57, poZARLINK_CS, 1, "poZARLINK_CS");
-	gpio_configure_out(DM365_GPIO72, poZARLINK_RESET, 0,
-			"poZARLINK_RESET");
-
+	davinci_cfg_reg(DM365_GPIO64_57); /* ZL_CS: Configure into the driver */
+	davinci_cfg_reg(DM365_GPIO72); /* ZL_RESET: Configure into the driver */
 	gpio_configure_out(DM365_GPIO27, po_DISCHARGE, 0,
 			 "Discharge for Configuration Recovery");
 
@@ -813,7 +812,6 @@ static void jumbo_gpio_configure(void)
 		gpio_export(piRESET_CONF, 0);
 		gpio_export(poEN_SOUND_DIFF, 0);
 		gpio_export(poENABLE_VIDEO_IN, 0);
-		gpio_export(poZARLINK_CS, 0);
 		gpio_export(poEMMC_RESETn, 0);
 		gpio_export(piINT_UART_Bn, 0);
 		gpio_export(piGPIO_INTn, 0);
@@ -823,7 +821,6 @@ static void jumbo_gpio_configure(void)
 		gpio_export(poPDEC_PWRDNn, 0);
 		gpio_export(poPDEC_RESETn, 0);
 		gpio_export(poE2_WPn, 0);
-		gpio_export(poZARLINK_RESET, 0);
 		gpio_export(poPIC_RESETn, 0);
 		gpio_export(piOCn, 0);
 		gpio_export(piSD_DETECTn, 0);
@@ -851,13 +848,7 @@ void inline jumbo_en_audio_power(int value)
 	gpio_set_value(po_EN_FONICA, value);
 }
 
-void inline jumbo_zarlink_reset(int value)
-{
-	gpio_set_value(poZARLINK_RESET, value);
-}
-
 static struct jumbo_asoc_platform_data jumbo_asoc_info = {
-	.ext_codec_power = jumbo_zarlink_reset,
 	.ext_circuit_power = jumbo_en_audio_power,
 };
 
@@ -928,6 +919,13 @@ static struct spi_eeprom at25640 = {
 };
 #endif
 
+static struct zl38005_platform_data zl_config[] = {
+	{
+		.minor = 0,
+		.reset_gpio = poZARLINK_RESET,
+	},
+};
+
 static struct spi_board_info jumbo_spi_info[] __initconst = {
 #ifdef  ENABLING_SPI_FLASH
 	/*
@@ -949,6 +947,7 @@ static struct spi_board_info jumbo_spi_info[] __initconst = {
 		.controller_data = poZARLINK_CS,
 		/* .chip_select	= poZARLINK_CS, cosi non va... */
 		.mode           = SPI_MODE_0,
+		.platform_data  = &zl_config,
 	},
 
 };
