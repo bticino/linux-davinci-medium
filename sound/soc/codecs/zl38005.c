@@ -130,7 +130,7 @@ struct zl38005 {
 	int			minor;
 	struct spi_device	*spi;
 	struct list_head	device_entry;
-	char			chip_select_gpio_label[15];
+	char			cs_gpio_label[15]; /*chip_select_label*/
 	int			reset_gpio;
 	char			reset_gpio_label[10];
 	atomic_t		usage;
@@ -141,7 +141,7 @@ struct zl38005 {
 /* For registeration of charatcer device */
 static struct cdev c_dev;
 
-#define DEVCOUNT 2
+#define DEVCOUNT 1
 
 static int zl38005_major;
 static struct zl38005 *zl38005_table[DEVCOUNT];
@@ -1132,27 +1132,31 @@ static int zl38005_spi_probe(struct spi_device *spi)
 			ARRAY_SIZE(zl38005_default_reg) *
 				sizeof(struct zl38005_regs_s),
 			GFP_KERNEL);
-	if (!zl38005)
-		return -ENOMEM;
+	if (!zl38005) {
+		err = -ENOMEM;
+		goto error;
+	}
+
 	zl38005->minor = minor;
 	atomic_set(&zl38005->usage, 0);
 
 	/* Initialize driver data */
 	zl38005->reset_gpio = pdata->reset_gpio;
+
 	sprintf(zl38005->reset_gpio_label, "ZL%d reset", minor);
 	if (zl38005->reset_gpio) {
 		if (gpio_request(zl38005->reset_gpio, zl38005->reset_gpio_label) < 0)
-			printk(KERN_ERR "can't get %s reset\n", zl38005->reset_gpio_label);
+			printk(KERN_ERR "can't get %s \n",
+				 zl38005->reset_gpio_label);
 		gpio_direction_output(zl38005->reset_gpio, 0);
 		gpio_export(zl38005->reset_gpio, 0);
 	}
-	sprintf(zl38005->chip_select_gpio_label,
-		"ZL%d chip selet", minor);
-	if (gpio_request(spi->chip_select_gpio,
-				 zl38005->chip_select_gpio_label) < 0)
-			printk(KERN_ERR "can't get %s reset\n",
-			       zl38005->reset_gpio_label);
-	gpio_direction_output(spi->chip_select_gpio, 1);
+
+	sprintf(zl38005->cs_gpio_label, "ZL%d chip selet", minor);
+	if (gpio_request(spi->controller_data, zl38005->cs_gpio_label) < 0)
+		printk(KERN_ERR "can't get %s \n", zl38005->cs_gpio_label);
+	gpio_direction_output(spi->controller_data, 1);
+
 	memcpy(zl38005->reg_cache, zl38005_default_reg,
 		ARRAY_SIZE(zl38005_default_reg) *
 			sizeof(struct zl38005_regs_s));
