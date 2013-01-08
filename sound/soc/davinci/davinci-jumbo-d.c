@@ -9,7 +9,7 @@
  * published by the Free Software Foundation.
  */
 
-//#define DEBUG
+#define DEBUG
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/timer.h>
@@ -128,40 +128,22 @@ static struct snd_soc_ops jumbo_d_ops_uda = {
 	.hw_params = jumbo_d_hw_params_uda,
 };
 
-static int jumbo_d_line_event(struct snd_soc_dapm_widget *w,
-			   struct snd_kcontrol *k, int event)
-{
-	zl38005_mute_r(SND_SOC_DAPM_EVENT_ON(event) ? 0 : 1);
-	return 0;
-};
-
-static int jumbo_d_mic_event(struct snd_soc_dapm_widget *w,
-			   struct snd_kcontrol *k, int event)
-{
-	zl38005_mute_r(SND_SOC_DAPM_EVENT_ON(event) ? 1 : 0);
-	return 0;
-};
-
 static void ext_codec_power_work(struct work_struct *work)
 {
+#if 0
 	zl38005_init();
+#endif
 }
 
 /* davinci-jumbo-d machine dapm widgets */
 static const struct snd_soc_dapm_widget cq93_dapm_widgets[] = {
 	SND_SOC_DAPM_HP("Speakers out", NULL),
-	SND_SOC_DAPM_LINE("Line Out", jumbo_d_line_event),
-	SND_SOC_DAPM_MIC("Microphone", jumbo_d_mic_event),
 };
 
 /* davinci-jumbo-d machine connections to the codec pins */
 static const struct snd_soc_dapm_route audio_map_c93[] = {
 	/* Speakers connected to SP (actually not connected !) */
 	{ "Speakers out", NULL, "SP", },
-	/* Line output connected to LO */
-	{ "Line Out", NULL, "LINEO", },
-	/* Microphone input connected to MIC */
-	{ "MICIN", NULL, "Microphone" },
 };
 
 /* davinci-jumbo-d machine connections to the codec pins */
@@ -177,7 +159,6 @@ static const struct snd_soc_dapm_route audio_map_uda[] = {
 /* Logic for a cq93 as connected on a jumbo_d */
 static int jumbo_d_cq93_init(struct snd_soc_codec *codec)
 {
-	int err;
 
 	pr_debug("jumbo_d_cq93_init(%p)\n", codec);
 	/* Add davinci-evm specific widgets */
@@ -185,13 +166,14 @@ static int jumbo_d_cq93_init(struct snd_soc_codec *codec)
 				  ARRAY_SIZE(cq93_dapm_widgets));
 
 	INIT_DELAYED_WORK(&jumbo_d_asoc_priv.delayed_work, ext_codec_power_work);
-	jumbo_d_asoc_priv.ext_codec_power(1); /* zl38005 is the ext codec */
+#if 0
 	mdelay(100); /* zl38005 startup need at least 83msec */
 	zl38005_init();
 
 	err = zl38005_add_controls(codec);
 	if (err < 0)
 		return err;
+#endif
 
 	/* Set up davinci-jumbo-d specific audio path audio_map_c93 */
 	snd_soc_dapm_add_routes(codec, audio_map_c93, ARRAY_SIZE(audio_map_c93));
@@ -270,7 +252,6 @@ static struct snd_soc_device dm365_jumbo_d_snd_devdata[] = {
 	{
 		.card = &dm365_snd_soc_card_jumbo_d[0],
 		.codec_dev = &soc_codec_dev_cq93vc,
-	//	.codec_data = &jumbo_d_voice_data,
 	},
 	{
 		.card = &dm365_snd_soc_card_jumbo_d[1],
@@ -287,13 +268,12 @@ static int jumbo_d_asoc_probe(struct platform_device *pdev)
 	struct jumbo_asoc_platform_data *pdata = pdev->dev.platform_data;
 	struct uda1334_platform_data *pdata_1 = pdev->dev.platform_data;
 
-	//printk("SIAMO QUIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII\n");
 	if (!machine_is_jumbo_d() || (id > 1))
 		return -ENODEV;
 
 	if (id == 0)
 	{
-		if ((!pdata->ext_codec_power) || (!pdata->ext_circuit_power))
+		if (!pdata->ext_circuit_power)
 			return -EINVAL;
 
 		memcpy(&jumbo_d_asoc_priv, pdata, sizeof(jumbo_d_asoc_priv));
@@ -301,8 +281,6 @@ static int jumbo_d_asoc_probe(struct platform_device *pdev)
 
 	if (id == 1)
 	{
-		//return 1;
-
 		if (!pdata_1->power)
 			return -EINVAL;
 		memcpy(&jumbo_d_uda1334_priv, pdata_1, sizeof(jumbo_d_uda1334_priv));
@@ -338,14 +316,12 @@ static int jumbo_d_asoc_power_changed(struct device *dev,
 
 	switch (s) {
 	case SYS_PWR_GOOD:
-		jumbo_d_asoc_priv.ext_codec_power(1);
 		jumbo_d_asoc_priv.ext_circuit_power(1);
 		schedule_delayed_work(&jumbo_d_asoc_priv.delayed_work,
 				      msecs_to_jiffies(100));
 		jumbo_d_uda1334_priv.power(1);
 		break;
 	case SYS_PWR_FAILING:
-		jumbo_d_asoc_priv.ext_codec_power(0);
 		jumbo_d_asoc_priv.ext_circuit_power(0);
 		ret = cancel_delayed_work(&jumbo_d_asoc_priv.delayed_work);
 		jumbo_d_uda1334_priv.power(0);
