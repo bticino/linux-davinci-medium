@@ -141,7 +141,7 @@ static int mmc_decode_csd(struct mmc_card *card)
 
 	e = UNSTUFF_BITS(resp, 47, 3);
 	m = UNSTUFF_BITS(resp, 62, 12);
-	csd->capacity	  = ( (1 + m) << (e + 2) ) / 2;
+	csd->capacity	  = (1 + m) << (e + 2);
 	printk("mmc capacity=%d\n",csd->capacity);
 
 	csd->read_blkbits = UNSTUFF_BITS(resp, 80, 4);
@@ -229,9 +229,8 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 
 	card->ext_csd.rev = ext_csd[EXT_CSD_REV];
 	if (card->ext_csd.rev > 5) {
-		printk(KERN_ERR "%s: unrecognised EXT_CSD structure "
-			"version %d\n", mmc_hostname(card->host),
-			card->ext_csd.rev);
+		printk(KERN_ERR "%s: unrecognised EXT_CSD revision %d\n",
+			mmc_hostname(card->host), card->ext_csd.rev);
 		err = -EINVAL;
 		goto out;
 	}
@@ -242,7 +241,7 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 			ext_csd[EXT_CSD_SEC_CNT + 1] << 8 |
 			ext_csd[EXT_CSD_SEC_CNT + 2] << 16 |
 			ext_csd[EXT_CSD_SEC_CNT + 3] << 24;
-		
+
 		/* Cards with density > 2GiB are sector addressed */
 		if (card->ext_csd.sectors > (2u * 1024 * 1024 * 1024) / 512)
 			mmc_card_set_blockaddr(card);
