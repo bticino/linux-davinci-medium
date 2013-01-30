@@ -31,6 +31,7 @@
 #include <linux/input.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/eeprom.h>
+#include <linux/spi/zl38005.h>
 #include <linux/delay.h>
 #include <linux/backlight.h>
 #include <linux/serial_8250.h>
@@ -657,22 +658,7 @@ static void basi_gpio_configure(void)
 	gpio_direction_output(EN_RTC, 1); /* enabled */
 
 	davinci_cfg_reg(DM365_GPIO35);
-	status = gpio_request(ZARLINK_CS, "Zarlink chip select");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO Zarlink \
-				 chip select: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(ZARLINK_CS, 1);
-
 	davinci_cfg_reg(DM365_GPIO46);
-	status = gpio_request(ZARLINK_RESET, "Zarlink reset");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO Zarlink \
-				 chip select: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(ZARLINK_RESET, 0); /* OFF*/
 
 	davinci_cfg_reg(DM365_GPIO38);
 	status = gpio_request(PIC_RESET_N, "PIC AI reset");
@@ -761,8 +747,6 @@ static void basi_gpio_configure(void)
 		gpio_export(E2_WPn, 0);
 		gpio_export(REG_ERR_AVn, 0);
 		gpio_export(EN_RTC, 0);
-		gpio_export(ZARLINK_CS, 0);
-		gpio_export(ZARLINK_RESET, 0);
 		gpio_export(PB_IN, 0);
 		gpio_export(OC2_VBUS_USB, 0);
 		gpio_export(SD_CARD_DET, 0);
@@ -815,13 +799,7 @@ void basi_en_audio_power(int on)
 	gpio_set_value(EN_AUDIO, on);
 }
 
-void basi_zarlink_reset(int on)
-{
-	gpio_set_value(ZARLINK_RESET, on);
-}
-
 static struct basi_asoc_platform_data basi_asoc_info = {
-	.ext_codec_power = basi_zarlink_reset,
 	.ext_circuit_power = basi_en_audio_power,
 };
 
@@ -882,6 +860,13 @@ static struct spi_eeprom at25640 = {
 };
 #endif
 
+static struct zl38005_platform_data zl_config[] = {
+	{
+		.minor = 0,
+		.reset_gpio = ZARLINK_RESET,
+	},
+};
+
 static struct spi_board_info basi_spi_info[] __initconst = {
 	/*
 	 * DANGEROUS, because spi flash contains bubl bootloader
@@ -902,6 +887,7 @@ static struct spi_board_info basi_spi_info[] __initconst = {
 		.bus_num        = 0,
 		.controller_data = ZARLINK_CS,
 		.mode           = SPI_MODE_0,
+		.platform_data  = &zl_config,
 	},
 
 };
