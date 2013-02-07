@@ -25,6 +25,10 @@
  * and call i2c_register_board_info() */
 
 #define OV971x_GAIN			0x00
+#define OV971x_AECH			0x16
+#define OV971x_AECL			0x10
+#define OV971x_WPT			0x24
+#define OV971x_BPT			0x25
 
 #define OV971x_REG03			0x03
 #define OV971x_REG03_VSTART_LSB_SHIFT	0
@@ -56,6 +60,8 @@
 #define OV971x_COM10			0x15
 #define OV971x_COM10_VSYNC_POL		BIT(1)
 #define OV971x_COM10_HSYNC_POL		BIT(0)
+
+#define OV971X_VSTART			0x19
 
 #define OV971x_DVP_CTRL_00		0xC2
 #define OV971x_DVP_CTRL_00_PCLK_POL	BIT(2)
@@ -108,8 +114,6 @@
 	SOCAM_VSYNC_ACTIVE_HIGH | SOCAM_DATA_ACTIVE_HIGH |	\
 	SOCAM_MASTER | SOCAM_DATAWIDTH_10)
 
-#define WPT 0x60
-#define BPT 0x50
 #define VPT 0x92
 
 v4l2_std_id ov971x_cur_std = V4L2_STD_720P_30;
@@ -159,18 +163,10 @@ static const struct v4l2_queryctrl ov971x_controls[] = {
 		.type		= V4L2_CTRL_TYPE_INTEGER,
 		.name		= "Exposure",
 		.minimum	= 1,
-		.maximum	= 65535,
+		.maximum	= 255,
 		.step		= 1,
-		.default_value	= 255,
+		.default_value	= 96,
 		.flags		= V4L2_CTRL_FLAG_SLIDER,
-	}, {
-		.id		= V4L2_CID_EXPOSURE_AUTO,
-		.type		= V4L2_CTRL_TYPE_BOOLEAN,
-		.name		= "Automatic Exposure",
-		.minimum	= 0,
-		.maximum	= 1,
-		.step		= 1,
-		.default_value	= 1,
 	}, {
 		.id		= V4L2_CID_PAN_RELATIVE,
 		.type		= V4L2_CTRL_TYPE_INTEGER,
@@ -296,11 +292,12 @@ static int reg_clear(struct i2c_client *client, const u8 reg,
 
 static int set_shutter(struct v4l2_subdev *sd, const u32 data)
 {
-/*
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret;
-*/
-	return 0;
+
+	ret = reg_write(client, OV971x_WPT, (data < 256) ? data : 255);
+	ret |= reg_write(client, OV971x_BPT, (data > 10) ? data - 10 : 0);
+	return ret;
 }
 
 /*
@@ -308,7 +305,7 @@ static int get_shutter(struct v4l2_subdev *sd, u32 *data)
 {
 	int ret;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	return 0;
+	return reg_read(client, OV971x_WPT);
 }
 */
 
@@ -408,8 +405,6 @@ static pnt reg_1280x720[] = {
 	{0x4f, 0xFF},
 	{0x50, 0xFF},
 	{0x51, 0x41},
-	{0x24, WPT},
-	{0x25, BPT},
 	{0x26, VPT},
 	{0x11, 0x00},
 	{0x2a, 0x98},
@@ -464,8 +459,6 @@ static unsigned int reg_640x480[][2] = {
 	{0x4f, 0x55},
 	{0x50, 0x55},
 	{0x51, 0x55},
-	{0x24, WPT},
-	{0x25, BPT},
 	{0x26, VPT},
 	{0x5c, 0x59},
 	{0x5d, 0x00},
@@ -524,8 +517,6 @@ static unsigned int reg_640x400[][2] = {
 	{0x4f, 0x55},
 	{0x50, 0x55},
 	{0x51, 0x55},
-	{0x24, WPT},
-	{0x25, BPT},
 	{0x26, VPT},
 	{0x5c, 0x59},
 	{0x5d, 0x00},
@@ -584,8 +575,6 @@ static unsigned int reg_320x240[][2] = {
 	{0x4f, 0x55},
 	{0x50, 0x55},
 	{0x51, 0x55},
-	{0x24, WPT},
-	{0x25, BPT},
 	{0x26, VPT},
 	{0x5c, 0x59},
 	{0x5d, 0x00},
@@ -644,8 +633,6 @@ static unsigned int reg_352x288[][2] = {
 	{0x4f, 0x55},
 	{0x50, 0x55},
 	{0x51, 0x55},
-	{0x24, WPT},
-	{0x25, BPT},
 	{0x26, VPT},
 	{0x5c, 0x59},
 	{0x5d, 0x00},
@@ -704,8 +691,6 @@ static unsigned int reg_176x144[][2] = {
 	{0x4f, 0x55},
 	{0x50, 0x55},
 	{0x51, 0x55},
-	{0x24, WPT},
-	{0x25, BPT},
 	{0x26, VPT},
 	{0x5c, 0x59},
 	{0x5d, 0x00},
@@ -764,8 +749,6 @@ static unsigned int reg_160x120[][2] = {
 	{0x4f, 0x55},
 	{0x50, 0x55},
 	{0x51, 0x55},
-	{0x24, WPT},
-	{0x25, BPT},
 	{0x26, VPT},
 	{0x5c, 0x59},
 	{0x5d, 0x00},
@@ -1047,7 +1030,6 @@ static int ov971x_get_control(struct v4l2_subdev *sd,
 			       struct v4l2_control *ctrl)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct ov971x *ov971x = to_ov971x(sd);
 	int data;
 
 	switch (ctrl->id) {
@@ -1063,8 +1045,8 @@ static int ov971x_get_control(struct v4l2_subdev *sd,
 			return -EIO;
 		ctrl->value = !!(data & OV971x_REG04_MIRROR);
 		break;
-	case V4L2_CID_EXPOSURE_AUTO:
-		ctrl->value = ov971x->autoexposure;
+	case V4L2_CID_EXPOSURE:
+		ctrl->value = reg_read(client, OV971x_WPT);
 		break;
 	case V4L2_CID_GAIN:
 		ctrl->value = reg_read(client, OV971x_GAIN);
@@ -1093,8 +1075,9 @@ static int ov971x_set_control(struct v4l2_subdev *sd,
 	struct ov971x *ov971x = to_ov971x(sd);
 	const struct v4l2_queryctrl *qctrl = NULL;
 	unsigned long range;
-	int data;
+	int data = 0;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	static int vflip;
 
 	if (NULL == ctrl)
 		return -EINVAL;
@@ -1107,12 +1090,41 @@ static int ov971x_set_control(struct v4l2_subdev *sd,
 
 	switch (ctrl->id) {
 	case V4L2_CID_VFLIP:
-		if (ctrl->value)
+		if (ctrl->value && !vflip) {
+			int tmp, tmp1, tmp2;
 			data =
 			reg_set(client, OV971x_REG04, OV971x_REG04_FLIP);
-		else
+			tmp = (reg_read(client, OV971X_VSTART) << 2) |
+			      (reg_read(client, OV971x_REG03) & 0x03);
+			tmp1 = (reg_read(client, OV971x_AVSIZE_MSB) << 2) |
+			       ((reg_read(client, OV971x_REG03) & 0x0C) >> 2);
+			tmp2 = (reg_read(client, OV971x_VSIZE_MSB) << 2) |
+			       ((reg_read(client, OV971x_REG57) & 0x03) >> 2);
+
+			tmp1 -= tmp2 + 1;
+			reg_write(client, OV971x_REG03,
+				  (reg_read(client, OV971x_REG03) & 0xFC) |
+				  ((tmp1 - tmp) & 0x3));
+			reg_write(client, OV971X_VSTART, (tmp1 - tmp) >> 2);
+			vflip = 1;
+		} else if (vflip) {
+			int tmp, tmp1, tmp2;
 			data =
 			reg_clear(client, OV971x_REG04, OV971x_REG04_FLIP);
+			tmp = (reg_read(client, OV971X_VSTART) << 2) |
+			      (reg_read(client, OV971x_REG03) & 0x03);
+			tmp1 = (reg_read(client, OV971x_AVSIZE_MSB) << 2) |
+			       ((reg_read(client, OV971x_REG03) & 0x0C) >> 2);
+			tmp2 = (reg_read(client, OV971x_VSIZE_MSB) << 2) |
+				((reg_read(client, OV971x_REG57) & 0x03) >> 2);
+
+			tmp1 -= tmp2 - 1;
+			reg_write(client, OV971x_REG03,
+				  (reg_read(client, OV971x_REG03) & 0xFC) |
+				  ((tmp1 - tmp) & 0x3));
+			reg_write(client, OV971X_VSTART, (tmp1 - tmp) >> 2);
+			vflip = 0;
+		}
 		if (data < 0)
 			return -EIO;
 		break;
@@ -1149,33 +1161,13 @@ static int ov971x_set_control(struct v4l2_subdev *sd,
 		    ctrl->value < qctrl->minimum)
 			return -EINVAL;
 		else {
-		   u32 shutter = ctrl->value;
+			u32 shutter = ctrl->value;
 
 			if (set_shutter(sd, shutter) < 0)
 				return -EIO;
 			ov971x->exposure = ctrl->value;
 			ov971x->autoexposure = 0;
 		}
-		break;
-	case V4L2_CID_EXPOSURE_AUTO:
-		if (ctrl->value) {
-			/*
-			const u16 vblank = OV971x_VERTICAL_BLANK;
-			const u32 shutter_max = OV971x_MAX_HEIGHT + vblank;
-			if (set_shutter(sd, ov971x->height +
-					ov971x->y_skip_top + vblank) < 0)
-				return -EIO;
-
-			qctrl = ov971x_find_qctrl(V4L2_CID_EXPOSURE);
-			ov971x->exposure =
-				(shutter_max / 2 + (ov971x->height +
-				ov971x->y_skip_top + vblank - 1) *
-				(qctrl->maximum - qctrl->minimum)) /
-				shutter_max + qctrl->minimum;
-			*/
-			ov971x->autoexposure = 1;
-		} else
-			ov971x->autoexposure = 0;
 		break;
 	case V4L2_CID_PAN_RELATIVE:
 		data = reg_read(client, 0x98);
