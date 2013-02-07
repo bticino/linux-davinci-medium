@@ -2105,7 +2105,7 @@ static int validate_yee_params(struct device *dev)
 	    yee.es_gain > YEE_ES_GAIN_MASK ||
 	    yee.es_thr1 > YEE_ES_THR1_MASK ||
 	    yee.es_thr2 > YEE_THR_MASK ||
-	    yee.es_gain_grad > YEE_THR_MASK ||
+	    yee.es_gain_grad > YEE_GAIN_GRAD_MASK ||
 	    yee.es_ofst_grad > YEE_THR_MASK)
 		return -1;
 

@@ -450,6 +450,7 @@
 #define YEE_HPF_SHIFT_MASK		(0xF)
 #define YEE_COEF_MASK			(0x3FF)
 #define YEE_THR_MASK			(0x3F)
+#define YEE_GAIN_GRAD_MASK		(0xFF)
 #define YEE_ES_GAIN_MASK		(0xFFF)
 #define YEE_ES_THR1_MASK		(0xFFF)
 #define YEE_ENTRY_SHIFT			(9)
