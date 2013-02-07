@@ -85,6 +85,11 @@ enum 	ipipeif_pixel_order {
 	IPIPEIF_Y_CBCR
 };
 
+struct prev_ipipeif {
+	unsigned short avg_filter;
+	unsigned short gain;
+};
+
 #ifdef __KERNEL__
 #include <linux/kernel.h>
 //#include <asm/arch/cpu.h>
@@ -288,6 +293,7 @@ struct ipipeif {
 #define IPIPEIF_CLKDIV_M_SHIFT		8
 
 int ipipeif_hw_setup(struct ipipeif *if_params);
+int ipipe_set_ipipeif_par_regs(struct prev_ipipeif *ipipeif_par);
 int ipipeif_set_address(struct ipipeif *if_params, unsigned int address);
 void ipipeif_set_enable(char en, unsigned int mode);
 u32 ipipeif_get_enable(void);

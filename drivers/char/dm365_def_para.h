@@ -21,3 +21,4 @@ extern struct prev_continuous_config dm365_prev_cont_config_defs;
 extern struct rsz_single_shot_config dm365_rsz_ss_config_defs;
 extern struct rsz_continuous_config dm365_rsz_cont_config_defs;
 extern struct ipipeif_5_1 ipipeif_5_1_defaults;
+extern struct prev_ipipeif dm365_prev_ipipeif_defs;

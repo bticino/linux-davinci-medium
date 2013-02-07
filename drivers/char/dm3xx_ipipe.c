@@ -78,6 +78,20 @@ static void ipipeif_config_dpc(struct ipipeif_dpc *dpc)
 	regw_if(utemp, IPIPEIF_DPC2);
 }
 
+int ipipe_set_ipipeif_par_regs(struct prev_ipipeif *ipipeif_par)
+{
+	unsigned int utemp;
+
+	utemp = regr_if(IPIPEIF_GFG1);
+	if (ipipeif_par->avg_filter)
+		utemp |= 1 << AVGFILT_SHIFT;
+	else
+		utemp &= ~(1 << AVGFILT_SHIFT);
+	regw_if(utemp, IPIPEIF_GFG1);
+	regw_if(ipipeif_par->gain, IPIPEIF_GAIN);
+	return 0;
+}
+
 /* This function sets up IPIPEIF and is called from
  * ipipe_hw_setup()
  */

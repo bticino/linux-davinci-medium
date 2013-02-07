@@ -167,6 +167,11 @@ static struct prev_cgs cgs;
 static int set_cgs_params(struct device *dev, void *param, int len);
 static int get_cgs_params(struct device *dev, void *param, int len);
 
+/* Ipipeif Parameters */
+static struct prev_ipipeif ipipeif_par;
+static int set_ipipeif_par_params(struct device *dev, void *param, int len);
+static int get_ipipeif_par_params(struct device *dev, void *param, int len);
+
 /* Tables for various tuning modules */
 struct ipipe_lutdpc_entry ipipe_lutdpc_table[MAX_SIZE_DPC];
 struct ipipe_3d_lut_entry ipipe_3d_lut_table[MAX_SIZE_3D_LUT];
@@ -338,6 +343,15 @@ static struct prev_module_if prev_modules[PREV_MAX_MODULES] = {
 		.path = IMP_RAW2YUV | IMP_YUV2YUV,
 		.set = set_cgs_params,
 		.get = get_cgs_params
+	},
+	{
+		.version = "5.1",
+		.module_id = PREV_IPIPEIF,
+		.module_name = "IPIPEIF Parameters",
+		.control = 1,
+		.path = IMP_RAW2YUV | IMP_YUV2YUV,
+		.set = set_ipipeif_par_params,
+		.get = get_ipipeif_par_params
 	}
 };
 
@@ -2316,6 +2330,50 @@ static int get_cgs_params(struct device *dev, void *param, int len)
 		dev_err(dev, "get_cgs_params: Error in copy from kernel\n");
 		return -EFAULT;
 	}
+	return 0;
+}
+
+int validate_ipipeif_par_params(struct device *dev)
+{
+	if ((ipipeif_par.avg_filter < 0) || (ipipeif_par.avg_filter > 1))
+		return -1;
+	if (ipipeif_par.gain > 0x3FF)
+		return -1;
+	return 0;
+}
+
+static int set_ipipeif_par_params(struct device *dev, void *param, int len)
+{
+	struct prev_ipipeif *ipipeif_param = (struct prev_ipipeif *)param;
+	if (ISNULL(ipipeif_param)) {
+		/* Copy defaults for ns */
+		memcpy((void *)&ipipeif_par,
+		       (void *)&dm365_prev_ipipeif_defs,
+		       sizeof(struct prev_ipipeif));
+	} else {
+		if (len != sizeof(struct prev_ipipeif)) {
+			dev_err(dev,
+				"set_ipipeif_par_params: param struct"
+				" length mismatch\n");
+			return -EINVAL;
+		}
+		if (copy_from_user(&ipipeif_par, ipipeif_param,
+				   sizeof(struct prev_ipipeif))) {
+			dev_err(dev,
+				"set_ipipeif_par_params: "
+				"Error in copy from user\n");
+			return -EFAULT;
+		}
+		if (validate_ipipeif_par_params(dev) < 0)
+			return -EINVAL;
+	}
+	return ipipe_set_ipipeif_par_regs(&ipipeif_par);
+}
+
+static int get_ipipeif_par_params(struct device *dev, void *param, int len)
+{
+	/*TODO*/
+	param = NULL;
 	return 0;
 }
 

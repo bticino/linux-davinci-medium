@@ -122,8 +122,10 @@
 #define PREV_CGS		17
 /* Global brighness and contrast control */
 #define PREV_GBCE		18
+/* Ipipeif Parameters */
+#define PREV_IPIPEIF		19
 /* Last module ID */
-#define PREV_MAX_MODULES	18
+#define PREV_MAX_MODULES	19
 
 struct ipipe_float_u16 {
 	unsigned short integer;

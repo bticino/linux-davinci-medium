@@ -606,3 +606,8 @@ struct rsz_continuous_config dm365_rsz_cont_config_defs = {
 	.yuv_c_max = 255,
 	.out_chr_pos = IPIPE_YUV422_CHR_POS_COSITE,
 };
+
+struct prev_ipipeif dm365_prev_ipipeif_defs = {
+	.avg_filter = 0,
+	.gain = 0x200,
+};
