@@ -155,9 +155,9 @@ static const struct v4l2_queryctrl ov971x_controls[] = {
 		.type		= V4L2_CTRL_TYPE_INTEGER,
 		.name		= "Gain",
 		.minimum	= 0,
-		.maximum	= 127,
+		.maximum	= 63,
 		.step		= 1,
-		.default_value	= 64,
+		.default_value	= 63,
 		.flags		= V4L2_CTRL_FLAG_SLIDER,
 	}, {
 		.id		= V4L2_CID_EXPOSURE,
