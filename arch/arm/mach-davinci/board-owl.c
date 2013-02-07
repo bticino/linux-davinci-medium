@@ -215,6 +215,13 @@ static struct platform_device davinci_nand_device = {
 
 void owl_phy_power(int on)
 {
+	if (on) {
+		/* be sure to reset the chip */
+		gpio_set_value(ENET_RESETn, !on);
+		mdelay(2); /* must be at least 1,6ms due o board hw */
+		schedule();
+	}
+
 	gpio_set_value(ENET_RESETn, on);
 }
 
