@@ -25,6 +25,7 @@
  * and call i2c_register_board_info() */
 
 #define OV971x_GAIN			0x00
+#define OV971x_YAVG			0x2F
 #define OV971x_AECH			0x16
 #define OV971x_AECL			0x10
 #define OV971x_WPT			0x24
@@ -1256,6 +1257,30 @@ static int ov971x_detect(struct i2c_client *client, int *model)
 	return 0;
 }
 
+/* read lux */
+static ssize_t ov971x_show_lux(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	unsigned int val, wpt;
+	struct i2c_client *client = to_i2c_client(dev);
+
+	val = reg_read(client, OV971x_YAVG);
+	wpt = reg_read(client, OV971x_WPT);
+
+	return sprintf(buf, "%d\n", val * 100 / wpt);
+}
+
+static DEVICE_ATTR(light, S_IRUGO, ov971x_show_lux, NULL);
+
+static struct attribute *ov971x_attributes_1[] = {
+	&dev_attr_light.attr,
+	NULL
+};
+
+static const struct attribute_group ov971x_attr_group_1 = {
+	.attrs = ov971x_attributes_1,
+};
+
 static int ov971x_probe(struct i2c_client *client,
 			 const struct i2c_device_id *did)
 {
@@ -1264,6 +1289,8 @@ static int ov971x_probe(struct i2c_client *client,
 	struct v4l2_subdev *sd;
 	int pll_prediv, pll_mult, pll_div, sysclk_div;
 	int ret, cnt;
+	struct class *light_class;
+	struct device *dev;
 
 	if (!i2c_check_functionality(client->adapter,
 				     I2C_FUNC_SMBUS_WORD_DATA)) {
@@ -1363,6 +1390,11 @@ static int ov971x_probe(struct i2c_client *client,
 		reg_write(v4l2_get_subdevdata(sd), reg_1280x720[cnt][0],
 							reg_1280x720[cnt][1]);
 
+	light_class = class_create(THIS_MODULE, "lighting_level");
+	dev = device_create(light_class, NULL, client->dev.devt,
+			    NULL, "ov9712");
+	dev->platform_data = client;
+	ret = sysfs_create_group(&client->dev.kobj, &ov971x_attr_group_1);
 	return 0;
 
 clean:
