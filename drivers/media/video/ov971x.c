@@ -1019,10 +1019,8 @@ static int ov971x_queryctrl(struct v4l2_subdev *sd,
 	else
 		temp_qctrl = ov971x_find_qctrl(qctrl->id);
 
-	if (!temp_qctrl) {
-		v4l2_err(sd, "control id 0x%X not supported", qctrl->id);
+	if (!temp_qctrl)
 		return -EINVAL;
-	}
 	memcpy(qctrl, temp_qctrl, sizeof(*qctrl));
 	return 0;
 }
