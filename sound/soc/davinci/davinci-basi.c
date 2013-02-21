@@ -37,6 +37,7 @@
 
 #include "../codecs/cq93vc.h"
 #include "../codecs/zl38005.h"
+#include <sound/zl38005.h>
 #include "davinci-pcm.h"
 /* #include "davinci-i2s.h" */
 #include "davinci-vcif.h"
@@ -116,6 +117,7 @@ static int basi_cq93_init(struct snd_soc_codec *codec)
 
 	snd_soc_dapm_sync(codec);
 
+	zl38005_add_controls(0, codec);
 	return 0;
 }
 
