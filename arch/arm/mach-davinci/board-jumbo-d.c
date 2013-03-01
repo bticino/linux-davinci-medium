@@ -2,7 +2,7 @@
  * BTicino S.p.A. jumbo platform support based on evm-dm365 board
  *
  * Simone Cianni, Davide Bonfanti
- * Copyright (C) 2012 , BTicino S.p.A.
+ * Copyright (C) 2013 , BTicino S.p.A.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -118,10 +118,23 @@ static struct tda9885_platform_data tda9885_defaults = {
 	.power = poENABLE_VIDEO_IN,
 };
 
+void jumbo_tvp510x_reset(void)
+{
+	printk(KERN_DEBUG "Reset tvp510x PalDecoder \n");
+
+	/* Active-low reset. RESETB can be used only when PDN = 1 */
+	gpio_direction_output(poPDEC_PWRDNn, 1);
+	mdelay(1);
+
+	gpio_direction_output(poPDEC_RESETn, 0);
+	mdelay(1); /* 500 nsec is enough */
+	gpio_direction_output(poPDEC_RESETn, 1);
+}
+
 /* [VideoIn] TVP5150 : Pal Decoder */
 static struct tvp5150_platform_data tvp5150_pdata = {
 	.pdn = poPDEC_PWRDNn,
-	.resetb = poPDEC_RESETn,
+	.resetb = &jumbo_tvp510x_reset,
 };
 
 /* [VideoOut] mc44cc373 Video Modulator */
@@ -699,15 +712,6 @@ static void jumbo_gpio_configure(void)
 	/* Pal Decoder : NON PDW DOWN */
 	gpio_configure_out(DM365_GPIO103, poPDEC_PWRDNn, 1,
 			"Pal-Decoder power down");
-        /*
-	 * The I2CSEL tvp5151 input is sampled when its resetb input is down,
-         * assigning the i2c address.
-	 */
-	gpio_configure_out(DM365_GPIO102, poPDEC_RESETn, 0,	/* RESET */
-			"PAL decoder Reset");
-        mdelay(10);
-	/* NON RESET */
-        gpio_direction_output(poPDEC_RESETn, 1);
 
 	gpio_configure_out (DM365_GPIO64_57, po_ENABLE_VIDEO_OUT, 0,
 			"po_ENABLE_VIDEO_OUT");
@@ -1005,6 +1009,7 @@ static __init void jumbo_init(void)
 		pinmux_check();
 
 	jumbo_gpio_configure();
+	jumbo_tvp510x_reset();
 	jumbo_led_init();
 
 	/* 2 usart for pic */
