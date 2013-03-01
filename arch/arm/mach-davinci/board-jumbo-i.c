@@ -91,9 +91,7 @@ MODULE_PARM_DESC(jumbo_debug, "Debug level 0-1");
 extern unsigned int system_rev;
 extern int lookup_resistors(int cnt);
 
-/*
- * wp_set: set/unset the at24 eeprom write protect
- */
+/* wp_set: set/unset the at24 eeprom write protect */
 void wp_set(int enable)
 {
 	gpio_direction_output(poE2_WPn, enable);
@@ -308,7 +306,7 @@ static struct vpfe_config vpfe_cfg = {
 
 void jumbo_phy_power(int on)
 {
-	printk(KERN_INFO "Reset eth controller \n");
+	printk(KERN_DEBUG "Reset eth controller \n");
 	gpio_set_value(poENET_RESETn, !on);
 	mdelay(2); /* Measured by oscilloscope : must be at least 1,6ms */
 	gpio_set_value(poENET_RESETn, on);
@@ -414,7 +412,7 @@ static void pinmux_check(void)
 
 		for (i = 0; i < 5; i++) {
 			pinmux[i] = __raw_readl(pinmux_reg[i]);
-		printk(KERN_INFO "pinmux%d=%X\n",i,pinmux[i]);
+		printk(KERN_DEBUG "pinmux%d=%X\n", i, pinmux[i]);
 	}
 }
 
@@ -709,9 +707,7 @@ int platform_pm_loss_power_changed(struct device *dev,
 #define jumbo_powerfail_configure()
 #endif
 
-/*
- *	Macro : gpio_configure_out
- */
+/* gpio_configure in/out */
 int inline gpio_configure_out (int DM365_Pin,int Name,int DefVualue, char* str)
 {
 	int status;
@@ -726,9 +722,6 @@ int inline gpio_configure_out (int DM365_Pin,int Name,int DefVualue, char* str)
 	return status;
 }
 
-/*
- *	Macro : gpio_configure_in
- */
 int inline gpio_configure_in (int DM365_Pin,int Name, char* str)
 {
 	int status;
@@ -743,9 +736,6 @@ int inline gpio_configure_in (int DM365_Pin,int Name, char* str)
 	return status;
 }
 
-/*
- *	jumbo_gpio_configure
- */
 static void jumbo_gpio_configure(void)
 {
 	void __iomem *pupdctl0 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x78);
@@ -755,57 +745,52 @@ static void jumbo_gpio_configure(void)
 	__raw_writel(0, pupdctl0);
 	__raw_writel(0x40000, pupdctl1); /* EM_WAIT active pull-up */
 
-
-	/*  -- Configure Input ---------------------------------------------- */
+	/*  -- Configure Digital Board--------------------------------------- */
 	gpio_request(0, "GIO0"); /* pi_INTERRUPT */
 	gpio_direction_input(0);
-
 	gpio_configure_in(DM365_GPIO50, piPOWER_FAILn, "piPOWER_FAILn");
 	gpio_configure_in(DM365_GPIO64_57, piINT_UART_An, "piINT_UART_An");
 	gpio_configure_in(DM365_GPIO64_57, piTMK_INTn, "piTMK_INTn (RTC)");
 	gpio_configure_in(DM365_GPIO26, piINT_UART_Bn, "piINT_UART_Bn");
-	gpio_configure_in(DM365_GPIO100, piGPIO_INTn, "piGPIO_INTn");
 	gpio_configure_in(DM365_GPIO101, piOCn, "Over Current VBUS");
 	gpio_configure_in(DM365_GPIO96, piSD_DETECTn, "SD detec");
-	gpio_configure_in(DM365_GPIO88, pi_GPIO_2, "pi_GPIO_2");
-	gpio_configure_in(DM365_GPIO89, pi_GPIO_1, "pi_GPIO_1");
 	gpio_configure_in(DM365_GPIO28, piRESET_CONF, "piRESET_CONF");
-
-	/* -- Configure Output -----------------------------------------------*/
-
-	gpio_configure_out (DM365_GPIO64_57, poEN_SOUND_DIFF, 0,
-			"Audio modulator Enable on external connector");
 
 	gpio_configure_out(DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
 	gpio_configure_out(DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
-	gpio_configure_out(DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXT_UART");
-	gpio_configure_out(DM365_GPIO45, poBOOT_FL_WPn, 1,
-			"Protect SPI ChipSelect");
-	gpio_configure_out(DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
-	gpio_configure_out(DM365_GPIO99, poPIC_RESETn, 1,
-			"PIC AV and PIC AI reset");
-	gpio_configure_out(DM365_GPIO86, po_NAND_WPn, 1,
-			"po_NAND_WriteProtect_n,");
-	gpio_configure_out(DM365_GPIO33, po_EN_SW_USB, 0, "po_EN_SW_USB");
-
-	/* enabled, to allow i2c attach */
-	gpio_configure_out(DM365_GPIO64_57, poENABLE_VIDEO_IN, 1,
-			"Enable video demodulator");
-	/* Pal Decoder : NON PDW DOWN */
-	gpio_configure_out(DM365_GPIO103, poPDEC_PWRDNn, 1,
-			"Pal-Decoder power down");
-
-	gpio_configure_out (DM365_GPIO64_57, po_ENABLE_VIDEO_OUT, 0,
-			"po_ENABLE_VIDEO_OUT");
-
 	gpio_configure_out(DM365_GPIO90, po_AUDIO_RESET, 1, "po_AUDIO_RESET");
 	gpio_configure_out(DM365_GPIO91, po_AUDIO_DEEMP, 0, "po_AUDIO_DEEMP");
 	gpio_configure_out(DM365_GPIO92, po_AUDIO_MUTE, 0, "po_AUDIO_MUTE");
+	gpio_configure_out(DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXT_UART");
+	gpio_configure_out(DM365_GPIO45, poBOOT_FL_WPn, 1, "Protect SPI CS");
+	gpio_configure_out(DM365_GPIO80, poE2_WPn, 0, "EEprom write protect");
+	gpio_configure_out(DM365_GPIO99, poPIC_RESETn, 1, "Reset PIC AV & AI");
+	gpio_configure_out(DM365_GPIO86, po_NAND_WPn, 1, "po_NAND_WProtect_n,");
+	gpio_configure_out(DM365_GPIO33, po_EN_SW_USB, 0, "po_EN_SW_USB");
+	gpio_configure_out(DM365_GPIO27, po_DISCHARGE, 0,
+		"Discharge for Configuration Recovery");
+	gpio_configure_out(DM365_GPIO103, poPDEC_PWRDNn, 1, "PalDec nPDown");
+	gpio_configure_out(DM365_GPIO102, poPDEC_RESETn, 0, "PAL decoder nRST");
+
+	/* -- Scheda Base ----------------------------------------------------*/
+	gpio_configure_in(DM365_GPIO100, piGPIO_INTn, "piGPIO_INTn");
+
 	gpio_configure_out(DM365_GPIO68, po_EN_FONICA, 1, "po_EN_FONICA");
 	davinci_cfg_reg(DM365_GPIO64_57); /* ZL_CS: Configure into the driver */
 	davinci_cfg_reg(DM365_GPIO72); /* ZL_RESET: Configure into the driver */
-	gpio_configure_out(DM365_GPIO27, po_DISCHARGE, 0,
-			 "Discharge for Configuration Recovery");
+
+	gpio_configure_out(DM365_GPIO64_57, po_ENABLE_VIDEO_OUT, 0,
+		"EN_VIDEO_OUT");
+
+	/* INTERF 2F/IP */
+	gpio_configure_out(DM365_GPIO64_57, poRL_VIDEO, 0, /* EN_HFREQ */
+		"Enable Rele' Video SCS");
+
+	/* INTERF D45/IP */
+	gpio_configure_out(DM365_GPIO88, pi_GPIO_2, 0, "Rele1");
+	gpio_configure_out(DM365_GPIO89, pi_GPIO_1, 0, "Rele2");
+	gpio_configure_out(DM365_GPIO64_57, poENABLE_VIDEO_IN, 0,
+		"Rele3 + EN PowerVideo IN");
 
 	/* -- Export For Debug -----------------------------------------------*/
 
@@ -814,7 +799,7 @@ static void jumbo_gpio_configure(void)
 		gpio_export(piINT_UART_An, 0);
 		gpio_export(piTMK_INTn, 0);
 		gpio_export(piRESET_CONF, 0);
-		gpio_export(poEN_SOUND_DIFF, 0);
+		gpio_export(poRL_VIDEO, 0);
 		gpio_export(poENABLE_VIDEO_IN, 0);
 		gpio_export(poEMMC_RESETn, 0);
 		gpio_export(piINT_UART_Bn, 0);

@@ -24,7 +24,8 @@
 #define poENET_RESETn		44	/* */
 #define poRES_EXTUART		51	/* */
 #define poBOOT_FL_WPn		45	/* Protecting SPI chip select */
-#define poEN_SOUND_DIFF		63	/* EN_DiffusioneSonora */
+#define poRL_VIDEO		63	/* EN_Rele Video SCS */
+#define poEN_SOUND_DIFF		63	/* EN_DiffSonora ... per DRV ??? */
 #define poENABLE_VIDEO_IN	62	/* Enable DEM_VIDEO */
 #define poPDEC_PWRDNn		103	/* PalDecoder PWRDown */
 #define poPDEC_RESETn		102	/* PAL decoder Reset */
