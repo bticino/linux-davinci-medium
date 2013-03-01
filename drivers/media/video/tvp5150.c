@@ -544,6 +544,8 @@ static const struct i2c_reg_value tvp5151_init_enable[] = {
 	}, {     /* Default format: 0x47. For 4:2:2: 0x40 */
 		TVP5150_DATA_RATE_SEL, 0x47
 	}, {
+		TVP5150_OP_MODE_CTL, 0x00
+	}, {
 		0xff, 0xff
 	}
 };
@@ -1514,16 +1516,12 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 	{
 		/* Stream on Sequence */
 		v4l2_dbg(1, debug, sd, "Power Up Sequence \n");
+
 		/* resetting the decoder */
 		mutex_lock(&decoder->lock);
-		gpio_set_value(decoder->pdata->resetb, enable);
-		mdelay(2); /* 500 nsec is enough */
-		schedule();
-		gpio_set_value(decoder->pdata->resetb, enable);
-		mdelay(2); /* 200 usec is enough */
-		tvp5150_write(sd, TVP5150_OP_MODE_CTL, 0x00);
+		decoder->pdata->resetb();
 
-		/* Detect if not already detected */
+		/* Detect and inizialize */
 		err = tvp5150_detect(sd);
 		if (err) {
 			mutex_unlock(&decoder->lock);
@@ -1531,7 +1529,7 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 			return err;
 		}
 
-		/* TODO FIXING TVP5150 support */
+		/* SW Reset .. TODO FIXING TVP5150 support */
 		tvp5150_reset(sd, 0);
 		mutex_unlock(&decoder->lock);
 		decoder->streaming = enable;

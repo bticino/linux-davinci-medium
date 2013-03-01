@@ -3,7 +3,7 @@
 
 struct tvp5150_platform_data {
 	int pdn;
-	int resetb;
+	void (*resetb)(void);
 };
 
 #endif /* __LINUX_I2C_TVP5150_H */
