@@ -574,6 +574,7 @@ static int zl_WaitBootCommand(struct device *dev)
 			pr_debug_zl2("Boot_command Fail cause Retry = %d \n",
 				 Retry);
 			ret = -1;
+			break;
 		}
 	}
 	/* clear status register (Target Ack) */
