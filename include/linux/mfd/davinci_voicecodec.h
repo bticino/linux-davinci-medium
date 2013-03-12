@@ -130,6 +130,10 @@ struct davinci_vc {
 	/* Client devices */
 	struct davinci_vcif davinci_vcif;
 	struct cq93vc cq93vc;
+
+	/* event queue number for ASP & RAM channels */
+	enum dma_event_q asp_chan_q;
+	enum dma_event_q ram_chan_q;
 };
 
 #endif

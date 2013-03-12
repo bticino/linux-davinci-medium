@@ -219,12 +219,20 @@ static int davinci_vcif_probe(struct platform_device *pdev)
 					davinci_vc->davinci_vcif.dma_tx_channel;
 	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_PLAYBACK].dma_addr =
 					davinci_vc->davinci_vcif.dma_tx_addr;
+	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_PLAYBACK].asp_chan_q =
+					davinci_vc->asp_chan_q;
+	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_PLAYBACK].ram_chan_q =
+					davinci_vc->ram_chan_q;
 
 	/* DMA rx params */
 	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].channel =
 					davinci_vc->davinci_vcif.dma_rx_channel;
 	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].dma_addr =
 					davinci_vc->davinci_vcif.dma_rx_addr;
+	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].asp_chan_q =
+					davinci_vc->asp_chan_q;
+	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].ram_chan_q =
+					davinci_vc->ram_chan_q;
 
 	davinci_vcif_dai.dev = &pdev->dev;
 	davinci_vcif_dai.capture.dma_data = davinci_vcif_dev->dma_params;

@@ -29,6 +29,7 @@
 #include <linux/clk.h>
 
 #include <sound/pcm.h>
+#include <mach/asp.h>
 
 #include <linux/mfd/davinci_voicecodec.h>
 
@@ -45,6 +46,7 @@ void davinci_vc_write(struct davinci_vc *davinci_vc,
 
 static int __init davinci_vc_probe(struct platform_device *pdev)
 {
+	struct snd_platform_data *pdata = pdev->dev.platform_data;
 	struct davinci_vc *davinci_vc;
 	struct resource *res, *mem;
 	struct mfd_cell *cell = NULL;
@@ -55,6 +57,15 @@ static int __init davinci_vc_probe(struct platform_device *pdev)
 		dev_dbg(&pdev->dev,
 			    "could not allocate memory for private data\n");
 		return -ENOMEM;
+	}
+
+	davinci_vc->asp_chan_q = EVENTQ_0;
+	davinci_vc->ram_chan_q = EVENTQ_1;
+	if (pdata) {
+		if (pdata->asp_chan_q)
+			davinci_vc->asp_chan_q = pdata->asp_chan_q;
+		if (pdata->ram_chan_q)
+			davinci_vc->ram_chan_q = pdata->ram_chan_q;
 	}
 
 	davinci_vc->clk = clk_get(&pdev->dev, NULL);
