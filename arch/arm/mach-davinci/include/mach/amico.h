@@ -24,8 +24,8 @@
 #define poENET_RESETn		44	/* ETH phy reset */
 #define poBOOT_FL_WPn		45	/* Protecting SPI chip select */
 #define poENABLE_VIDEO_IN	58	/* Enable DEM_VIDEO */
-#define poPDEC_PWRDNn		38	/* PalDecoder PWRDown */
-#define poPDEC_RESETn       39     /* PAL decoder Reset */
+#define poPDEC_PWRDNn		39	/* PalDecoder PWRDown */
+#define poPDEC_RESETn       38     /* PAL decoder Reset */
 #define poZARLINK_CS		101	/* Zarlink chip select */
 #define poZARLINK_RESET		78	/* Zarlink reset */
 #define poPIC_RESETn		99	/* PIC AV & AI reset */

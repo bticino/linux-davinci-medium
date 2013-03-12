@@ -30,6 +30,7 @@
 #include <linux/input.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/eeprom.h>
+#include <linux/spi/zl38005.h>
 #include <linux/delay.h>
 #include <linux/backlight.h>
 #include <linux/serial_8250.h>
@@ -502,14 +503,25 @@ static struct ads7846_platform_data amico_ads7846_info = {
 	.get_pendown_state = amico_get_pendown_state,
 };
 
+
+
+static struct zl38005_platform_data zl_config[] = {
+	{
+		.minor = 0,
+		.reset_gpio = poZARLINK_RESET,
+	},
+};
+
 static struct spi_board_info amico_spi3_info[] = {
 	{	/* dm365 spi work between 600000 and 50000000 */
 		.modalias       = "zl38005",
 		.max_speed_hz   = 2 * 1000 * 1000,
 		.bus_num        = 3,
-		.controller_data = poZARLINK_CS,
+		.controller_data = (void *)poZARLINK_CS,
 		/* .chip_select	= poZARLINK_CS, cosi non va... */
+		.chip_select 	= 0,
 		.mode           = SPI_MODE_0,
+		.platform_data  = &zl_config,
 	},
 #if 0
 	{
@@ -1016,6 +1028,7 @@ static void amico_gpio_configure(void)
 	gpio_configure_in(DM365_GPIO64_57, piTOUCH_BUSY, "piTOUCH_BUSY");
 
 	/* -- Configure Output -----------------------------------------------*/
+	gpio_configure_out(DM365_GPIO42, poAUDIO_SEP_ZL, 0, "AUDIO SEP ZALINK");
 	gpio_configure_out(DM365_GPIO36, poNAND_WPn, 1,
 			"po_NAND_WriteProtect_n,");
 	gpio_configure_out(DM365_GPIO43, poEN_LOCAL_MIC, 0,
@@ -1059,21 +1072,16 @@ static void amico_gpio_configure(void)
 
 	gpio_configure_out(DM365_GPIO68, poSPK_PWR, 0,
 			"Speaker power control");
-	gpio_configure_out(DM365_GPIO72, poEN_BACKLIGHT, 0,
+	gpio_configure_out(DM365_GPIO72, poEN_BACKLIGHT, 1,
 			"Lcd backlight control");
 	gpio_configure_out(DM365_GPIO78_73, poLCD_GAMMA_CTRL, 1,
 			"Lcd gamma control");
 	gpio_configure_out(DM365_GPIO51, poTOUCH_CSn, 1,
 			"Touch screen chip select");
 	gpio_configure_out(DM365_GPIO78_73, poEN_LCD_5V, 1, "Enable LCD 5V");
-	gpio_configure_out(DM365_GPIO78_73, poSN74CBT_S1, 0,
-				"SN74CBT16214 switch video channel");
-	gpio_configure_out(DM365_GPIO78_73, poSN74CBT_S0, 0,
-				"SN74CBT16214 switch video channel");
-	gpio_configure_out(DM365_GPIO78_73, poZARLINK_RESET, 0,
-				"poZARLINK_RESET");
-	gpio_configure_out(DM365_GPIO101, poZARLINK_CS, 1,
-				"poZARLINK_CS");
+
+	davinci_cfg_reg(DM365_GPIO78_73);/*ZL_RESET: Configure into the driver*/
+	davinci_cfg_reg(DM365_GPIO101);  /*ZL_CS: Configure into the driver*/
 	gpio_configure_out(DM365_GPIO99, poPIC_RESETn, 1,
 			"PIC AV and PIC AI reset");
 	gpio_configure_out(DM365_GPIO98, poWATCHDOG, 0,
@@ -1108,8 +1116,6 @@ static void amico_gpio_configure(void)
 		gpio_export(poEN_LCD_5V, 0);
 		gpio_export(poSN74CBT_S1, 0);
 		gpio_export(poSN74CBT_S0, 0);
-		gpio_export(poZARLINK_RESET, 0);
-		gpio_export(poZARLINK_CS, 0);
 		gpio_export(poPIC_RESETn, 0);
 		gpio_export(poWATCHDOG, 0);
 
@@ -1124,25 +1130,20 @@ static void amico_usb_configure(void)
 	setup_usb(500, 8);
 }
 
-/* microphone power control*/
+/* sound power control,power manage */
 void amico_en_audio_power(int value)
 {
-	gpio_set_value(poEN_LOCAL_MIC, value);
-}
-
-void amico_zarlink_reset(int value)
-{
-	gpio_set_value(poZARLINK_RESET, value);
+	gpio_set_value(poSPK_PWR, value);
+	gpio_set_value(poEN_LOCAL_MIC, !value);
 }
 
 static struct amico_asoc_platform_data amico_asoc_info = {
-	.ext_codec_power = amico_zarlink_reset,
 	.ext_circuit_power = amico_en_audio_power,
 };
 
 static struct platform_device amico_asoc_device[] = {
 	{
-		.name = "amico-asoc", /*Internal Voice codec + Zarlink*/
+		.name = "amico-i-asoc", /*Internal Voice codec + Zarlink*/
 		.id = 0,
 		.dev = {
 			.platform_data  = &amico_asoc_info,
