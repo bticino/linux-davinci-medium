@@ -71,6 +71,8 @@
 #include <linux/spi/ads7846.h>
 #include <media/davinci/vid_encoder_types.h>
 #include <media/davinci/davinci_enc_mngr.h>
+#include <media/davinci/videohd.h>
+#include <media/ov971x.h>
 
 #define DM365_ASYNC_EMIF_CONTROL_BASE   0x01d10000
 #define DM365_ASYNC_EMIF_DATA_CE0_BASE  0x02000000
@@ -104,6 +106,8 @@ static struct timer_list startup_timer;
 #define PWM_DISABLED		0
 #define PWM_ONESHOT		1
 #define PWM_CONTINUOS		2
+
+#define OV971X_XCLK		24
 
 static int amico_debug = 1;
 module_param(amico_debug, int, 0644);
@@ -228,6 +232,31 @@ static struct tvp5150_platform_data tvp5150_pdata = {
 	.resetb = poPDEC_RESETn,
 };
 
+/* ov9712 platform data, used during reset and probe operations */
+static struct ov971x_platform_data ov971x_pdata = {
+	.clk_polarity = OV971x_CLK_POL_NORMAL,
+	.hs_polarity = OV971x_HS_POL_POS,
+	.vs_polarity = OV971x_VS_POL_POS,
+	.xclk_frequency = OV971X_XCLK * 1000 * 1000,
+	.out_drive_capability = OV971x_DRIVE_CAP_X1,
+};
+
+/*
+#define V4L2_STD_OV971X_STD_ALL (v4l2_std_id)(V4L2_STD_720P_30 \
+		| V4L2_STD_640x400_30 | V4L2_STD_320x240_30  \
+		| V4L2_STD_160x120_30)
+*/
+
+/* Input available at the ov971x */
+static struct v4l2_input ov971x_inputs[] = {
+	{
+		.index = 0,
+		.name = "Camera",
+		.type = V4L2_INPUT_TYPE_CAMERA,
+		.std = V4L2_STD_OV971x_STD_ALL,
+	}
+};
+
 #if 0
 /* [VideoOut] mc44cc373 Video Modulator */
 static u8 mc44cc373_pars[] = {0xBA, 0x18, 0x26, 0xE8};
@@ -252,7 +281,7 @@ static struct v4l2_input tda9885_inputs[] = {
 static struct v4l2_input tvp5151_inputs[] = {
 	{
 		.index = 0,
-		.name = "SCS Composite",
+		.name = "Composite",
 		.type = V4L2_INPUT_TYPE_CAMERA,
 		.std = V4L2_STD_PAL,
 	},
@@ -272,18 +301,6 @@ static struct vpfe_route tvp5151_routes[] = {
 
 static struct vpfe_subdev_info vpfe_sub_devs[] = {
 	{
-#if 0
-		.module_name = "tda9885",
-		.grp_id = VPFE_SUBDEV_TVP5150,
-		.num_inputs = 1,
-		.inputs = tda9885_inputs,
-		.can_route = 1,
-		.board_info = {	/* Video Demodulator */
-			I2C_BOARD_INFO("tda9885", 0x43),
-			.platform_data = &tda9885_defaults,
-		},
-	},	{
-#endif
 		.module_name = "tvp5150",
 		.grp_id = VPFE_SUBDEV_TVP5150,
 		.num_inputs = ARRAY_SIZE(tvp5151_inputs),
@@ -298,6 +315,21 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 		.board_info = {	/* Pal Decoder */
 			I2C_BOARD_INFO("tvp5150", 0x5d),
 			.platform_data = &tvp5150_pdata,
+		},
+	},	{
+		.module_name = "ov971x",
+		.is_camera = 1,
+		.grp_id = VPFE_SUBDEV_OV971X,
+		.num_inputs = ARRAY_SIZE(ov971x_inputs),
+		.inputs = ov971x_inputs,
+		.ccdc_if_params = {
+			.if_type = VPFE_RAW_BAYER,
+			.hdpol = VPFE_PINPOL_POSITIVE,
+			.vdpol = VPFE_PINPOL_POSITIVE,
+		},
+		.board_info = {	/* Pal Decoder */
+			I2C_BOARD_INFO("ov971x", 0x30),
+			.platform_data = &ov971x_pdata,
 		},
 	},
 };
@@ -1000,18 +1032,30 @@ static void amico_gpio_configure(void)
 	gpio_configure_out(DM365_GPIO64_57, poE2_WPn, 0,
 			"EEprom write protect");
 
-	/* Pal Decoder : NON PDW DOWN */
-	gpio_configure_out(DM365_GPIO38, poPDEC_PWRDNn, 1,
+	/* choose tvp5151 initiation first */
+	gpio_configure_out(DM365_GPIO78_73, poSN74CBT_S1, 1,
+				"SN74CBT16214 switch video channel");
+	/*poSN74CBT_S0:0:tvp5151, 1:ov971x*/
+	gpio_configure_out(DM365_GPIO78_73, poSN74CBT_S0, 0,
+				"SN74CBT16214 switch video channel");
+
+	/* tvp5150: 0 for powerdown, ov971x: 1 for powerdown */
+	gpio_configure_out(DM365_GPIO39, poPDEC_PWRDNn, 1,
 			"Pal-Decoder power down");
+
     /*
 	* The I2CSEL tvp5151 input is sampled when its resetb input is down,
 	* assigning the i2c address.
 	*/
-	gpio_configure_out(DM365_GPIO39, poPDEC_RESETn, 0,	/* RESET */
+	gpio_configure_out(DM365_GPIO38, poPDEC_RESETn, 0,	/* RESET */
 			"PAL decoder Reset");
     mdelay(10);
-	/* NON RESET */
-    gpio_direction_output(poPDEC_RESETn, 1);
+	gpio_direction_output(poPDEC_RESETn, 1);
+
+	/* ov971x share the tv5151 reset pin, choose ov9715 to work default */
+	mdelay(100);
+	gpio_direction_output(poPDEC_PWRDNn, 0);
+	gpio_direction_output(poSN74CBT_S0, 1);
 
 	gpio_configure_out(DM365_GPIO68, poSPK_PWR, 0,
 			"Speaker power control");
@@ -1167,6 +1211,7 @@ static struct davinci_uart_config uart_config __initdata = {
 static void __init amico_map_io(void)
 {
 	dm365_set_vpfe_config(&vpfe_cfg);
+	dm365_init_isif(DM365_ISIF_8BIT);
 	dm365_init();
 }
 
