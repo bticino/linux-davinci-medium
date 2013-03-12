@@ -139,7 +139,7 @@ config MACH_OWL
 	   is a bticino OWL based on DM365 SOC
 
 config MACH_AMICO_I
-	bool "SDA AMICO based ON TI DM365 SOC"
+	bool "SDA AMICO_I based ON TI DM365 SOC"
 	depends on ARCH_DAVINCI_DM365
 	help
 	  Configure this option to specify whether the board used

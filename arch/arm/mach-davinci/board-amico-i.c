@@ -1378,7 +1378,7 @@ static __init void amico_init(void)
 	pr_warning("Board_Init: DONE\n");
 }
 
-MACHINE_START(AMICO_I, "Shidean amico board")
+MACHINE_START(AMICO_I, "Shidean amico-i board")
 	.phys_io = IO_PHYS,
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),
