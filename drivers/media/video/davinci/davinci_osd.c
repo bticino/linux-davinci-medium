@@ -2004,7 +2004,7 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 		}
 
 		winmd_mask |= OSD_OSDWIN1MD_OFF1;
-		if (!lconfig->interlaced)
+		if (lconfig->interlaced)
 			winmd |= OSD_OSDWIN1MD_OFF1;
 
 		osd_merge(winmd_mask, winmd, OSD_OSDWIN1MD);

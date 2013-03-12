@@ -294,10 +294,10 @@ static struct vid_enc_mode_info vpbe_encoder_modes[VPBE_ENCODER_MAX_NUM_STD] = {
 	 .hzoom = 4,
 	 .flags = 0},
 	{
-	 .name = VID_ENC_STD_800x480,
+	 .name = VID_ENC_STD_800x480_7,
 	 .std = 0,
 	 .if_type = VID_ENC_IF_PRGB,
-	 .interlaced = 1,
+	 .interlaced = 0,
 	 .xres = 800,
 	 .yres = 480,
 	 .fps = {60, 1},
@@ -307,6 +307,25 @@ static struct vid_enc_mode_info vpbe_encoder_modes[VPBE_ENCODER_MAX_NUM_STD] = {
 	 .lower_margin = 22,
 	 .hsync_len = 1,
 	 .vsync_len = 1,
+	 .pixclock = 30030,
+	 .dofst = DOFST_NONE,
+	 .vzoom = 1,
+	 .hzoom = 1,
+	 .flags = 0},
+	{
+	 .name = VID_ENC_STD_800x480_10,
+	 .std = 0,
+	 .if_type = VID_ENC_IF_PRGB,
+	 .interlaced = 0,
+	 .xres = 800,
+	 .yres = 480,
+	 .fps = {60, 1},
+	 .left_margin = 88,
+	 .right_margin = 168,
+	 .upper_margin = 35,
+	 .lower_margin = 10,
+	 .hsync_len = 10,
+	 .vsync_len = 10,
 	 .pixclock = 30030,
 	 .dofst = DOFST_NONE,
 	 .vzoom = 1,
@@ -341,7 +360,8 @@ static struct vpbe_encoder_config vpbe_encoder_configuration = {
 		      .output_name = VID_ENC_OUTPUT_LCD,
 		      .no_of_standard = VPBE_DM644X_ENCODER_PRGB_NUM_STD,
 		      .standards = {VID_ENC_STD_NON_STANDARD,
-					VID_ENC_STD_800x480
+							VID_ENC_STD_800x480_7,
+							VID_ENC_STD_800x480_10
 					},
 		      },
 };
@@ -725,7 +745,8 @@ static int vpbe_encoder_setmode(struct vid_enc_mode_info *mode_info,
 			}
 			venc_reg_out(VENC_XHINTVL, xh);
 		} else if ((!strcmp(mymode, VID_ENC_STD_NON_STANDARD) ||
-			   !strcmp(mymode, VID_ENC_STD_800x480)) && dm365)
+			   !strcmp(mymode, VID_ENC_STD_800x480_7) ||
+			   !strcmp(mymode, VID_ENC_STD_800x480_10)) && dm365)
 			enc->start_display(enc);
 		else {
 			printk(KERN_ERR "Mode not supported..\n");
@@ -1029,13 +1050,15 @@ static int vpbe_encoder_init(void)
 		    VID_ENC_STD_1080I_25;
 		vpbe_encoder_configuration.output[1].standards[8] =
 		    VID_ENC_STD_1080I_30;
-		vpbe_encoder_configuration.output[2].no_of_standard = 2;
+		vpbe_encoder_configuration.output[2].no_of_standard = 3;
 		vpbe_encoder_configuration.output[2].output_name =
 		    VID_ENC_OUTPUT_LCD;
 		vpbe_encoder_configuration.output[2].standards[0] =
 		    VID_ENC_STD_NON_STANDARD;
 		vpbe_encoder_configuration.output[2].standards[1] =
-		    VID_ENC_STD_800x480;
+		    VID_ENC_STD_800x480_7;
+		vpbe_encoder_configuration.output[2].standards[2] =
+		    VID_ENC_STD_800x480_10;
   } else
 		return -1;
 

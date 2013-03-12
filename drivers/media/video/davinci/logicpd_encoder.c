@@ -29,7 +29,9 @@
 #include <linux/delay.h>
 #include <media/davinci/vid_encoder_if.h>
 #include <media/davinci/logicpd_encoder.h>
+#include <media/davinci/davinci_platform.h>
 
+extern struct enc_config davinci_enc_default[];
 /* Function prototypes */
 static int logicpd_encoder_initialize(struct vid_encoder_device *enc, int flag);
 static int logicpd_encoder_deinitialize(struct vid_encoder_device *enc);
@@ -130,7 +132,7 @@ static struct logicpd_encoder_config logicpd_encoder_configuration = {
 				       .vsync_len = 0,
 				       .flags = 0},
 			 .standards[5] = {
-				       .name = VID_ENC_STD_800x480,
+				       .name = VID_ENC_STD_800x480_7,
 				       .std = 1,
 				       .if_type = VID_ENC_IF_PRGB,
 				       .interlaced = 0,
@@ -146,12 +148,29 @@ static struct logicpd_encoder_config logicpd_encoder_configuration = {
 				       .pixclock = 30030,
 					   .dofst = DOFST_NONE,
 				       .flags = 0},
+			.standards[6] = {
+				       .name = VID_ENC_STD_800x480_10,
+				       .std = 1,
+				       .if_type = VID_ENC_IF_PRGB,
+				       .interlaced = 0,
+				       .xres = 800,
+				       .yres = 480,
+				       .fps = {60, 1},
+				       .left_margin = 88,
+				       .right_margin = 168,
+				       .upper_margin = 35,
+				       .lower_margin = 10,
+				       .hsync_len = 10,
+				       .vsync_len = 10,
+				       .pixclock = 30030,
+					   .dofst = DOFST_NONE,
+				       .flags = 0},
 		      },
 };
 
 static struct logicpd_encoder_channel logicpd_encoder_channel_info = {
 	.params.outindex = 0,
-	.params.mode = VID_ENC_STD_800x480,
+	.params.mode = VID_ENC_STD_640x480,
 	.enc_device = NULL
 };
 
@@ -216,6 +235,19 @@ static int logicpd_encoder_deinitialize(struct vid_encoder_device *enc)
 	logicpd_encoder_channel_info.enc_device = NULL;
 	printk(KERN_DEBUG "LogicPD Encoder de-initialized\n");
 	return 0;
+}
+
+/* Following function returns ptr to a mode_info structure*/
+static struct vid_enc_mode_info *get_modeinfo(char *mode_name)
+{
+	int i;
+	for (i = 0; i < LOGICPD_ENCODER_GRAPHICS_NUM_STD; i++) {
+		if (!strcmp(logicpd_encoder_configuration.output[0].
+			standards[i].name, mode_name))
+			return &logicpd_encoder_configuration.output[0].
+					standards[i];
+	}
+	return NULL;
 }
 
 /* Following function is used to set the mode*/
@@ -356,10 +388,13 @@ static int logicpd_encoder_setoutput(char *output,
 		printk(KERN_ERR "no matching output found.\n");
 		return -EINVAL;
 	}
+#if 0
 	logicpd_encoder_channel_info.params.mode
 	    = logicpd_encoder_configuration.output[0].standards[5].name;
 
 	my_mode_info = &logicpd_encoder_configuration.output[0].standards[5];
+#endif
+	my_mode_info = get_modeinfo(davinci_enc_default[0].mode);
 	err |= logicpd_encoder_setmode(my_mode_info, enc);
 	if (err < 0) {
 		printk(KERN_ERR "Error in setting default mode\n");

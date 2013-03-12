@@ -127,7 +127,8 @@ char *davinci_modes[] = {
 	VID_ENC_STD_640x400,
 	VID_ENC_STD_640x350,
 	VID_ENC_STD_480x272,
-	VID_ENC_STD_800x480,
+	VID_ENC_STD_800x480_7,
+	VID_ENC_STD_800x480_10,
 	VID_ENC_STD_NON_STANDARD,
 	""
 };
@@ -1258,7 +1259,8 @@ void davinci_enc_priv_setmode(struct vid_enc_device_mgr *mgr)
 		strcmp(mgr->current_mode.name, VID_ENC_STD_640x400) == 0 ||
 		strcmp(mgr->current_mode.name, VID_ENC_STD_640x350) == 0 ||
 		strcmp(mgr->current_mode.name, VID_ENC_STD_480x272) == 0 ||
-		strcmp(mgr->current_mode.name, VID_ENC_STD_800x480) == 0 ||
+		strcmp(mgr->current_mode.name, VID_ENC_STD_800x480_7) == 0 ||
+		strcmp(mgr->current_mode.name, VID_ENC_STD_800x480_10) == 0 ||
 		strcmp(mgr->current_mode.name, VID_ENC_STD_NON_STANDARD) == 0) {
 		davinci_enc_set_prgb(&mgr->current_mode);
 	} else if (strcmp(mgr->current_mode.name, VID_ENC_STD_720P_60) == 0) {

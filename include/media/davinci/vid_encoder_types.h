@@ -107,7 +107,8 @@ enum vid_enc_if_type {
 #define VID_ENC_STD_640x400      "640x400"
 #define VID_ENC_STD_640x350      "640x350"
 #define VID_ENC_STD_480x272      "480x272"
-#define VID_ENC_STD_800x480      "800x480"
+#define VID_ENC_STD_800x480_7    "800x480_7"
+#define VID_ENC_STD_800x480_10   "800x480_10"
 #define VID_ENC_STD_NON_STANDARD "NON-STANDARD"
 
 /**

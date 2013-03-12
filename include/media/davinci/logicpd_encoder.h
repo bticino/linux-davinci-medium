@@ -28,7 +28,7 @@
 #ifdef __KERNEL__
 /* encoder standard related strctures */
 #define LOGICPD_ENCODER_MAX_NO_OUTPUTS		    (1)
-#define LOGICPD_ENCODER_GRAPHICS_NUM_STD		(6)
+#define LOGICPD_ENCODER_GRAPHICS_NUM_STD		(7)
 
 struct logicpd_encoder_params {
 	int outindex;

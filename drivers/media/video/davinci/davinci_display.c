@@ -692,7 +692,10 @@ static int vpbe_get_mode_timeperframe(unsigned char *mode_info_name,
 	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_640x350)) {
 		frVal->numerator   = 60;
 		frVal->denominator = 1;
-	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_800x480)) {
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_800x480_7)) {
+		frVal->numerator   = 60;
+		frVal->denominator = 1;
+	} else if (!strcmp(davinci_dm.mode_info.name, VID_ENC_STD_800x480_10)) {
 		frVal->numerator   = 60;
 		frVal->denominator = 1;
 	} else {
