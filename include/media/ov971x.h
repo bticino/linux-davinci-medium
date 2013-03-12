@@ -91,6 +91,9 @@ struct ov971x_edge_ctrl {
 				| V4L2_STD_640x400_30 \
 				| V4L2_STD_352x288_30 \
 				| V4L2_STD_320x240_30 \
+				| V4L2_STD_720P_24 \
+				| V4L2_STD_640x480_30 \
+				| V4L2_STD_640x480_24 \
 				| V4L2_STD_160x120_30)
 
 /*

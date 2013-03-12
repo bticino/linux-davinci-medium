@@ -77,6 +77,7 @@
 #define OV971x_REG5D_PLL_SEL_SHIFT	2
 #define OV971x_REG5D_PLL_SEL_MASK	(3 << OV971x_REG5D_PLL_SEL_SHIFT)
 #define OV971x_REG5D_OUT_DRIVE_SHIFT	4
+#define OV971x_REG5D_OUT_DRIVE_MASK	(3 << OV971x_REG5D_OUT_DRIVE_SHIFT)
 
 #define OV971x_CLK			0x11
 #define OV971x_CLK_CLK_DIV_SHIFT	0
@@ -117,7 +118,6 @@
 
 #define VPT 0x92
 
-v4l2_std_id ov971x_cur_std = V4L2_STD_720P_30;
 /* Debug functions */
 static int debug = 4;
 module_param(debug, bool, 0644);
@@ -407,7 +407,6 @@ static pnt reg_1280x720[] = {
 	{0x50, 0xFF},
 	{0x51, 0x41},
 	{0x26, VPT},
-	{0x11, 0x00},
 	{0x2a, 0x98},
 	{0x2b, 0x06},
 	{0x2d, 0x00},
@@ -461,9 +460,6 @@ static unsigned int reg_640x480[][2] = {
 	{0x50, 0x55},
 	{0x51, 0x55},
 	{0x26, VPT},
-	{0x5c, 0x59},
-	{0x5d, 0x00},
-	{0x11, 0x00},
 	{0x2a, 0x98},
 	{0x2b, 0x06},
 	{0x2d, 0x00},
@@ -519,9 +515,6 @@ static unsigned int reg_640x400[][2] = {
 	{0x50, 0x55},
 	{0x51, 0x55},
 	{0x26, VPT},
-	{0x5c, 0x59},
-	{0x5d, 0x00},
-	{0x11, 0x01},
 	{0x2a, 0x98},
 	{0x2b, 0x06},
 	{0x2d, 0x00},
@@ -577,9 +570,6 @@ static unsigned int reg_320x240[][2] = {
 	{0x50, 0x55},
 	{0x51, 0x55},
 	{0x26, VPT},
-	{0x5c, 0x59},
-	{0x5d, 0x00},
-	{0x11, 0x01},
 	{0x2a, 0x98},
 	{0x2b, 0x06},
 	{0x2d, 0x00},
@@ -635,9 +625,6 @@ static unsigned int reg_352x288[][2] = {
 	{0x50, 0x55},
 	{0x51, 0x55},
 	{0x26, VPT},
-	{0x5c, 0x59},
-	{0x5d, 0x00},
-	{0x11, 0x01},
 	{0x2a, 0x98},
 	{0x2b, 0x06},
 	{0x2d, 0x00},
@@ -693,9 +680,6 @@ static unsigned int reg_176x144[][2] = {
 	{0x50, 0x55},
 	{0x51, 0x55},
 	{0x26, VPT},
-	{0x5c, 0x59},
-	{0x5d, 0x00},
-	{0x11, 0x01},
 	{0x2a, 0x98},
 	{0x2b, 0x06},
 	{0x2d, 0x00},
@@ -751,9 +735,6 @@ static unsigned int reg_160x120[][2] = {
 	{0x50, 0x55},
 	{0x51, 0x55},
 	{0x26, VPT},
-	{0x5c, 0x59},
-	{0x5d, 0x00},
-	{0x11, 0x01},
 	{0x2a, 0x98},
 	{0x2b, 0x06},
 	{0x2d, 0x00},
@@ -808,8 +789,84 @@ static struct regs formats[] = {
 		.registers = reg_160x120,
 		.size_regs = ARRAY_SIZE(reg_160x120),
 		.fmt_id = V4L2_STD_160x120_30,
+	}, {
+		.h_res = 640,
+		.v_res = 480,
+		.registers = reg_640x480,
+		.size_regs = ARRAY_SIZE(reg_640x480),
+		.fmt_id = V4L2_STD_640x480_24,
+	}, {
+		.h_res = 1280,
+		.v_res = 720,
+		.registers = reg_1280x720,
+		.size_regs = ARRAY_SIZE(reg_1280x720),
+		.fmt_id = V4L2_STD_720P_24,
 	}
 };
+
+void ov971x_set_frequency(int freq_in, int freq_out, struct v4l2_subdev *sd)
+{
+	int pll_prediv, pll_mult, pll_div, sysclk_div, ret, cnt, tmp;
+	int clk1, clk2;
+
+	tmp = freq_out<<4;
+	freq_out = tmp - (freq_out<<1);
+	freq_out *= 1000;
+	freq_out *= 100;
+
+	if (freq_in >= 24000000)
+		pll_prediv = 2;
+	else if (freq_in >= 6000000)
+		pll_prediv = 1;
+	else
+		pll_prediv = 0;
+	clk1 = freq_in >> pll_prediv;
+	pll_prediv <<= 1;
+
+	clk2 = 80 * 1000 * 1000;
+	/* setup PLL settings */
+	if ((freq_out<<4) < clk2)
+		sysclk_div = 2;
+	else if ((freq_out<<3) < clk2)
+		sysclk_div = 1;
+	else
+		sysclk_div = 0;
+	for (pll_div = 0, tmp = 0; tmp < clk2; pll_div++) {
+		tmp = 0;
+		for (cnt = 0; cnt <= pll_div; cnt++)
+			tmp += (freq_out<<sysclk_div);
+	}
+	sysclk_div <<= 1;
+	clk2 = freq_out * pll_div;
+	if (sysclk_div)
+		clk2 *= sysclk_div;
+
+	for (pll_mult = 1, tmp = 0; tmp < clk2; pll_mult++) {
+		tmp = 0;
+		for (cnt = 0; cnt <= pll_mult; cnt++)
+			tmp += clk1;
+	}
+
+	ret = reg_read(v4l2_get_subdevdata(sd), OV971x_REG5C);
+	ret &= ~OV971x_REG5C_PREDIV_MASK;
+	if (pll_prediv == 2)
+		ret |= 2 << OV971x_REG5C_PREDIV_SHIFT;
+	else if (pll_prediv == 4)
+		ret |= 3 << OV971x_REG5C_PREDIV_SHIFT;
+	ret &= ~OV971x_REG5C_PLL_MULT_MASK;
+	ret |= 32 - pll_mult;
+	reg_write(v4l2_get_subdevdata(sd), OV971x_REG5C, ret);
+
+	ret = reg_read(v4l2_get_subdevdata(sd), OV971x_REG5D);
+	ret &= ~OV971x_REG5D_PLL_SEL_MASK;
+	ret |= (pll_div - 1) << OV971x_REG5D_PLL_SEL_SHIFT;
+	reg_write(v4l2_get_subdevdata(sd), OV971x_REG5D, ret);
+
+	ret = reg_read(v4l2_get_subdevdata(sd), OV971x_CLK);
+	ret &= ~OV971x_CLK_CLK_DIV_MASK;
+	ret |= (sysclk_div / 2 - 1) << OV971x_CLK_CLK_DIV_SHIFT;
+	reg_write(v4l2_get_subdevdata(sd), OV971x_CLK, ret);
+}
 
 static int ov971x_set_params(struct v4l2_subdev *sd,
 			      struct v4l2_rect *rect)
@@ -918,6 +975,18 @@ static int ov971x_try_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+int ov971x_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *param)
+{
+	struct ov971x *ov971x = to_ov971x(sd);
+
+	if (param->parm.capture.timeperframe.numerator == 1 &&
+	    param->parm.capture.timeperframe.denominator == 24)
+		ov971x_set_frequency(ov971x->xclk_frequency, 24, sd);
+	else
+		ov971x_set_frequency(ov971x->xclk_frequency, 30, sd);
+	return 0;
+}
+
 static int ov971x_get_chip_id(struct v4l2_subdev *sd,
 			       struct v4l2_dbg_chip_ident *id)
 {
@@ -974,7 +1043,6 @@ static int ov971x_set_register(struct v4l2_subdev *sd,
 }
 #endif
 
-
 static int ov971x_get_control(struct v4l2_subdev *, struct v4l2_control *);
 static int ov971x_set_control(struct v4l2_subdev *, struct v4l2_control *);
 static int ov971x_queryctrl(struct v4l2_subdev *, struct v4l2_queryctrl *);
@@ -1001,12 +1069,14 @@ static const struct v4l2_subdev_video_ops ov971x_video_ops = {
 	.querystd = ov971x_querystd,
 	.s_stream = ov971x_s_stream,
 	.enum_fmt = ov971x_enum_fmt,
+	.s_parm = ov971x_s_parm,
 };
 
 static const struct v4l2_subdev_ops ov971x_ops = {
 	.core = &ov971x_core_ops,
 	.video = &ov971x_video_ops,
 };
+
 
 static int ov971x_queryctrl(struct v4l2_subdev *sd,
 			    struct v4l2_queryctrl *qctrl)
@@ -1228,7 +1298,9 @@ static int ov971x_querystd(struct v4l2_subdev *sd, v4l2_std_id *id)
 /* Function set not supported by ov971x */
 static int ov971x_set_standard(struct v4l2_subdev *sd, v4l2_std_id id)
 {
-	ov971x_cur_std = id;
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+
+	dev_info(&client->dev, "%s %llx\n", __func__, id);
 	return 0;
 }
 /* Interface active, can use i2c. If it fails, it can indeed mean, that
@@ -1285,7 +1357,6 @@ static int ov971x_probe(struct i2c_client *client,
 	struct ov971x *ov971x;
 	struct ov971x_platform_data *ov971x_pdata = client->dev.platform_data;
 	struct v4l2_subdev *sd;
-	int pll_prediv, pll_mult, pll_div, sysclk_div;
 	int ret, cnt;
 	struct class *light_class;
 	struct device *dev;
@@ -1351,38 +1422,14 @@ static int ov971x_probe(struct i2c_client *client,
 		reg_set(v4l2_get_subdevdata(sd),
 			OV971x_COM10, OV971x_COM10_VSYNC_POL);
 
-	if (ov971x_pdata->xclk_frequency > 10500000)
-		pll_prediv = 2;
-	else
-		pll_prediv = 4;
-
-	/* setup PLL settings */
-	ov971x_pdata->xclk_frequency /= pll_prediv;
-	pll_mult = 84000000 / ov971x_pdata->xclk_frequency;
-	pll_div = 1;
-	sysclk_div = 2;
-
-	ret = reg_read(v4l2_get_subdevdata(sd), OV971x_REG5C);
-	ret &= ~OV971x_REG5C_PREDIV_MASK;
-	if (pll_prediv == 2)
-		ret |= 2 << OV971x_REG5C_PREDIV_SHIFT;
-	else if (pll_prediv == 4)
-		ret |= 3 << OV971x_REG5C_PREDIV_SHIFT;
-	ret &= ~OV971x_REG5C_PLL_MULT_MASK;
-	ret |= 32 - pll_mult;
-	reg_write(v4l2_get_subdevdata(sd), OV971x_REG5C, ret);
-
 	ret = reg_read(v4l2_get_subdevdata(sd), OV971x_REG5D);
-	ret &= ~OV971x_REG5D_PLL_SEL_MASK;
-	ret |= (pll_div - 1) << OV971x_REG5D_PLL_SEL_SHIFT;
+	ret &= ~OV971x_REG5D_OUT_DRIVE_MASK;
 	ret |= (ov971x_pdata->out_drive_capability) <<
 					OV971x_REG5D_OUT_DRIVE_SHIFT;
 	reg_write(v4l2_get_subdevdata(sd), OV971x_REG5D, ret);
 
-	ret = reg_read(v4l2_get_subdevdata(sd), OV971x_CLK);
-	ret &= ~OV971x_CLK_CLK_DIV_MASK;
-	ret |= (sysclk_div / 2 - 1) << OV971x_CLK_CLK_DIV_SHIFT;
-	reg_write(v4l2_get_subdevdata(sd), OV971x_CLK, ret);
+	ov971x->xclk_frequency = ov971x_pdata->xclk_frequency;
+	ov971x_set_frequency(ov971x_pdata->xclk_frequency, 30, sd);
 
 	for (cnt = 0; cnt < ARRAY_SIZE(reg_1280x720); cnt++)
 		reg_write(v4l2_get_subdevdata(sd), reg_1280x720[cnt][0],
