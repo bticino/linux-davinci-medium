@@ -1124,6 +1124,48 @@ static void amico_gpio_configure(void)
 	}
 }
 
+static int amico_mmc_get_ro(int module)
+{
+	/* high == card's write protect switch active*/
+	return 0;
+}
+
+static int amico_mmc1_get_cd(int module)
+{
+	/* low == card present*/
+	return gpio_get_value(piSD_DETECTn);
+}
+
+static struct davinci_mmc_config amico_mmc_config[] = {
+	{
+		/* .get_cd is not defined since it seems it useless... the MMC
+		* controller detects anyway the card! O_o
+		*/
+		.get_ro		= amico_mmc_get_ro,
+		.wires		= 4,
+		.max_freq	= 50000000,
+		.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
+		.version	= MMC_CTLR_VERSION_2,
+	}, {
+		/*.get_cd		= amico_mmc1_get_cd,*/
+		.get_ro		= amico_mmc_get_ro,
+		.wires		= 4,
+		.max_freq	= 50000000,
+		.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
+		.version	= MMC_CTLR_VERSION_2,
+	},
+};
+
+static void amico_mmc0_configure(void)
+{
+	/* MMC/SD 0 */
+	davinci_cfg_reg(DM365_MMCSD0);
+
+	davinci_setup_mmc(0, &amico_mmc_config[0]);
+
+	return;
+}
+
 static void amico_usb_configure(void)
 {
 	pr_notice("Launching setup_usb\n");
@@ -1307,6 +1349,7 @@ static __init void amico_init(void)
 	dm365_init_spi0(0, amico_spi_info, ARRAY_SIZE(amico_spi_info));
 	dm365_init_spi3(BIT(0), amico_spi3_info, ARRAY_SIZE(amico_spi3_info));
 
+	amico_mmc0_configure();
 	amico_usb_configure();
 	/*amico_uart_configure();*/
 
