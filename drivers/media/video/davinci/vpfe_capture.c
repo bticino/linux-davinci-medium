@@ -168,6 +168,7 @@ const struct vpfe_standard vpfe_standards[] = {
 	{V4L2_STD_525P_60, 720, 480, {11, 10}, 0, {1001, 30000} },
 	{V4L2_STD_625P_50, 720, 576, {54, 59}, 0, {1, 25} },
 	{V4L2_STD_720P_30, 1280, 720, {1, 1}, 0, {1, 30} },
+	{V4L2_STD_720P_24, 1280, 720, {1, 1}, 0, {1, 24} },
 	{V4L2_STD_720P_50, 1280, 720, {1, 1}, 0, {1, 50} },
 	{V4L2_STD_720P_60, 1280, 720, {1, 1}, 0, {1, 60} },
 	{V4L2_STD_1080I_30, 1920, 1080, {1, 1}, 1, {1, 30} },
@@ -178,6 +179,7 @@ const struct vpfe_standard vpfe_standards[] = {
 	{V4L2_STD_1080P_60, 1920, 1080, {1, 1}, 0, {1, 60} },
 	{V4L2_STD_640x400_30, 640, 400, {1, 1}, 0, {1, 30} },
 	{V4L2_STD_640x480_30, 640, 480, {1, 1}, 0, {1, 30} },
+	{V4L2_STD_640x480_24, 640, 480, {1, 1}, 0, {1, 24} },
 	{V4L2_STD_352x288_30, 352, 288, {1, 1}, 0, {1, 30} },
 	{V4L2_STD_320x240_30, 320, 240, {1, 1}, 0, {1, 30} },
 	{V4L2_STD_160x120_30, 160, 120, {1, 1}, 0, {1, 30} },
@@ -2434,6 +2436,7 @@ static int vpfe_s_parm(struct file *file, void *priv,
 {
 	struct v4l2_captureparm *capparam = &parm->parm.capture;
 	struct vpfe_device *vpfe_dev = video_drvdata(file);
+	struct vpfe_subdev_info *sdinfo = vpfe_dev->current_subdev;
 	int ret = -EINVAL;
 
 	/* TODO - Revisit it before submitting to upstream */
@@ -2487,7 +2490,8 @@ static int vpfe_s_parm(struct file *file, void *priv,
 					capparam->timeperframe.denominator;
 	vpfe_dev->skip_frame_count_init = vpfe_dev->skip_frame_count;
 	mutex_unlock(&vpfe_dev->lock);
-	ret = 0;
+	ret = v4l2_device_call_until_err(&vpfe_dev->v4l2_dev,
+			sdinfo->grp_id, video, s_parm, parm);
 out:
 	return ret;
 }
@@ -2527,15 +2531,10 @@ static int vpfe_enum_frameintervals(struct file *filp, void *priv,
 		return -EINVAL;
 
 	fival->type = V4L2_FRMIVAL_TYPE_DISCRETE;
-	if (!vpfe_dev->imp_chained) {
-		fival->discrete.numerator =
-			vpfe_standards[fival->index].fps.numerator;
-		fival->discrete.denominator =
-			vpfe_standards[fival->index].fps.denominator;
-	} else {
-		fival->discrete.numerator = 1;
-		fival->discrete.denominator = 30;
-	}
+	fival->discrete.numerator =
+		vpfe_standards[fival->index].fps.numerator;
+	fival->discrete.denominator =
+		vpfe_standards[fival->index].fps.denominator;
 	return 0;
 }
 

@@ -21,6 +21,8 @@
 #define __VIDEOHD_H
 
 /* Digital TV standards */
+#define V4L2_STD_640x480_24     ((v4l2_std_id)(0x0000010000000000ULL))
+#define V4L2_STD_720P_24        ((v4l2_std_id)(0x0000020000000000ULL))
 #define V4L2_STD_160x120_30     ((v4l2_std_id)(0x0000040000000000ULL))
 #define V4L2_STD_176x144_30     ((v4l2_std_id)(0x0000080000000000ULL))
 #define V4L2_STD_320x240_30     ((v4l2_std_id)(0x0000100000000000ULL))
