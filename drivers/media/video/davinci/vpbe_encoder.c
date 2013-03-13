@@ -295,7 +295,7 @@ static struct vid_enc_mode_info vpbe_encoder_modes[VPBE_ENCODER_MAX_NUM_STD] = {
 	 .flags = 0},
 	{
 	 .name = VID_ENC_STD_800x480_7,
-	 .std = 0,
+	 .std = 1,
 	 .if_type = VID_ENC_IF_PRGB,
 	 .interlaced = 0,
 	 .xres = 800,
@@ -314,7 +314,7 @@ static struct vid_enc_mode_info vpbe_encoder_modes[VPBE_ENCODER_MAX_NUM_STD] = {
 	 .flags = 0},
 	{
 	 .name = VID_ENC_STD_800x480_10,
-	 .std = 0,
+	 .std = 1,
 	 .if_type = VID_ENC_IF_PRGB,
 	 .interlaced = 0,
 	 .xres = 800,

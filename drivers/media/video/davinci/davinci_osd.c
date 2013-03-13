@@ -1807,7 +1807,7 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 					   const struct davinci_layer_config
 					   *lconfig)
 {
-	u32 winmd = 0, winmd_mask = 0, bmw = 0 , tmp = 0, clk_div;
+	u32 winmd = 0, winmd_mask = 0, bmw = 0 , clk_div;
 
 	_davinci_disp_set_cbcr_order(lconfig->pixfmt);
 
@@ -1866,9 +1866,7 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 		osd_write(lconfig->xpos, OSD_OSDWIN0XP);
 		osd_write(lconfig->xsize * clk_div, OSD_OSDWIN0XL);
 
-		if ((lconfig->interlaced) &&
-		    (lconfig->pixfmt != PIXFMT_RGB888) &&
-		    (lconfig->pixfmt != PIXFMT_RGB565)) {
+		if (lconfig->interlaced) {
 			osd_write(lconfig->ypos >> 1, OSD_OSDWIN0YP);
 			osd_write(lconfig->ysize >> 1, OSD_OSDWIN0YL);
 		} else {
@@ -2012,9 +2010,7 @@ static void _davinci_disp_set_layer_config(enum davinci_disp_layer layer,
 		osd_write(lconfig->xpos, OSD_OSDWIN1XP);
 		osd_write(lconfig->xsize, OSD_OSDWIN1XL);
 
-		if ((lconfig->interlaced) &&
-		    (lconfig->pixfmt != PIXFMT_RGB888) &&
-		    (lconfig->pixfmt != PIXFMT_RGB565)) {
+		if (lconfig->interlaced) {
 			osd_write(lconfig->ypos >> 1, OSD_OSDWIN1YP);
 			osd_write(lconfig->ysize >> 1, OSD_OSDWIN1YL);
 		} else {
