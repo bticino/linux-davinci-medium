@@ -1050,7 +1050,8 @@ static int vpbe_encoder_init(void)
 		    VID_ENC_STD_1080I_25;
 		vpbe_encoder_configuration.output[1].standards[8] =
 		    VID_ENC_STD_1080I_30;
-		vpbe_encoder_configuration.output[2].no_of_standard = 3;
+		vpbe_encoder_configuration.output[2].no_of_standard =
+		    VPBE_DM365_ENCODER_LCD_NUM_STD;
 		vpbe_encoder_configuration.output[2].output_name =
 		    VID_ENC_OUTPUT_LCD;
 		vpbe_encoder_configuration.output[2].standards[0] =
