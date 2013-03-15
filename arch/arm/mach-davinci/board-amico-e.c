@@ -1196,6 +1196,8 @@ static struct platform_device amico_asoc_device[] = {
 
 static struct snd_platform_data dm365_amico_snd_data[] = {
 		{
+			.asp_chan_q = EVENTQ_3,
+			.ram_chan_q = EVENTQ_2,
 		},
 #if 0
 		{
