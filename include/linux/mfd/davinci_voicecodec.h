@@ -90,6 +90,10 @@
 #define DAVINCI_VC_REG12_POWER_ALL_ON	0xFD
 #define DAVINCI_VC_REG12_POWER_ALL_OFF	0x00
 
+/* DAVINCI_VC_REG04 bit fields */
+#define DAVINCI_VC_MCTRL_NTUP		BIT(0)
+#define DAVINCI_VC_MCTRL_NTEN		BIT(1)
+
 #define DAVINCI_VC_CELLS		2
 
 enum davinci_vc_cells {

@@ -146,7 +146,14 @@ static int davinci_vcif_hw_params(struct snd_pcm_substream *substream,
 	MOD_REG_BIT(w, DAVINCI_VC_CTRL_WFIFOMD_WORD_1, 0);
 	writel(w, davinci_vc->base + DAVINCI_VC_CTRL);
 
-	writel(1, davinci_vc->base + DAVINCI_VC_REG04);
+	/* Notch filter coefficient update */
+	w = readl(davinci_vc->base + DAVINCI_VC_REG04);
+	if (!(w & DAVINCI_VC_MCTRL_NTEN)) {
+		MOD_REG_BIT(w, DAVINCI_VC_MCTRL_NTUP, 1);
+		writel(w, davinci_vc->base + DAVINCI_VC_REG04);
+		MOD_REG_BIT(w, DAVINCI_VC_MCTRL_NTUP, 0);
+		writel(w, davinci_vc->base + DAVINCI_VC_REG04);
+	}
 
 	return 0;
 }
