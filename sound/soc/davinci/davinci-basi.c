@@ -196,13 +196,11 @@ static int basi_asoc_power_changed(struct device *dev,
 
 	switch (s) {
 	case SYS_PWR_GOOD:
-		basi_asoc_priv.ext_codec_power(1);
 		basi_asoc_priv.ext_circuit_power(1);
 		schedule_delayed_work(&basi_asoc_priv.delayed_work,
 				      msecs_to_jiffies(100));
 		break;
 	case SYS_PWR_FAILING:
-		basi_asoc_priv.ext_codec_power(0);
 		basi_asoc_priv.ext_circuit_power(0);
 		ret = cancel_delayed_work(&basi_asoc_priv.delayed_work);
 		break;
