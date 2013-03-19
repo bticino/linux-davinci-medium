@@ -112,9 +112,22 @@ static struct tda9885_platform_data tda9885_defaults = {
 	.power = ABIL_DEM_VIDEO,
 };
 
+void basi_tvp510x_reset(void)
+{
+	printk(KERN_DEBUG "Reset tvp510x PalDecoder \n");
+
+	/* Active-low reset. RESETB can be used only when PDN = 1 */
+	gpio_direction_output(PDEC_PWRDNn, 1);
+	mdelay(1);
+
+	gpio_direction_output(PDEC_RESETn, 0);
+	mdelay(1); /* 500 nsec is enough */
+	gpio_direction_output(PDEC_RESETn, 1);
+}
+
 static struct tvp5150_platform_data tvp5150_pdata = {
 	.pdn = PDEC_PWRDNn,
-	.resetb = PDEC_RESETn,
+	.resetb = &basi_tvp510x_reset,
 };
 
 /* Inputs available at the TVP5146 */
@@ -619,15 +632,6 @@ static void basi_gpio_configure(void)
 		return;
 	}
 
-	/*
-	 * The I2CSEL tvp5151 input is sampled when its resetb input is down,
-	 * assigning the i2c address.
-	 */
-	gpio_direction_output(PDEC_RESETn, 0);
-
-	mdelay(10);
-	gpio_direction_output(PDEC_RESETn, 1);
-
 	davinci_cfg_reg(DM365_GPIO97);
 	status = gpio_request(E2_WPn, "Eeprom write protect");
 	if (status) {
@@ -926,6 +930,7 @@ static __init void basi_init(void)
 	if (basi_debug>1)
 		pinmux_check();
 	basi_gpio_configure();
+	basi_tvp510x_reset();
 	basi_led_init();
 	davinci_cfg_reg(DM365_UART1_RXD_34);
 	davinci_cfg_reg(DM365_UART1_TXD_25);
