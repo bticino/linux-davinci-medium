@@ -896,7 +896,12 @@ static struct spi_board_info basi_spi_info[] __initconst = {
 
 };
 
-static struct snd_platform_data dm365_basi_snd_data;
+static struct snd_platform_data dm365_basi_snd_data[] = {
+	{
+		.asp_chan_q = EVENTQ_3,
+		.ram_chan_q = EVENTQ_2,
+	},
+};
 
 static void basi_late_init(unsigned long data)
 {
