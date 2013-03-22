@@ -119,6 +119,16 @@ void cq93vc_init(void)
 
 }
 
+int cq93vc_hw_params(struct snd_pcm_substream *substream,
+		     struct snd_pcm_hw_params *hw_params)
+{
+	int w;
+	w =  __raw_readl(voice_codec_base + VC_CTRL);
+	__raw_writew(w | VC_CTRL_WFIFOMD | VC_CTRL_RFIFOMD,
+		     voice_codec_base + VC_CTRL);
+	return 0;
+}
+
 struct davinci_pcm_copy_ops cq93vc_pcm_copy_ops = {
 	.enable = cq93vc_enable,
 	.write = cq93vc_write,
@@ -126,5 +136,6 @@ struct davinci_pcm_copy_ops cq93vc_pcm_copy_ops = {
 	.get_fifo_size = cq93vc_get_fifo_size,
 	.get_fifo_status = cq93vc_get_fifo_status,
 	.init = cq93vc_init,
+	.hw_params = cq93vc_hw_params,
 };
 EXPORT_SYMBOL_GPL(cq93vc_pcm_copy_ops);

@@ -33,6 +33,9 @@ struct davinci_pcm_copy_ops {
 	int (*get_fifo_size)(void);
 	/* called to get number of samples already into the hw_fifo */
 	int (*get_fifo_status)(void);
+	/* called to set he_params */
+	int (*hw_params)(struct snd_pcm_substream *substream,
+			 struct snd_pcm_hw_params *hw_params);
 };
 
 struct davinci_pcm_copy_platform_data {

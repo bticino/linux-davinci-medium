@@ -127,6 +127,8 @@ static int davinci_pcm_hw_params(struct snd_pcm_substream *substream,
 	/* assure the interrupt doesn't occupy too many resources */
 	ns_for_interrupt = rate > min_interrupt_ps ? rate : min_interrupt_ps;
 
+	if (ops->hw_params)
+		ops->hw_params(substream, hw_params);
 	return snd_pcm_lib_malloc_pages(substream,
 					params_buffer_bytes(hw_params));
 }
