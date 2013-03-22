@@ -37,6 +37,7 @@
 #include <linux/tm035kbh02.h>
 #include <linux/serial_8250.h>
 #include <linux/spi/ads7846.h>
+#include <linux/spi/tsc2005.h>
 #include <linux/irq.h>
 #include <linux/phy.h>
 
@@ -1032,11 +1033,51 @@ static struct ads7846_platform_data dingo_ads7846_info = {
 	.get_pendown_state = dingo_get_pendown_state,
 };
 
-static struct spi_board_info dingo_spi3_info[] = {
+/* DEVICE: TSC2005 touchpad */
+static void dingo_tsc2005_set_reset(bool enable)
+{
+	gpio_set_value(LCD_GPIO, ~enable);
+}
+
+static struct tsc2005_platform_data tsc2005_pdata = {
+	.ts_pressure_max        = 2048,
+	.ts_pressure_fudge      = 2,
+	.ts_x_max               = 4096,
+	.ts_x_fudge             = 4,
+	.ts_y_max               = 4096,
+	.ts_y_fudge             = 7,
+	.ts_x_plate_ohm         = 700,
+	.esd_timeout_ms         = 8000,
+	.bit_x_word		= 8,
+	.set_reset		= dingo_tsc2005_set_reset,
+};
+
+static struct spi_board_info dingo_spi3_info_1[] = {
 	{
 		.modalias = "ads7846",
 		.platform_data = &dingo_ads7846_info,
 		.max_speed_hz = 2000000, /* Max 2.5MHz for the chip*/
+		.bus_num = 3,
+		.chip_select = 0,
+		.mode = SPI_MODE_0,
+		.irq = IRQ_DM365_GPIO0_4,
+	},
+	{
+		.modalias   = "tm035kbh02",
+		.platform_data  = &dingo_tm035kbh02_info,
+		.controller_data = (void *)LCD_CSn, /* bitbang chip select */
+		.max_speed_hz   = 1000000, /* Max 3.215 MHz */
+		.bus_num = 3,
+		.chip_select = 1,
+		.mode = SPI_MODE_0,
+	},
+};
+
+static struct spi_board_info dingo_spi3_info_2[] = {
+	{
+		.modalias = "tsc2005",
+		.platform_data = &tsc2005_pdata,
+		.max_speed_hz = 5000000, /* Max 25MHz for the chip*/
 		.bus_num = 3,
 		.chip_select = 0,
 		.mode = SPI_MODE_0,
@@ -1065,11 +1106,26 @@ static struct snd_platform_data dm365_dingo_snd_data[] = {
 
 struct device my_device;
 
-static void dingo_late_init(unsigned long data)
+int read_hw_vers()
 {
 	void __iomem *adc_mem;
-	int status;
 	u32 regval, index;
+
+	index = 1;
+	adc_mem = ioremap(DM365_ADCIF_BASE, SZ_1K);
+	__raw_writel(1 << index, adc_mem + CHSEL);
+	regval = ADCTL_SCNIEN | ADCTL_SCNFLG;
+	__raw_writel(regval, adc_mem + ADCTL);
+	regval |= ADCTL_START;
+	__raw_writel(regval, adc_mem + ADCTL);
+	do { } while (__raw_readl(adc_mem + ADCTL) & ADCTL_START);
+	regval = __raw_readl(adc_mem + AD_DAT(index));
+	return lookup_resistors(regval);
+}
+
+static void dingo_late_init(unsigned long data)
+{
+	int status;
 
 	del_timer(&startup_timer);
 	davinci_cfg_reg(DM365_GPIO45);
@@ -1082,19 +1138,7 @@ static void dingo_late_init(unsigned long data)
 	gpio_direction_output(BOOT_FL_WP, 1);
 
 	/* setting /proc/cpuinfo hardware_version information */
-
-	index = 1;
-
-	adc_mem = ioremap(DM365_ADCIF_BASE, SZ_1K);
-	__raw_writel(1 << index, adc_mem + CHSEL);
-	regval = ADCTL_SCNIEN | ADCTL_SCNFLG;
-	__raw_writel(regval, adc_mem + ADCTL);
-	regval |= ADCTL_START;
-	__raw_writel(regval, adc_mem + ADCTL);
-	do { } while (__raw_readl(adc_mem + ADCTL) & ADCTL_START);
-	regval = __raw_readl(adc_mem + AD_DAT(index));
-
-	system_rev = lookup_resistors(regval);
+	system_rev = read_hw_vers();
 	/* system_serial_low & system_serial_high can also be set here*/
 
 	INIT_WORK(&mywork, dingo_powerfail_configure);
@@ -1112,6 +1156,8 @@ static void dingo_late_init(unsigned long data)
 
 static __init void dingo_init(void)
 {
+	int hw_ver;
+
 	pr_warning("Dingo_init: START\n");
 	if (dingo_debug > 1)
 		pinmux_check();
@@ -1126,8 +1172,15 @@ static __init void dingo_init(void)
 	dingo_emac_configure();
 	dingo_lcd_configure();
 
-	dm365_init_spi3(BIT(0), dingo_spi3_info, ARRAY_SIZE(dingo_spi3_info));
-
+	hw_ver = read_hw_vers();
+	if (hw_ver < 2)
+		dm365_init_spi3(BIT(0), dingo_spi3_info_1,
+				ARRAY_SIZE(dingo_spi3_info_1));
+	else {
+		gpio_direction_output(LCD_GPIO, 1);
+		dm365_init_spi3(BIT(0), dingo_spi3_info_2,
+				ARRAY_SIZE(dingo_spi3_info_2));
+	}
 	dingo_usb_configure();
 	/* dingo_uart2_configure(); */
 
