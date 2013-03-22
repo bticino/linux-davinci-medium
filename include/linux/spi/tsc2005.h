@@ -35,6 +35,7 @@ struct tsc2005_platform_data {
 	int		ts_y_fudge;
 	int		ts_x_plate_ohm;
 	unsigned int	esd_timeout_ms;
+	int		bit_x_word;
 	void		(*set_reset)(bool enable);
 };
 

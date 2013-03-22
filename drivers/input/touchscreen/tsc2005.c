@@ -135,6 +135,7 @@ struct tsc2005 {
 	unsigned int		esd_timeout;
 	struct delayed_work	esd_work;
 	unsigned long		last_valid_interrupt;
+	int			bit_x_word;
 
 	unsigned int		x_plate_ohm;
 
@@ -172,18 +173,28 @@ static int tsc2005_cmd(struct tsc2005 *ts, u8 cmd)
 
 static int tsc2005_write(struct tsc2005 *ts, u8 reg, u16 value)
 {
-	u32 tx = ((reg | TSC2005_REG_PND0) << 16) | value;
-	struct spi_transfer xfer = {
-		.tx_buf		= &tx,
-		.len		= 4,
-		.bits_per_word	= 24,
-	};
+	u32 tx;
+	struct spi_transfer xfer;
 	struct spi_message msg;
 	int error;
 
+	if (ts->bit_x_word == 24)
+		tx = ((reg | TSC2005_REG_PND0)<<16) + value;
+	else
+		tx = (reg | TSC2005_REG_PND0) + (value & 0xFF00) +
+			 ((value & 0xFF)<<16);
+
+	xfer.tx_buf = &tx;
+	if (ts->bit_x_word == 24) {
+		xfer.len = 4;
+		xfer.bits_per_word = 24;
+	} else {
+		xfer.len = 3;
+		xfer.bits_per_word = 8;
+	}
+
 	spi_message_init(&msg);
 	spi_message_add_tail(&xfer, &msg);
-
 	error = spi_sync(ts->spi, &msg);
 	if (error) {
 		dev_err(&ts->spi->dev,
@@ -195,15 +206,21 @@ static int tsc2005_write(struct tsc2005 *ts, u8 reg, u16 value)
 	return 0;
 }
 
-static void tsc2005_setup_read(struct tsc2005_spi_rd *rd, u8 reg, bool last)
+static void tsc2005_setup_read(struct tsc2005_spi_rd *rd, u8 reg, bool last,
+			       struct tsc2005 *ts)
 {
 	memset(rd, 0, sizeof(*rd));
-
-	rd->spi_tx		   = (reg | TSC2005_REG_READ) << 16;
+	if (ts->bit_x_word == 24) {
+		rd->spi_tx = (reg | TSC2005_REG_READ) << 16;
+		rd->spi_xfer.len	   = 4;
+		rd->spi_xfer.bits_per_word = 24;
+	} else {
+		rd->spi_tx = (reg | TSC2005_REG_READ);
+		rd->spi_xfer.len	   = 3;
+		rd->spi_xfer.bits_per_word = 8;
+	}
 	rd->spi_xfer.tx_buf	   = &rd->spi_tx;
 	rd->spi_xfer.rx_buf	   = &rd->spi_rx;
-	rd->spi_xfer.len	   = 4;
-	rd->spi_xfer.bits_per_word = 24;
 	rd->spi_xfer.cs_change	   = !last;
 }
 
@@ -213,7 +230,7 @@ static int tsc2005_read(struct tsc2005 *ts, u8 reg, u16 *value)
 	struct spi_message msg;
 	int error;
 
-	tsc2005_setup_read(&spi_rd, reg, true);
+	tsc2005_setup_read(&spi_rd, reg, true, ts);
 
 	spi_message_init(&msg);
 	spi_message_add_tail(&spi_rd.spi_xfer, &msg);
@@ -221,8 +238,11 @@ static int tsc2005_read(struct tsc2005 *ts, u8 reg, u16 *value)
 	error = spi_sync(ts->spi, &msg);
 	if (error)
 		return error;
-
-	*value = spi_rd.spi_rx;
+	if (ts->bit_x_word == 24)
+		*value = spi_rd.spi_rx;
+	else
+		*value = ((spi_rd.spi_rx & 0xFF0000)>>16) +
+			 ((spi_rd.spi_rx & 0xFF00));
 	return 0;
 }
 
@@ -263,10 +283,21 @@ static irqreturn_t tsc2005_irq_thread(int irq, void *_ts)
 	if (unlikely(error))
 		goto out;
 
-	x = ts->spi_x.spi_rx;
-	y = ts->spi_y.spi_rx;
-	z1 = ts->spi_z1.spi_rx;
-	z2 = ts->spi_z2.spi_rx;
+	if (ts->bit_x_word == 24) {
+		x = ts->spi_x.spi_rx;
+		y = ts->spi_y.spi_rx;
+		z1 = ts->spi_z1.spi_rx;
+		z2 = ts->spi_z2.spi_rx;
+	} else {
+		x = ((ts->spi_x.spi_rx & 0xFF0000)>>16) +
+		    ((ts->spi_x.spi_rx & 0xFF00));
+		y = ((ts->spi_y.spi_rx & 0xFF0000)>>16) +
+		    ((ts->spi_y.spi_rx & 0xFF00));
+		z1 = ((ts->spi_z1.spi_rx & 0xFF0000)>>16) +
+		     ((ts->spi_z1.spi_rx & 0xFF00));
+		z2 = ((ts->spi_z2.spi_rx & 0xFF0000)>>16) +
+		     ((ts->spi_z2.spi_rx & 0xFF00));
+	}
 
 	/* validate position */
 	if (unlikely(x > MAX_12BIT || y > MAX_12BIT))
@@ -557,10 +588,10 @@ static void tsc2005_close(struct input_dev *input)
 
 static void __devinit tsc2005_setup_spi_xfer(struct tsc2005 *ts)
 {
-	tsc2005_setup_read(&ts->spi_x, TSC2005_REG_X, false);
-	tsc2005_setup_read(&ts->spi_y, TSC2005_REG_Y, false);
-	tsc2005_setup_read(&ts->spi_z1, TSC2005_REG_Z1, false);
-	tsc2005_setup_read(&ts->spi_z2, TSC2005_REG_Z2, true);
+	tsc2005_setup_read(&ts->spi_x, TSC2005_REG_X, false, ts);
+	tsc2005_setup_read(&ts->spi_y, TSC2005_REG_Y, false, ts);
+	tsc2005_setup_read(&ts->spi_z1, TSC2005_REG_Z1, false, ts);
+	tsc2005_setup_read(&ts->spi_z2, TSC2005_REG_Z2, true, ts);
 
 	spi_message_init(&ts->spi_read_msg);
 	spi_message_add_tail(&ts->spi_x.spi_xfer, &ts->spi_read_msg);
@@ -617,6 +648,7 @@ static int __devinit tsc2005_probe(struct spi_device *spi)
 	ts->x_plate_ohm	= pdata->ts_x_plate_ohm	? : 280;
 	ts->esd_timeout	= pdata->esd_timeout_ms;
 	ts->set_reset	= pdata->set_reset;
+	ts->bit_x_word  = pdata->bit_x_word ? : 24;
 
 	mutex_init(&ts->mutex);
 
