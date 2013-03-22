@@ -671,7 +671,8 @@ static int __devinit tsc2005_probe(struct spi_device *spi)
 		goto err_remove_sysfs;
 	}
 
-	irq_set_irq_wake(spi->irq, 1);
+	set_irq_wake(spi->irq, 1);
+
 	return 0;
 
 err_remove_sysfs:
