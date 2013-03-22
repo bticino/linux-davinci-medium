@@ -415,7 +415,7 @@ static ssize_t tsc2005_selftest_show(struct device *dev,
 
 	/* hardware reset */
 	ts->set_reset(false);
-	usleep_range(100, 500); /* only 10us required */
+	udelay(100); /* only 10us required */
 	ts->set_reset(true);
 
 	if (!success)
@@ -510,7 +510,7 @@ static void tsc2005_esd_work(struct work_struct *work)
 	tsc2005_update_pen_state(ts, 0, 0, 0);
 
 	ts->set_reset(false);
-	usleep_range(100, 500); /* only 10us required */
+	udelay(100); /* only 10us required */
 	ts->set_reset(true);
 
 	enable_irq(ts->spi->irq);
