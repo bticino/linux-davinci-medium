@@ -91,7 +91,7 @@ static struct timer_list startup_timer;
 #define TIME_TO_LATE_INIT 1500
 
 /* PWM Definitions - not found elsewhere */
-#define DM365_PWM1_CONTROL_BASE	0x01C22400
+#define DM365_PWM0_CONTROL_BASE	0x01C22000
 
 /* registers */
 #define PWM_CFG			(0x08)
@@ -523,17 +523,16 @@ static struct spi_board_info amico_spi3_info[] = {
 		.mode           = SPI_MODE_0,
 		.platform_data  = &zl_config,
 	},
-#if 0
 	{
-		.modalias   = "tm035kbh02",
-		.platform_data  = &dingo_tm035kbh02_info,
-		.controller_data = (void *)LCD_CSn, /* bitbang chip select */
-		.max_speed_hz   = 1000000, /* Max 3.215 MHz */
+		.modalias = "ads7846",
+		.platform_data = &amico_ads7846_info,
+		.max_speed_hz = 2 * 1000 * 1000, /* Max 2.5MHz for the chip*/
 		.bus_num = 3,
+		.controller_data = (void *)poTOUCH_CSn,
 		.chip_select = 1,
 		.mode = SPI_MODE_0,
+		.irq = IRQ_DM365_GPIO0_5,
 	},
-#endif
 };
 
 static struct davinci_adc_platform_data amico_adc_data = {
@@ -582,7 +581,7 @@ static void __init amico_led_init(void)
 	platform_device_register(&amico_leds_gpio_device);
 }
 #endif
-#if 0
+
 static struct generic_bl_info amico_bl_machinfo = {
 	.max_intensity = 0xff,
 	.default_intensity = 0xf0,
@@ -616,11 +615,11 @@ static void amico_bl_set_intensity(int level)
 	int tmp;
 
 	if (!base)
-		base = ioremap(DM365_PWM1_CONTROL_BASE, SZ_1K - 1);
+		base = ioremap(DM365_PWM0_CONTROL_BASE, SZ_1K - 1);
 
 	pr_info("set backlight lev:%d\n", level);
 
-	level = level & 0xff;
+	level = ~level & 0xff; /* 0:max, 255:min; get opposite*/
 
 	if (!level) {
 		__raw_writeb(PWM_DISABLED << MODE, base + PWM_CFG);
@@ -628,19 +627,19 @@ static void amico_bl_set_intensity(int level)
 		return;
 	}
 	if (!bl_is_on) {
-		struct clk *pwm1_clk;
+		struct clk *pwm0_clk;
 
-		davinci_cfg_reg(DM365_GPIO25);
+		davinci_cfg_reg(DM365_GPIO23);
 		gpio_request(poBL_PWM, "Backlight");
 		gpio_direction_output(poBL_PWM, 1);
-		pwm1_clk = clk_get(NULL, "pwm1");
-		if (IS_ERR(pwm1_clk)) {
-			pr_err("couldn't get PWM1 CLOCK!\n");
+		pwm0_clk = clk_get(NULL, "pwm0");
+		if (IS_ERR(pwm0_clk)) {
+			pr_err("couldn't get PWM0 CLOCK!\n");
 			return;
 		}
-		if (clk_enable(pwm1_clk))
-			pr_err("couldn't enable PWM1 CLOCK!\n");
-		clk_put(pwm1_clk);
+		if (clk_enable(pwm0_clk))
+			pr_err("couldn't enable PWM0 CLOCK!\n");
+		clk_put(pwm0_clk);
 		tmp = PWM_CONTINUOS << MODE | 1 << P1OUT;
 		__raw_writel(tmp, base + PWM_CFG);
 		__raw_writel(0X3FF, base + PWM_PER);
@@ -650,13 +649,13 @@ static void amico_bl_set_intensity(int level)
 
 		/* wait the soft start completion */
 		udelay(50);
-		davinci_cfg_reg(DM365_PWM1_G25);
+		davinci_cfg_reg(DM365_PWM0_G23);
 	} else
 		__raw_writel(level<<2, base + PWM_PH1D);
 
 	return ;
 };
-#endif
+
 static void pinmux_check(void)
 {
 	void __iomem *pinmux_reg[] = {
@@ -1028,7 +1027,7 @@ static void amico_gpio_configure(void)
 	gpio_configure_in(DM365_GPIO64_57, piTOUCH_BUSY, "piTOUCH_BUSY");
 
 	/* -- Configure Output -----------------------------------------------*/
-	gpio_configure_out(DM365_GPIO42, poAUDIO_SEP_ZL, 0, "AUDIO SEP ZALINK");
+	gpio_configure_out(DM365_GPIO41, poAUDIO_SEP_ZL, 0, "AUDIO SEP ZALINK");
 	gpio_configure_out(DM365_GPIO36, poNAND_WPn, 1,
 			"po_NAND_WriteProtect_n,");
 	gpio_configure_out(DM365_GPIO43, poEN_LOCAL_MIC, 0,
@@ -1070,16 +1069,18 @@ static void amico_gpio_configure(void)
 	gpio_direction_output(poPDEC_PWRDNn, 0);
 	gpio_direction_output(poSN74CBT_S0, 1);
 
-	gpio_configure_out(DM365_GPIO68, poSPK_PWR, 0,
+	gpio_configure_out(DM365_GPIO78_73, poSPK_PWR, 0,
 			"Speaker power control");
-	gpio_configure_out(DM365_GPIO72, poEN_BACKLIGHT, 1,
-			"Lcd backlight control");
+	gpio_configure_out(DM365_GPIO78_73, poEN_LCD_5V, 1, "Enable LCD 5V");
 	gpio_configure_out(DM365_GPIO78_73, poLCD_GAMMA_CTRL, 1,
 			"Lcd gamma control");
+	gpio_configure_out(DM365_GPIO78_73, poEN_BACKLIGHT, 1,
+			"Lcd backlight control");
 	gpio_configure_out(DM365_GPIO51, poTOUCH_CSn, 1,
 			"Touch screen chip select");
-	gpio_configure_out(DM365_GPIO78_73, poEN_LCD_5V, 1, "Enable LCD 5V");
 
+	gpio_configure_out(DM365_GPIO40, poZARLINK_PWR, 0,
+			"Zarlink power enable");
 	davinci_cfg_reg(DM365_GPIO78_73);/*ZL_RESET: Configure into the driver*/
 	davinci_cfg_reg(DM365_GPIO101);  /*ZL_CS: Configure into the driver*/
 	gpio_configure_out(DM365_GPIO99, poPIC_RESETn, 1,
@@ -1087,10 +1088,7 @@ static void amico_gpio_configure(void)
 	gpio_configure_out(DM365_GPIO98, poWATCHDOG, 0,
 			"Emulate feed watchdog, output to mcu");
 
-	/* only for V0.1*/
-	gpio_configure_out(DM365_GPIO41, poBL_PWM, 0, "poBL_PWM");
 	/* -- Export For Debug -----------------------------------------------*/
-
 	if (amico_debug) {
 		gpio_export(piPOWER_FAILn, 0);
 		gpio_export(piINT_I2Cn, 0);
@@ -1118,9 +1116,7 @@ static void amico_gpio_configure(void)
 		gpio_export(poSN74CBT_S0, 0);
 		gpio_export(poPIC_RESETn, 0);
 		gpio_export(poWATCHDOG, 0);
-
-		gpio_export(poBL_PWM, 0);	/* only for V0.1*/
-		gpio_export(poTOUCH_CSn, 0);
+		gpio_export(poZARLINK_PWR, 0);
 	}
 }
 
@@ -1176,7 +1172,7 @@ static void amico_usb_configure(void)
 void amico_en_audio_power(int value)
 {
 	gpio_set_value(poSPK_PWR, value);
-	gpio_set_value(poEN_LOCAL_MIC, !value);
+	gpio_set_value(poEN_LOCAL_MIC, value);
 }
 
 static struct amico_asoc_platform_data amico_asoc_info = {
@@ -1246,7 +1242,7 @@ static struct platform_device *amico_devices[] __initdata = {
 	&amico_hwmon_device,
 	&amico_irq_gpio_device,
 	&davinci_fb_device,
-	/*&amico_bl_device,*/ /*v0.1 no pwm control,only Enable*/
+	&amico_bl_device,
 };
 
 static struct davinci_uart_config uart_config __initdata = {
@@ -1283,16 +1279,6 @@ static struct spi_board_info amico_spi_info[] __initconst = {
 		.mode           = SPI_MODE_0,
 	},
 #endif
-	{
-		.modalias = "ads7846",
-		.platform_data = &amico_ads7846_info,
-		.max_speed_hz = 2 * 1000 * 1000, /* Max 2.5MHz for the chip*/
-		.bus_num = 0,
-		.controller_data = (void *)poTOUCH_CSn,
-		.chip_select = 1,
-		.mode = SPI_MODE_0,
-		.irq = IRQ_DM365_GPIO0_5,
-	},
 };
 
 static void amico_late_init(unsigned long data)
@@ -1347,9 +1333,8 @@ static __init void amico_init(void)
 	amico_emac_configure();
 	amico_lcd_configure();
 
-	/* SPI0 for touchscreen, SPI3 for Zarlink*/
-	dm365_init_spi0(0, amico_spi_info, ARRAY_SIZE(amico_spi_info));
-	dm365_init_spi3(BIT(0), amico_spi3_info, ARRAY_SIZE(amico_spi3_info));
+	/* SPI3 for touchscreen and Zarlink*/
+	dm365_init_spi3(0, amico_spi3_info, ARRAY_SIZE(amico_spi3_info));
 
 	amico_mmc0_configure();
 	amico_usb_configure();
@@ -1367,14 +1352,7 @@ static __init void amico_init(void)
 	startup_timer.expires =
 			jiffies + msecs_to_jiffies(TIME_TO_LATE_INIT);
 	add_timer(&startup_timer);
-#if 0
-	pinmux_check();
-	gpio_configure_out(DM365_GPIO73, poLCD_GAMMA_CTRL, 1,
-			"Lcd gamma control");
-	mdelay(1);
-	gpio_configure_out(DM365_GPIO72, poEN_BACKLIGHT, 1,
-		"Lcd backlight control");
-#endif
+
 	if (amico_debug)
 		pinmux_check();
 	pr_warning("Board_Init: DONE\n");

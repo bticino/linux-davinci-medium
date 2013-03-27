@@ -16,10 +16,11 @@
 #define piINT_I2Cn		35	/* I2C interrupt between DM365 and MCU*/
 #define piTMK_INTn		62	/* IRQ_RTC */
 #define piPENIRQn		64	/* IRQ_TouchScreen */
+#define piGPIO_INTn		63	/* GPIO interrupt for the future*/
 
 /* -- GPIO ------------------------------------------------------------------ */
-#define poBL_PWM			41  /* Backlight control */
-#define poAUDIO_SEP_ZL		42	/* AUDIO SEP ZALINK */
+#define poBL_PWM			23  /* Backlight pwm control */
+#define poAUDIO_SEP_ZL		41	/* AUDIO SEP ZALINK */
 #define poNAND_WPn			36	/* Nand flash write protect */
 #define poENET_RESETn		44	/* ETH phy reset */
 #define poBOOT_FL_WPn		45	/* Protecting SPI chip select */
@@ -27,28 +28,35 @@
 #define poPDEC_PWRDNn		39	/* PalDecoder PWRDown */
 #define poPDEC_RESETn       38     /* PAL decoder Reset */
 #define poZARLINK_CS		101	/* Zarlink chip select */
-#define poZARLINK_RESET		78	/* Zarlink reset */
+#define poZARLINK_RESET		76	/* Zarlink reset */
+#define poZARLINK_PWR		40	/* Zarlink power enable */
 #define poPIC_RESETn		99	/* PIC AV & AI reset */
 #define piSD_DETECTn		96	/* Detect MicroSD*/
 #define po_NAND_WPn	36	/* Nand flash write protect*/
 #define poWATCHDOG	98	/* Emulate feed watchdog,output mcu*/
 #define poEN_LOCAL_MIC		43	/* Enable local microphone */
+#define poEN_LOCAL_SPK		42	/* Enable local speaker */
 #define poEN_LCD_3_3V	    57	/* Enable LCD 3.3V */
 #define piTOUCH_BUSY		59	/* Touch screen busy */
 #define poAUDIO_DM365_ZL	60	/* AUDIO DM365 ZALINK */
 #define poE2_WPn		61	/* E2prom Write Protect */
-#if 0
-#define poSEL_MUX_2		62	/* 74hc4051, 1 of 4, interrupt scan */
-#define poSEL_MUX_1             63	/* */
-#define poSEL_MUX_0             64	/* */
-#endif
-#define poSPK_PWR		68	/* Speaker power control,H:enable */
-#define poEN_BACKLIGHT		72	/* Lcd backlight control */
-#define poLCD_GAMMA_CTRL	73	/* Lcd gamma control */
+#define poSPK_PWR		74	/* Speaker power control,H:enable */
+#define poEN_BACKLIGHT		78	/* Lcd backlight enable */
+#define poLCD_GAMMA_CTRL	77	/* Lcd gamma control */
 #define poTOUCH_CSn		51	/* Touch screen chip select */
 #define poEN_LCD_5V		75	/* Enable LCD 5v */
-#define poSN74CBT_S1		76	/* SN74CBT16214 switch video channel */
-#define poSN74CBT_S0		77	/* */
+#define poSN74CBT_S1		65	/* SN74CBT16214 switch video channel */
+#define poSN74CBT_S0		66	/* */
+#if 0
+#define piButton1	72	/* use for future,work in polling mode */
+#define piButton2	71	/* */
+#define piButton3	70	/* */
+#define piButton4	69	/* */
+#define piButton5	68	/* */
+#define poEnable3	67	/* use for future */
+#define poEnable4	73	/* */
+#define poEnable5	37	/* */
+#endif
 
 /* Configurator Resistence */
 /*
