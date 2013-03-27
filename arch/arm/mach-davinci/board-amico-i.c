@@ -1338,7 +1338,10 @@ static __init void amico_init(void)
 
 	amico_mmc0_configure();
 	amico_usb_configure();
-	/*amico_uart_configure();*/
+
+	/* output 24Mhz for ov971x mclk*/
+	dm365_clkout2_set_rate(OV971X_XCLK * 1000 * 1000);
+	davinci_cfg_reg(DM365_CLKOUT2);
 
 	dm365_init_vc(&dm365_amico_snd_data[0]);
 	/* dm365_init_asp(&dm365_dingo_snd_data[1]);*/
