@@ -227,10 +227,24 @@ static struct tda9885_platform_data tda9885_defaults = {
 	.power = poENABLE_VIDEO_IN,
 };
 
+void amico_tvp510x_reset(void)
+{
+	printk(KERN_DEBUG "Reset tvp510x PalDecoder \n");
+
+	/* Active-low reset. RESETB can be used only when PDN = 1 */
+	gpio_direction_output(poPDEC_PWRDNn, 1);
+	mdelay(1);
+
+	gpio_direction_output(poPDEC_RESETn, 0);
+	mdelay(1); /* 500 nsec is enough */
+	gpio_direction_output(poPDEC_RESETn, 1);
+	mdelay(10); /* ensure detect device after reset */
+}
+
 /* [VideoIn] TVP5150 : Pal Decoder */
 static struct tvp5150_platform_data tvp5150_pdata = {
 	.pdn = poPDEC_PWRDNn,
-	.resetb = poPDEC_RESETn,
+	.resetb = &amico_tvp510x_reset,
 };
 
 /* ov9712 platform data, used during reset and probe operations */
@@ -334,6 +348,20 @@ static struct vpfe_subdev_info vpfe_sub_devs[] = {
 		},
 	},
 };
+
+/* choose tvp5151 or ov971x enter work status
+ * argument: 0 for tvp5151 work, 1 for ov971x work
+ */
+static void amico_switch_video_channel(int channel)
+{
+	if (channel == 0) {
+		gpio_direction_output(poPDEC_PWRDNn, 1);
+		gpio_direction_output(poSN74CBT_S0, 0);
+	} else if (channel == 1)	{
+		gpio_direction_output(poPDEC_PWRDNn, 0);
+		gpio_direction_output(poSN74CBT_S0, 1);
+	}
+}
 
 /* Set : video_input */
 static int amico_setup_video_input(enum vpfe_subdev_id id)
@@ -1054,20 +1082,8 @@ static void amico_gpio_configure(void)
 	/* tvp5150: 0 for powerdown, ov971x: 1 for powerdown */
 	gpio_configure_out(DM365_GPIO39, poPDEC_PWRDNn, 1,
 			"Pal-Decoder power down");
-
-    /*
-	* The I2CSEL tvp5151 input is sampled when its resetb input is down,
-	* assigning the i2c address.
-	*/
 	gpio_configure_out(DM365_GPIO38, poPDEC_RESETn, 0,	/* RESET */
 			"PAL decoder Reset");
-    mdelay(10);
-	gpio_direction_output(poPDEC_RESETn, 1);
-
-	/* ov971x share the tv5151 reset pin, choose ov9715 to work default */
-	mdelay(100);
-	gpio_direction_output(poPDEC_PWRDNn, 0);
-	gpio_direction_output(poSN74CBT_S0, 1);
 
 	gpio_configure_out(DM365_GPIO78_73, poSPK_PWR, 0,
 			"Speaker power control");
@@ -1319,7 +1335,9 @@ static __init void amico_init(void)
 		pinmux_check();
 
 	amico_gpio_configure();
-	/* amico_led_init(); */
+	amico_tvp510x_reset();
+	/* amico_i choose tvp5151 work default*/
+	amico_switch_video_channel(0);
 
 	/* 2 usart for pic */
 	davinci_serial_init(&uart_config);
