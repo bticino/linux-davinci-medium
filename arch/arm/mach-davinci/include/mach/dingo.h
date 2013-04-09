@@ -22,9 +22,9 @@
 #define EN_AUDIO		35
 
 /*
- * DEBUG GPIO on TP30
+ * signal of reset button pressed for long time
  */
-#define DEBUG_GPIO1		94
+#define LONG_RESET_BUTTON	94
 
 /*
  * Reset of LCD (Active Low)

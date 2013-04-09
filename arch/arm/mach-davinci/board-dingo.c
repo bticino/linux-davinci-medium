@@ -752,13 +752,13 @@ static void dingo_gpio_configure(void)
 	gpio_direction_output(AUDIO_MUTE, 0);
 
 	davinci_cfg_reg(DM365_GPIO94);
-	status = gpio_request(DEBUG_GPIO1, "DEBUG GPIO on TP31");
+	status = gpio_request(LONG_RESET_BUTTON, "LONG_RESET_BUTTON");
 	if (status) {
-		pr_err("%s: fail GPIO request: DEBUG GPIO on "\
-				" TP31: %d\n", __func__, status);
+		pr_err("%s: fail GPIO request: LONG_RESET_BUTTON: "\
+				"%d\n", __func__, status);
 		return;
 	}
-	gpio_direction_output(DEBUG_GPIO1, 0);
+	gpio_direction_output(LONG_RESET_BUTTON, 0);
 
 	davinci_cfg_reg(DM365_GPIO96);
 	status = gpio_request(LCD_RESETn, "Reset of LCD");
@@ -919,7 +919,7 @@ static void dingo_gpio_configure(void)
 	if (dingo_debug) {
 		gpio_export(BOOT_FL_WP, 0); /* danger */
 		gpio_export(EN_AUDIO, 0);
-		gpio_export(DEBUG_GPIO1, 0);
+		gpio_export(LONG_RESET_BUTTON, 0);
 		gpio_export(LCD_RESETn, 0);
 		gpio_export(LCD_SHTDWNn, 0);
 		gpio_export(PIC_RESET_N, 0);
@@ -1147,12 +1147,7 @@ static void dingo_late_init(unsigned long data)
 
 	davinci_cfg_reg(DM365_UART1_RXD_34);
 	davinci_cfg_reg(DM365_UART1_TXD_25);
-	gpio_direction_output(DEBUG_GPIO1, 1);
-	mdelay(2);
-	gpio_direction_output(DEBUG_GPIO1, 0);
-	gpio_direction_output(DEBUG_GPIO1, 1);
-	mdelay(2);
-	gpio_direction_output(DEBUG_GPIO1, 0);
+	gpio_direction_input(LONG_RESET_BUTTON);
 }
 
 static __init void dingo_init(void)
