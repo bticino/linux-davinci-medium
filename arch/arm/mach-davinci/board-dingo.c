@@ -136,7 +136,7 @@ static struct mtd_partition dingo_nand_partitions[] = {
 		.name           = "u-boot",
 		.offset         = 0,
 		.size           = 12 * NAND_BLOCK_SIZE,
-		.mask_flags     = MTD_WRITEABLE, /* force read-only */
+		.mask_flags     = 0,
 	}, {
 		/* U-Boot environment */
 		.name           = "u-boot e",
