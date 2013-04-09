@@ -743,7 +743,7 @@ static void dingo_gpio_configure(void)
 	gpio_direction_output(EN_AUDIO, 0);
 
 	davinci_cfg_reg(DM365_GPIO95);
-	status = gpio_request(AUDIO_MUTE, "DEBUG GPIO on TP30");
+	status = gpio_request(AUDIO_MUTE, "AUDIO MUTE");
 	if (status) {
 		pr_err("%s: fail GPIO request: Audio Mute %d\n",
 				 __func__, status);
