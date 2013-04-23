@@ -171,6 +171,8 @@ struct rsz_channel_config {
 	 * depending on oper_mode
 	 */
 	void *config;
+	/* deinterlace */
+	unsigned int deinterlace;
 };
 
 /* RSZ_RECONFIG IOCTL. Used for re-configuring resizer

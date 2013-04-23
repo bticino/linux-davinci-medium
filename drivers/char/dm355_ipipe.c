@@ -273,7 +273,8 @@ static int ipipe_set_preview_config(struct device *dev,
 				    void *user_config, void *config);
 static int ipipe_set_resize_config(struct device *dev, unsigned int oper_mode,
 				   int resizer_chained,
-				   void *user_config, void *config);
+				   void *user_config, void *config,
+				   unsigned int deinterlace);
 
 static void ipipe_enable(unsigned char en, void *config);
 static void ipipe_get_irq(struct irq_numbers *irq);

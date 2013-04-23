@@ -99,7 +99,8 @@ struct imp_hw_interface {
 	int (*set_resizer_config) (struct device *dev,
 				   unsigned int oper_mode,
 				   int resizer_chained,
-				   void *user_config, void *config);
+				   void *user_config, void *config,
+				   unsigned int deinterlace);
 
 	int (*reconfig_resizer) (struct device *dev,
 				struct rsz_reconfig *user_config,

@@ -373,7 +373,8 @@ static int ipipe_set_preview_config(struct device *dev,
 				    void *user_config, void *config);
 static int ipipe_set_resize_config(struct device *dev, unsigned int oper_mode,
 				   int resizer_chained,
-				   void *user_config, void *config);
+				   void *user_config, void *config,
+				   unsigned int deinterlace);
 static int ipipe_reconfig_resizer(struct device *dev,
 				struct rsz_reconfig *reconfig,
 				void *config);
@@ -3044,7 +3045,8 @@ static int validate_ipipeif_decimation(struct device *dev,
 static int configure_resizer_in_ss_mode(struct device *dev,
 					void *user_config,
 					int resizer_chained,
-					struct ipipe_params *param)
+					struct ipipe_params *param,
+					unsigned int deinterlace)
 {
 	/* resizer in standalone mode. In this mode if serializer
 	 * is enabled, we need to set config params in the hw.
@@ -3052,10 +3054,11 @@ static int configure_resizer_in_ss_mode(struct device *dev,
 	struct rsz_single_shot_config *ss_config =
 	    (struct rsz_single_shot_config *)user_config;
 	int ret = 0, line_len, line_len_c;
-
+	int tmp = deinterlace ? ss_config->input.ppln - 8 :
+					      ss_config->input.image_width;
 	ret = rsz_validate_input_image_format(dev,
 					      ss_config->input.pix_fmt,
-					      ss_config->input.image_width,
+					      tmp,
 					      ss_config->input.image_height,
 					      &line_len);
 
@@ -3333,7 +3336,8 @@ static int configure_resizer_in_cont_mode(struct device *dev,
 static int ipipe_set_resize_config(struct device *dev,
 				   unsigned int oper_mode,
 				   int resizer_chained,
-				   void *user_config, void *config)
+				   void *user_config, void *config,
+				   unsigned int deinterlace)
 {
 	int ret = 0;
 	struct ipipe_params *param = (struct ipipe_params *)config;
@@ -3353,7 +3357,7 @@ static int ipipe_set_resize_config(struct device *dev,
 		ret = configure_resizer_in_ss_mode(dev,
 						   user_config,
 						   resizer_chained,
-						   param);
+						   param, deinterlace);
 		if (!ret && (!en_serializer && !resizer_chained))
 			ret = ipipe_hw_setup(config);
 	} else

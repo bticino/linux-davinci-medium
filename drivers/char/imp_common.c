@@ -963,7 +963,8 @@ int imp_set_resizer_config(struct device *dev,
 					    chan_config->oper_mode,
 					    chan_config->chain,
 					    channel->user_config,
-					    channel->config);
+					    channel->config,
+					    chan_config->deinterlace);
 
 	if (ret < 0)
 		dev_err(dev, "set resizer config failed\n");
