@@ -852,8 +852,10 @@ static struct platform_device jumbo_asoc_device[] = {
 };
 
 static struct snd_platform_data dm365_jumbo_snd_data[] = {
-        {
-        },
+	{
+		.asp_chan_q = EVENTQ_3,
+		.ram_chan_q = EVENTQ_2,
+	},
 };
 
 /* I2C 7bit Adr */
