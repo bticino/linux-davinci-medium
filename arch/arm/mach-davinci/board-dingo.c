@@ -1034,9 +1034,12 @@ static struct ads7846_platform_data dingo_ads7846_info = {
 };
 
 /* DEVICE: TSC2005 touchpad */
-static void dingo_tsc2005_set_reset(bool enable)
+static void dingo_tsc2005_set_reset(bool level)
 {
-	gpio_set_value(LCD_GPIO, ~enable);
+	if (level)
+		gpio_set_value(LCD_GPIO, 1);
+	else
+		gpio_set_value(LCD_GPIO, 0);
 }
 
 static struct tsc2005_platform_data tsc2005_pdata = {
