@@ -355,7 +355,7 @@ static void tsc2005_penup_timer(unsigned long data)
 	spin_unlock_irqrestore(&ts->lock, flags);
 }
 
-static void tsc2005_start_scan(struct tsc2005 *ts)
+static inline void tsc2005_start_scan(struct tsc2005 *ts)
 {
 	tsc2005_write(ts, TSC2005_REG_CFR0, TSC2005_CFR0_INITVALUE);
 	tsc2005_write(ts, TSC2005_REG_CFR1, TSC2005_CFR1_INITVALUE);
