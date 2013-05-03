@@ -15,6 +15,9 @@ make mrproper
 make amico-i_defconfig
 make -j16 uImage && echo "Amico-i OK" >> Test_Compile.log 
 make mrproper
+make amico-e_defconfig
+make -j16 uImage && echo "Amico-e OK" >> Test_Compile.log
+make mrproper
 make lago_defconfig
 make -j16 uImage && echo "Lago OK" >> Test_Compile.log 
 make mrproper
