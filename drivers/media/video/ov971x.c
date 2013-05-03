@@ -1328,7 +1328,7 @@ static int ov971x_detect(struct i2c_client *client, int *model)
 }
 
 /* read lux */
-static ssize_t ov971x_show_lux(struct device *dev,
+static ssize_t ov971x_show_lux_1(struct device *dev,
 				 struct device_attribute *attr, char *buf)
 {
 	unsigned int val, wpt;
@@ -1340,7 +1340,7 @@ static ssize_t ov971x_show_lux(struct device *dev,
 	return sprintf(buf, "%d\n", val * 100 / wpt);
 }
 
-static DEVICE_ATTR(light, S_IRUGO, ov971x_show_lux, NULL);
+static DEVICE_ATTR(light, S_IRUGO, ov971x_show_lux_1, NULL);
 
 static struct attribute *ov971x_attributes_1[] = {
 	&dev_attr_light.attr,
@@ -1349,6 +1349,24 @@ static struct attribute *ov971x_attributes_1[] = {
 
 static const struct attribute_group ov971x_attr_group_1 = {
 	.attrs = ov971x_attributes_1,
+};
+
+static ssize_t ov971x_show_lux(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	struct device *i2cdev = (struct device *)dev_get_drvdata(dev);
+	return ov971x_show_lux_1(i2cdev, attr, buf);
+}
+
+static DEVICE_ATTR(light_lev, S_IRUGO, ov971x_show_lux, NULL);
+
+static struct attribute *ov971x_attributes[] = {
+	&dev_attr_light_lev.attr,
+	NULL
+};
+
+static const struct attribute_group ov971x_attr_group = {
+	.attrs = ov971x_attributes,
 };
 
 static int ov971x_probe(struct i2c_client *client,
@@ -1440,6 +1458,8 @@ static int ov971x_probe(struct i2c_client *client,
 			    NULL, "ov9712");
 	dev->platform_data = client;
 	ret = sysfs_create_group(&client->dev.kobj, &ov971x_attr_group_1);
+	ret = sysfs_create_group(&dev->kobj, &ov971x_attr_group);
+	dev_set_drvdata(dev, &client->dev);
 	return 0;
 
 clean:
