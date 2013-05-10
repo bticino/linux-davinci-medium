@@ -189,7 +189,7 @@ static int tsc2005_write(struct tsc2005 *ts, u8 reg, u16 value)
 		xfer.len = 4;
 		xfer.bits_per_word = 24;
 	} else {
-		xfer.len = 3;
+		xfer.len = 4;
 		xfer.bits_per_word = 8;
 	}
 
