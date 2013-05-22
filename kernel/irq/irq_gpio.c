@@ -62,6 +62,7 @@ struct irqgpio {
 	unsigned int pending_interrupts;
 	struct timer_list pf_debounce_timer;
 	unsigned long gpio_irq_enabled;
+	unsigned int state;
 };
 
 static void mask_irq_gpio(unsigned int irq)
@@ -160,7 +161,8 @@ static void gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 	desc->chip->mask(irq);
 
 	pres_irq = irqgpio->gpio_list;
-	if (gpio_get_value(irqgpio->gpio_common)) {
+	irqgpio->state ^= 1;
+	if (irqgpio->state) {
 		mod_timer(&irqgpio->pf_debounce_timer, 0);
 
 		for (cnt = 0; cnt < irqgpio->len; cnt++, pres_irq++) {
@@ -209,6 +211,7 @@ static int __devinit irqgpio_probe(struct platform_device *dev)
 	irqgpio->irq_gpio = pdata->irq_gpio;
 	irqgpio->gpio_irq_enabled = 0;
 	irqgpio->pending_interrupts = 0;
+	irqgpio->state = 1;
 
 	pres_irq = irqgpio->gpio_list;
 	for (cnt = 0; cnt < irqgpio->len; cnt++, pres_irq++) {
