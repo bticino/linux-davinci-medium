@@ -59,6 +59,18 @@ struct tm035kbh02{
 	int brightness;
 	struct work_struct work;
 	int time_refr_regs;
+	int b_subcontrast;
+	int r_subcontrast;
+	int b_subbright;
+	int r_subbright;
+	int b_subcontr_min;
+	int b_subcontr_max;
+	int r_subcontr_min;
+	int r_subcontr_max;
+	int b_subbright_min;
+	int b_subbright_max;
+	int r_subbright_min;
+	int r_subbright_max;
 };
 
 

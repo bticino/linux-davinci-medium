@@ -44,6 +44,18 @@ struct tm035kbh02 lcd = {
 	.reset_n = -1,
 	.shutdown = -1,
 	.HV_inversion = 0,
+	.b_subcontrast = 2,
+	.b_subcontr_min = 0,
+	.b_subcontr_max = 3,
+	.r_subcontrast = 2,
+	.r_subcontr_min = 0,
+	.r_subcontr_max = 3,
+	.b_subbright = 0x20,
+	.b_subbright_min = 0,
+	.b_subbright_max = 0x3F,
+	.r_subbright = 0x20,
+	.r_subbright_min = 0,
+	.r_subbright_max = 0x3F,
 };
 
 struct lcd_device *tm035kbh02_lcd_device;
@@ -60,7 +72,6 @@ const u8 regs_tm035kbh02[][2] = {
 	{0x06, 0x00 },
 	{0x07, 0x00 },
 	{0x0A, 0x88 },
-	{0x0D, 0x20 },
 	{0x0E, 0x10 },
 	{0x0F, 0x24 },
 	{0x10, 0x04 },
@@ -107,6 +118,67 @@ int  tm035kbh02_get_brightness(struct lcd_device *tm035kbh02_lcd_device)
 	return lcd.brightness;
 }
 
+static int set_b_subcontrast(struct tm035kbh02 *lcd, unsigned long val)
+{
+	u8 loc_buf[2];
+
+	if (lcd->disabled || !lcd->spi)
+		return 0;
+
+	loc_buf[0] = (val<<6) + ((lcd->r_subcontrast)<<2);
+	loc_buf[1] = (0xb<<2) + 3;
+	spi_write(lcd->spi, &loc_buf[0], 2);
+
+	lcd->b_subcontrast = val;
+	return 0;
+}
+
+static int set_r_subcontrast(struct tm035kbh02 *lcd, unsigned long val)
+{
+	u8 loc_buf[2];
+
+	if (lcd->disabled || !lcd->spi)
+		return 0;
+
+	loc_buf[0] = (val<<2) + ((lcd->b_subcontrast)<<6);
+	loc_buf[1] = (0xb<<2) + 3;
+	spi_write(lcd->spi, &loc_buf[0], 2);
+
+	lcd->r_subcontrast = val;
+	return 0;
+}
+
+static int set_b_subbright(struct tm035kbh02 *lcd, unsigned long val)
+{
+	u8 loc_buf[2];
+
+	if (lcd->disabled || !lcd->spi)
+		return 0;
+
+	loc_buf[0] = val;
+	loc_buf[1] = (0xd<<2) + 3;
+	spi_write(lcd->spi, &loc_buf[0], 2);
+
+	lcd->b_subbright = val;
+	return 0;
+}
+
+static int set_r_subbright(struct tm035kbh02 *lcd, unsigned long val)
+{
+	u8 loc_buf[2];
+
+	if (lcd->disabled || !lcd->spi)
+		return 0;
+
+	loc_buf[0] = val;
+	loc_buf[1] = (0xd<<2) + 3;
+	spi_write(lcd->spi, &loc_buf[0], 2);
+
+	lcd->r_subbright = val;
+	return 0;
+}
+
+
 void tm035kbh02_disable(void)
 {
 	u8 loc_buf[2];
@@ -152,6 +224,10 @@ void tm035kbh02_enable(void)
 		tm035kbh02_set_contrast(tm035kbh02_lcd_device, lcd.contrast);
 		tm035kbh02_set_brightness(tm035kbh02_lcd_device,
 					  lcd.brightness);
+		set_b_subcontrast(&lcd, lcd.b_subcontrast);
+		set_r_subcontrast(&lcd, lcd.r_subcontrast);
+		set_b_subbright(&lcd, lcd.b_subbright);
+		set_r_subbright(&lcd, lcd.r_subbright);
 		lcd.disabled = 0;
 	}
 }
@@ -247,10 +323,170 @@ struct lcd_ops tm035kbh02_lcd_ops = {
 	.set_brightness = tm035kbh02_set_brightness,
 };
 
+#define get_field(field) \
+static ssize_t tm035kbh02_get_##field(struct device *dev, \
+				struct device_attribute *attr, char *buf) \
+{ \
+	struct tm035kbh02 *lcd = \
+			(struct tm035kbh02 *)dev_get_drvdata(dev); \
+	return sprintf(buf, "%d\n", lcd->field); \
+}
+
+get_field(b_subcontrast)
+get_field(r_subcontrast)
+get_field(b_subbright)
+get_field(r_subbright)
+get_field(b_subcontr_min)
+get_field(b_subcontr_max)
+get_field(r_subcontr_min)
+get_field(r_subcontr_max)
+get_field(b_subbright_min)
+get_field(b_subbright_max)
+get_field(r_subbright_min)
+get_field(r_subbright_max)
+
+static ssize_t tm035kbh02_set_b_subcontrast(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct tm035kbh02 *lcd =
+			(struct tm035kbh02 *)dev_get_drvdata(dev);
+	unsigned long val;
+
+	if (strict_strtoul(buf, 10, &val))
+		return -EINVAL;
+	if ((val > lcd->b_subcontr_max) || (val < lcd->b_subcontr_min))
+		return -EINVAL;
+	if (set_b_subcontrast(lcd, val))
+		return -EINVAL;
+	return count;
+}
+
+static ssize_t tm035kbh02_set_r_subcontrast(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct tm035kbh02 *lcd =
+			(struct tm035kbh02 *)dev_get_drvdata(dev);
+	unsigned long val;
+
+	if (strict_strtoul(buf, 10, &val))
+		return -EINVAL;
+	if ((val > lcd->r_subcontr_max) || (val < lcd->r_subcontr_min))
+		return -EINVAL;
+	if (set_r_subcontrast(lcd, val))
+		return -EINVAL;
+	return count;
+}
+
+static ssize_t tm035kbh02_set_b_subbright(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct tm035kbh02 *lcd =
+			(struct tm035kbh02 *)dev_get_drvdata(dev);
+	unsigned long val;
+
+	if (strict_strtoul(buf, 10, &val))
+		return -EINVAL;
+	if ((val > lcd->b_subbright_max) || (val < lcd->b_subbright_min))
+		return -EINVAL;
+	if (set_b_subbright(lcd, val))
+		return -EINVAL;
+	return count;
+}
+
+static ssize_t tm035kbh02_set_r_subbright(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct tm035kbh02 *lcd =
+			(struct tm035kbh02 *)dev_get_drvdata(dev);
+	unsigned long val;
+
+	if (strict_strtoul(buf, 10, &val))
+		return -EINVAL;
+	if ((val > lcd->r_subbright_max) || (val < lcd->r_subbright_min))
+		return -EINVAL;
+	if (set_r_subbright(lcd, val))
+		return -EINVAL;
+	return count;
+}
+
+static DEVICE_ATTR(b_subcontrast, S_IRUGO | S_IWUSR,
+		   tm035kbh02_get_b_subcontrast,
+		   tm035kbh02_set_b_subcontrast);
+
+static DEVICE_ATTR(r_subcontrast, S_IRUGO | S_IWUSR,
+		   tm035kbh02_get_r_subcontrast,
+		   tm035kbh02_set_r_subcontrast);
+
+static DEVICE_ATTR(b_subbright, S_IRUGO | S_IWUSR,
+		   tm035kbh02_get_b_subbright,
+		   tm035kbh02_set_b_subbright);
+
+static DEVICE_ATTR(r_subbright, S_IRUGO | S_IWUSR,
+		   tm035kbh02_get_r_subbright,
+		   tm035kbh02_set_r_subbright);
+
+static DEVICE_ATTR(b_subcontr_min, S_IRUGO,
+		   tm035kbh02_get_b_subcontr_min,
+		   NULL);
+
+static DEVICE_ATTR(b_subcontr_max, S_IRUGO,
+		   tm035kbh02_get_b_subcontr_max,
+		   NULL);
+
+static DEVICE_ATTR(r_subcontr_min, S_IRUGO,
+		   tm035kbh02_get_r_subcontr_min,
+		   NULL);
+
+static DEVICE_ATTR(r_subcontr_max, S_IRUGO,
+		   tm035kbh02_get_r_subcontr_max,
+		   NULL);
+
+static DEVICE_ATTR(b_subbright_min, S_IRUGO,
+		   tm035kbh02_get_b_subbright_min,
+		   NULL);
+
+static DEVICE_ATTR(b_subbright_max, S_IRUGO,
+		   tm035kbh02_get_b_subbright_max,
+		   NULL);
+
+static DEVICE_ATTR(r_subbright_min, S_IRUGO,
+		   tm035kbh02_get_r_subbright_min,
+		   NULL);
+
+static DEVICE_ATTR(r_subbright_max, S_IRUGO,
+		   tm035kbh02_get_r_subbright_max,
+		   NULL);
+
+static struct attribute *tm035kbh02_attributes[] = {
+	&dev_attr_b_subcontrast.attr,
+	&dev_attr_r_subcontrast.attr,
+	&dev_attr_b_subbright.attr,
+	&dev_attr_r_subbright.attr,
+	&dev_attr_b_subcontr_min.attr,
+	&dev_attr_b_subcontr_max.attr,
+	&dev_attr_r_subcontr_min.attr,
+	&dev_attr_r_subcontr_max.attr,
+	&dev_attr_b_subbright_min.attr,
+	&dev_attr_b_subbright_max.attr,
+	&dev_attr_r_subbright_min.attr,
+	&dev_attr_r_subbright_max.attr,
+	NULL
+};
+
+static const struct attribute_group tm035kbh02_attr_group = {
+	.attrs = tm035kbh02_attributes,
+};
+
 static int __devinit tm035kbh02_spi_probe(struct spi_device *spi)
 {
 	struct tm035kbh02_platform_data *pdata = spi->dev.platform_data;
 	int	err;
+	struct class *cl;
+	struct device *dev;
 
 	if (!pdata) {
 		/* if we don't know reset & shutdown GPIO can't drive LCD */
@@ -305,6 +541,15 @@ static int __devinit tm035kbh02_spi_probe(struct spi_device *spi)
 	tm035kbh02_lcd_device->props.max_brightness = 0x7F;
 
 	INIT_WORK(&lcd.work, tm035kbh02_refr);
+
+
+	cl = class_create(THIS_MODULE, "lcd_parameters");
+	dev = device_create(cl, NULL, spi->dev.devt,
+			NULL, "tm035kbh02");
+	dev->platform_data = spi;
+	sysfs_create_group(&dev->kobj, &tm035kbh02_attr_group);
+	dev_set_drvdata(dev, &lcd);
+
 	tm035kbh02_enable();
 
 	return 0;
