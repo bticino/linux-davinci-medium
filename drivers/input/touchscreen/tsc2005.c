@@ -210,13 +210,12 @@ static void tsc2005_setup_read(struct tsc2005_spi_rd *rd, u8 reg, bool last,
 			       struct tsc2005 *ts)
 {
 	memset(rd, 0, sizeof(*rd));
+	rd->spi_xfer.len	   = 4;
 	if (ts->bit_x_word == 24) {
 		rd->spi_tx = (reg | TSC2005_REG_READ) << 16;
-		rd->spi_xfer.len	   = 4;
 		rd->spi_xfer.bits_per_word = 24;
 	} else {
 		rd->spi_tx = (reg | TSC2005_REG_READ);
-		rd->spi_xfer.len	   = 3;
 		rd->spi_xfer.bits_per_word = 8;
 	}
 	rd->spi_xfer.tx_buf	   = &rd->spi_tx;
