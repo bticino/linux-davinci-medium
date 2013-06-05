@@ -33,7 +33,8 @@
 #include <linux/platform_device.h>
 #include <asm/irq.h>
 
-
+#define MAX_CONTR	0x1F
+#define MAX_BRIGHT	0x7F
 #define LCD_REFRESH_TIME 5000
 
 struct tm035kbh02 lcd = {
@@ -87,6 +88,8 @@ int  tm035kbh02_set_contrast(struct lcd_device *tm035kbh02_lcd_device,
 
 	if (lcd.disabled || !lcd.spi)
 		return 0;
+	if (contrast > MAX_CONTR || contrast < 0)
+		return -EINVAL;
 	loc_buf[0] = contrast;
 	loc_buf[1] = 0x23;
 	spi_write(lcd.spi, &loc_buf[0], 2);
@@ -106,6 +109,8 @@ int  tm035kbh02_set_brightness(struct lcd_device *tm035kbh02_lcd_device,
 
 	if (lcd.disabled || !lcd.spi)
 		return 0;
+	if (brightness > MAX_BRIGHT || brightness < 0)
+		return -EINVAL;
 	loc_buf[0] = brightness;
 	loc_buf[1] = 0x27;
 	spi_write(lcd.spi, &loc_buf[0], 2);
@@ -537,8 +542,8 @@ static int __devinit tm035kbh02_spi_probe(struct spi_device *spi)
 		printk(KERN_ERR "lcd : failed to register device\n");
 		return err;
 	}
-	tm035kbh02_lcd_device->props.max_contrast = 0x1F;
-	tm035kbh02_lcd_device->props.max_brightness = 0x7F;
+	tm035kbh02_lcd_device->props.max_contrast = MAX_CONTR;
+	tm035kbh02_lcd_device->props.max_brightness = MAX_BRIGHT;
 
 	INIT_WORK(&lcd.work, tm035kbh02_refr);
 
