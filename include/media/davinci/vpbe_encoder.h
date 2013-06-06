@@ -44,7 +44,7 @@ int get_vpbe_encoder_clock_divisor(void);
 #define VPBE_DM365_ENCODER_MAX_NO_OUTPUTS		(4)
 #define VPBE_DM365_ENCODER_COMPOSITE_NUM_STD		(2)
 #define VPBE_DM365_ENCODER_COMPONENT_NUM_STD		(9)
-#define VPBE_DM365_ENCODER_LCD_NUM_STD			(2)
+#define VPBE_DM365_ENCODER_LCD_NUM_STD			(3)
 #define VPBE_DM365_ENCODER_SVIDEO_NUM_STD		(2)
 
 #endif				/* End of #ifdef __KERNEL__ */
