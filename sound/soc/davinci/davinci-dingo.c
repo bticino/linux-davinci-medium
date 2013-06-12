@@ -102,6 +102,37 @@ static int dingo_hw_params_uda(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int dingo_startup_uda(struct snd_pcm_substream *substream)
+{
+	struct clk *clkout2;
+	davinci_cfg_reg(DM365_CLKOUT2);
+	clkout2 = clk_get(NULL, "clkout2");
+	if (IS_ERR(clkout2) || clk_enable(clkout2)) {
+		pr_err("couldn't get clkout2 CLOCK!\n");
+		return -1;
+	}
+	clk_put(clkout2);
+	dm365_clkout2_enable();
+
+	return 0;
+}
+
+static void dingo_shutdown_uda(struct snd_pcm_substream *substream)
+{
+	struct clk *clkout2;
+
+	clkout2 = clk_get(NULL, "clkout2");
+	if (IS_ERR(clkout2)) {
+		pr_err("couldn't get clkout2 CLOCK!\n");
+		return;
+	}
+	clk_disable(clkout2);
+	dm365_clkout2_disable();
+	clk_put(clkout2);
+
+	return;
+}
+
 static int dingo_hw_params_cq93(struct snd_pcm_substream *substream,
 			struct snd_pcm_hw_params *params)
 {
@@ -119,6 +150,8 @@ static int dingo_hw_params_cq93(struct snd_pcm_substream *substream,
 
 static struct snd_soc_ops dingo_ops_uda = {
 	.hw_params = dingo_hw_params_uda,
+	.startup = dingo_startup_uda,
+	.shutdown = dingo_shutdown_uda,
 };
 
 static struct snd_soc_ops dingo_ops_cq93 = {

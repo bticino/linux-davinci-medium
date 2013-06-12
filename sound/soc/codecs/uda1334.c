@@ -82,7 +82,6 @@ static void uda1334_shutdown(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = socdev->card->codec;
 	struct uda1334_priv *uda1334 = codec->private_data;
 	struct uda1334_platform_data *pd = codec->control_data;
-	printk("%s - %d\n", __func__, __LINE__);
 
 	if (pd->reset_gpio >= 0)
 		gpio_set_value(pd->reset_gpio, 1);
