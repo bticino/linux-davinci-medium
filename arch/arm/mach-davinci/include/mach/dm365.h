@@ -53,4 +53,6 @@ void dm365_init_spi0(unsigned chipselect_mask,
 void dm365_init_spi3(unsigned chipselect_mask,
 		struct spi_board_info *info, unsigned len);
 int dm365_clkout2_set_rate(unsigned long rate);
+void dm365_clkout2_enable(void);
+void dm365_clkout2_disable(void);
 #endif /* __ASM_ARCH_DM365_H */

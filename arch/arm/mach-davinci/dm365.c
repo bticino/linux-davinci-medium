@@ -741,6 +741,30 @@ static struct resource dm365_spi0_resources[] = {
 	},
 };
 
+void dm365_clkout2_enable(void)
+{
+	static void __iomem *system_module_base;
+	u32 regval;
+
+	system_module_base = ioremap(DAVINCI_SYSTEM_MODULE_BASE, SZ_4K);
+	regval = __raw_readl(system_module_base + PERI_CLKCTL);
+	regval &= ~(1 << CLOCKOUT2EN);
+	__raw_writel(regval, system_module_base + PERI_CLKCTL);
+}
+EXPORT_SYMBOL(dm365_clkout2_enable);
+
+void dm365_clkout2_disable(void)
+{
+	static void __iomem *system_module_base;
+	u32 regval;
+
+	system_module_base = ioremap(DAVINCI_SYSTEM_MODULE_BASE, SZ_4K);
+	regval = __raw_readl(system_module_base + PERI_CLKCTL);
+	regval |= 1 << CLOCKOUT2EN;
+	__raw_writel(regval, system_module_base + PERI_CLKCTL);
+}
+EXPORT_SYMBOL(dm365_clkout2_disable);
+
 int dm365_clkout2_set_rate(unsigned long rate)
 {
 	int ret = -EINVAL;
