@@ -44,6 +44,7 @@ void __init dm365_init_vc(struct snd_platform_data *pdata);
 void __init dm365_init_rtc(void);
 void __init dm365_init_adc(struct davinci_adc_platform_data *pdata);
 void __init dm365_init_ks(struct davinci_ks_platform_data *pdata);
+void __init dm365_setup_debounce(unsigned enable, unsigned gpio, unsigned time);
 void dm365_set_vpfe_config(struct vpfe_config *cfg);
 void dm365_init_isif(enum ccdc_bus_width bw);
 

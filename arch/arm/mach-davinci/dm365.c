@@ -490,6 +490,7 @@ static struct davinci_clk dm365_clks[] = {
 #define PINMUX4		0x10
 #define INTMUX		0x18
 #define EVTMUX		0x1c
+#define DEBOUNCE0	0x54
 
 
 static const struct mux_config dm365_pins[] = {
@@ -1409,6 +1410,16 @@ void __init dm365_init_asp(struct snd_platform_data *pdata)
 	davinci_cfg_reg(DM365_EVT3_ASP_RX);
 	dm365_asp_device.dev.platform_data = pdata;
 	platform_device_register(&dm365_asp_device);
+}
+
+void __init dm365_setup_debounce(unsigned enable, unsigned gpio, unsigned time)
+{
+	gpio += DEBOUNCE0;
+	if (time >= (1<<21))
+		time = (1<<21) - 1;
+	if (enable)
+		time |= 0x80000000;
+	iowrite32(time, IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + gpio));
 }
 
 void __init dm365_init_vc(struct snd_platform_data *pdata)
