@@ -1042,6 +1042,7 @@ static void amico_gpio_configure(void)
 	__raw_writel(0, pupdctl0);
 	__raw_writel(0x40000, pupdctl1); /* EM_WAIT active pull-up */
 
+	dm365_setup_debounce(1, 0, 4096);
 
 	/*  -- Configure Input ---------------------------------------------- */
 	gpio_request(0, "GIO0"); /* pi_INTERRUPT */
