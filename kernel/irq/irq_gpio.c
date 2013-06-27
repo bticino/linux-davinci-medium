@@ -107,36 +107,39 @@ static inline void test_io(struct irqgpio *irqgpio)
 
 	for (cnt = 0; cnt < irqgpio->len; cnt++, pres_irq++) {
 		shift = 1<<cnt;
+
+		if (!(irqgpio->gpio_irq_enabled & shift))
+			continue;
 		if (!gpio_get_value(pres_irq->gpio)) {
-			if ((irqgpio->gpio_irq_enabled & shift)
-				&& (pres_irq->mode & GPIO_EDGE_FALLING)) {
-				if ((pres_irq->type == LEVEL) ||
-					!(irqgpio->pending_interrupts & shift))
-					generic_handle_irq(pres_irq->irq);
-			}
-			irqgpio->pending_interrupts |= shift;
-		} else if ((irqgpio->gpio_irq_enabled & shift) &&
-			   (irqgpio->pending_interrupts & shift))
-			irqgpio->pending_interrupts &= ~shift;
-		else if ((irqgpio->gpio_irq_enabled & shift) &&
-			 (pres_irq->mode & GPIO_EDGE_RISING))
+			if (pres_irq->mode & GPIO_EDGE_RISING)
+				irqgpio->pending_interrupts &= ~shift;
+			else if ((pres_irq->type == LEVEL) ||
+				 !(irqgpio->pending_interrupts & shift)) {
 				generic_handle_irq(pres_irq->irq);
+				irqgpio->pending_interrupts |= shift;
+			}
+		} else {
+			if (pres_irq->mode & GPIO_EDGE_FALLING)
+				irqgpio->pending_interrupts &= ~shift;
+			else if ((pres_irq->type == LEVEL) ||
+				 !(irqgpio->pending_interrupts & shift)) {
+				generic_handle_irq(pres_irq->irq);
+				irqgpio->pending_interrupts |= shift;
+			}
+		}
 	}
-	if (gpio_get_value(irqgpio->gpio_common))
-		mod_timer(&irqgpio->pf_debounce_timer, 0);
 }
 
 static void debounce_gpio_int(unsigned long data)
 {
 	struct irqgpio *irqgpio = (struct irqgpio *) data;
-	if (gpio_get_value(irqgpio->gpio_common)) {
-		irqgpio->pending_interrupts = 0;
-		return;
-	}
+	unsigned int tmp;
 
+	tmp = gpio_get_value(irqgpio->gpio_common);
 	test_io(irqgpio);
-	mod_timer(&irqgpio->pf_debounce_timer, jiffies +
-		msecs_to_jiffies(GPIO_DEBOUNCE_TO));
+	if (!tmp)
+		mod_timer(&irqgpio->pf_debounce_timer, jiffies +
+			msecs_to_jiffies(GPIO_DEBOUNCE_TO));
 }
 
 static void debounce_gpio_interrupts(struct work_struct *work)
