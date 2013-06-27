@@ -35,7 +35,7 @@
 #define po_NAND_WPn	36	/* Nand flash write protect*/
 #define poWATCHDOG	98	/* Emulate feed watchdog,output mcu*/
 #define poEN_LOCAL_MIC		43	/* Enable local microphone */
-#define poEN_LOCAL_SPK		42	/* Enable local speaker */
+#define poEN_CAMERA_LED		42	/* Enable compensation LED for camera */
 #define poEN_LCD_3_3V	    57	/* Enable LCD 3.3V */
 #define piTOUCH_BUSY		59	/* Touch screen busy */
 #define poAUDIO_DM365_ZL	60	/* AUDIO DM365 ZALINK */

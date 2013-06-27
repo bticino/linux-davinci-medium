@@ -1089,6 +1089,8 @@ static void amico_gpio_configure(void)
 			"PIC AV and PIC AI reset");
 	gpio_configure_out(DM365_GPIO98, poWATCHDOG, 0,
 			"Emulate feed watchdog, output to mcu");
+	gpio_configure_out(DM365_GPIO42, poEN_CAMERA_LED, 0,
+			"Enable compensation LED for camera");
 
 	/* -- Export For Debug -----------------------------------------------*/
 	if (amico_debug) {
@@ -1119,6 +1121,7 @@ static void amico_gpio_configure(void)
 		gpio_export(poPIC_RESETn, 0);
 		gpio_export(poWATCHDOG, 0);
 		gpio_export(poZARLINK_PWR, 0);
+		gpio_export(poEN_CAMERA_LED, 0);
 	}
 }
 
