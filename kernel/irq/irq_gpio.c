@@ -107,7 +107,6 @@ static inline void test_io(struct irqgpio *irqgpio)
 
 	for (cnt = 0; cnt < irqgpio->len; cnt++, pres_irq++) {
 		shift = 1<<cnt;
-
 		if (!(irqgpio->gpio_irq_enabled & shift))
 			continue;
 		if (!gpio_get_value(pres_irq->gpio)) {
@@ -145,12 +144,14 @@ static void debounce_gpio_int(unsigned long data)
 static void debounce_gpio_interrupts(struct work_struct *work)
 {
 	struct irqgpio *irqgpio = container_of(work, struct irqgpio, work);
+	unsigned int tmp;
 
-	if (gpio_get_value(irqgpio->gpio_common))
-		return;
+	tmp = gpio_get_value(irqgpio->gpio_common);
+
 	test_io(irqgpio);
-	mod_timer(&irqgpio->pf_debounce_timer,
-		jiffies + msecs_to_jiffies(GPIO_DEBOUNCE_TO));
+	if (!tmp)
+		mod_timer(&irqgpio->pf_debounce_timer,
+			jiffies + msecs_to_jiffies(GPIO_DEBOUNCE_TO));
 }
 
 static void gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
@@ -163,7 +164,6 @@ static void gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 	desc->chip->ack(irq);
 	desc->chip->mask(irq);
 
-	mod_timer(&irqgpio->pf_debounce_timer, 0);
 	if (gpio_get_value(irqgpio->gpio_common)) {
 		desc->chip->unmask(irq);
 		return;
@@ -173,15 +173,16 @@ static void gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 	irqgpio->pending_interrupts = 0;
 	for (cnt = 0; cnt < irqgpio->len; cnt++, pres_irq++) {
 		shift = 1<<cnt;
-		if (!gpio_get_value(pres_irq->gpio) &&
-		   (irqgpio->gpio_irq_enabled & shift) &&
-		   (pres_irq->mode & GPIO_EDGE_FALLING)) {
-			generic_handle_irq(pres_irq->irq);
-			irqgpio->pending_interrupts |= shift;
+		if (!gpio_get_value(pres_irq->gpio)) {
 			if (!test_bit(WORK_STRUCT_PENDING,
-					work_data_bits(&irqgpio->work)))
+					work_data_bits(&irqgpio->work)) &&
+					!timer_pending(&irqgpio->pf_debounce_timer))
 				schedule_work(&irqgpio->work);
-			break;
+			if ((irqgpio->gpio_irq_enabled & shift) &&
+			    (pres_irq->mode & GPIO_EDGE_FALLING)) {
+				generic_handle_irq(pres_irq->irq);
+				irqgpio->pending_interrupts |= shift;
+			}
 		} else
 			irqgpio->pending_interrupts &= ~shift;
 	}
