@@ -829,7 +829,7 @@ static struct irq_on_gpio amico_irq_on_gpio0[] = {
 	{
 		.gpio = piTMK_INTn,
 		.irq = IRQ_DM365_GPIO0_4,
-		.type = LEVEL,
+		.type = EDGE,
 		.mode = GPIO_EDGE_FALLING,
 	}, {
 		.gpio = piPENIRQn,
