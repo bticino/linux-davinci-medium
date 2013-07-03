@@ -1243,7 +1243,7 @@ static struct i2c_board_info __initdata amico_i2c_info[] = {
 };
 
 static struct davinci_i2c_platform_data i2c_pdata = {
-	.bus_freq = 400 /* kHz */ ,
+	.bus_freq = 100 /* kHz */ ,
 	.bus_delay = 0 /* usec */ ,
 };
 
