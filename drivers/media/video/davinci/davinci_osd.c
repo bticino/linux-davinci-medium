@@ -1121,7 +1121,7 @@ static void _davinci_disp_enable_color_key(enum davinci_osd_layer osdwin,
 		if (cpu_is_davinci_dm644x()) {
 			osd_write(colorkey & OSD_TRANSPVAL_RGBTRANS,
 				  OSD_TRANSPVAL);
-		} else if (cpu_is_davinci_dm355()) {
+		} else if (cpu_is_davinci_dm355() || cpu_is_davinci_dm365()) {
 			osd_write(colorkey & OSD_TRANSPVALL_RGBL,
 				  OSD_TRANSPVALL);
 		}
@@ -1132,7 +1132,7 @@ static void _davinci_disp_enable_color_key(enum davinci_osd_layer osdwin,
 			osd_merge(OSD_TRANSPVALU_Y, colorkey, OSD_TRANSPVALU);
 		break;
 	case PIXFMT_RGB888:
-		if (cpu_is_davinci_dm355()) {
+		if (cpu_is_davinci_dm355() || cpu_is_davinci_dm365()) {
 			osd_write(colorkey & OSD_TRANSPVALL_RGBL,
 				  OSD_TRANSPVALL);
 			osd_merge(OSD_TRANSPVALU_RGBU, colorkey >> 16,
