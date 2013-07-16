@@ -155,9 +155,9 @@ static const struct v4l2_queryctrl ov971x_controls[] = {
 		.type		= V4L2_CTRL_TYPE_INTEGER,
 		.name		= "Gain",
 		.minimum	= 0,
-		.maximum	= 63,
+		.maximum	= 127,
 		.step		= 1,
-		.default_value	= 63,
+		.default_value	= 127,
 		.flags		= V4L2_CTRL_FLAG_SLIDER,
 	}, {
 		.id		= V4L2_CID_EXPOSURE,
@@ -1118,7 +1118,7 @@ static int ov971x_get_control(struct v4l2_subdev *sd,
 		ctrl->value = reg_read(client, OV971x_WPT);
 		break;
 	case V4L2_CID_GAIN:
-		ctrl->value = reg_read(client, OV971x_GAIN);
+		ctrl->value = reg_read(client, OV971x_GAIN) & 0x7F;
 		break;
 	case V4L2_CID_PAN_ABSOLUTE:
 		data = reg_read(client, 0x9A);
