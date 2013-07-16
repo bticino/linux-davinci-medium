@@ -100,6 +100,9 @@
 #define OV971x_HSYNC_START		0x30
 #define OV971x_HSYNC_STOP		0x31
 
+#define OV971x_BANDING_STEP_L		0x49
+#define OV971x_BANDING_STEP_H		0x4A
+
 /* Constants defining sensor capabilities */
 #define OV971x_MAX_HEIGHT		720
 #define OV971x_MAX_WIDTH		1280
@@ -216,6 +219,14 @@ static const struct v4l2_queryctrl ov971x_controls[] = {
 		.maximum	= 600,
 		.step		= 1,
 		.default_value	= 400,
+	}, {
+		.id		= V4L2_CID_POWER_LINE_FREQUENCY,
+		.type		= V4L2_CTRL_TYPE_MENU,
+		.name		= "Light frequency filter",
+		.minimum	= 0,
+		.maximum	= 2,   /* 0: 0, 1: 50Hz, 2:60Hz */
+		.step		= 1,
+		.default_value	= 0,
 	}
 };
 static const unsigned int ov971x_num_controls = ARRAY_SIZE(ov971x_controls);
@@ -236,10 +247,12 @@ struct ov971x {
 	unsigned short width_max;
 	unsigned short height_min;
 	unsigned short height_max;
+	unsigned short current_height;
 	unsigned short y_skip_top;      /* Lines to skip at the top */
 	unsigned short gain;
 	unsigned short exposure;
 	u32 xclk_frequency;		/* freq sent to CMOS sensor */
+	enum v4l2_power_line_frequency pwrline_fr;
 };
 
 static inline struct ov971x *to_ov971x(struct v4l2_subdev *sd)
@@ -412,8 +425,6 @@ static pnt reg_1280x720[] = {
 	{0x2d, 0x00},
 	{0x2e, 0x00},
 	{0x13, 0xa5},
-	{0x4a, 0x00},
-	{0x49, 0xce},
 	{0x14, 0x80},
 	{0x41, 0x82},
 	{0x22, 0x03},
@@ -956,6 +967,7 @@ static int ov971x_set_fmt(struct v4l2_subdev *sd,
 static int ov971x_try_fmt(struct v4l2_subdev *sd,
 			   struct v4l2_format *f)
 {
+	struct ov971x *ov971x = to_ov971x(sd);
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 
 	if (pix->height < OV971x_MIN_HEIGHT)
@@ -970,6 +982,7 @@ static int ov971x_try_fmt(struct v4l2_subdev *sd,
 	pix->pixelformat	= V4L2_PIX_FMT_SGRBG10;
 	pix->field		= V4L2_FIELD_NONE;
 	pix->colorspace		= V4L2_COLORSPACE_REC709;
+	ov971x->current_height  = pix->height;
 				/* V4L2_COLORSPACE_SRGB; */
 
 	return 0;
@@ -978,12 +991,32 @@ static int ov971x_try_fmt(struct v4l2_subdev *sd,
 int ov971x_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *param)
 {
 	struct ov971x *ov971x = to_ov971x(sd);
+	int light_freq, value;
+	unsigned char tmp;
 
 	if (param->parm.capture.timeperframe.numerator == 1 &&
 	    param->parm.capture.timeperframe.denominator == 24)
 		ov971x_set_frequency(ov971x->xclk_frequency, 24, sd);
 	else
 		ov971x_set_frequency(ov971x->xclk_frequency, 30, sd);
+
+	if (ov971x->pwrline_fr == V4L2_CID_POWER_LINE_FREQUENCY_50HZ)
+		light_freq = 50;
+	else if (ov971x->pwrline_fr == V4L2_CID_POWER_LINE_FREQUENCY_60HZ)
+		light_freq = 60;
+	else {
+		reg_write(v4l2_get_subdevdata(sd), OV971x_BANDING_STEP_L, 0);
+		reg_write(v4l2_get_subdevdata(sd), OV971x_BANDING_STEP_H, 0);
+		return 0;
+	}
+	value = param->parm.capture.timeperframe.denominator *
+		 ov971x->current_height /
+		 param->parm.capture.timeperframe.numerator /
+		 light_freq;
+	tmp = value & 0xFF;
+	reg_write(v4l2_get_subdevdata(sd), OV971x_BANDING_STEP_L, tmp);
+	tmp = (value & 0x300) >> 8;
+	reg_write(v4l2_get_subdevdata(sd), OV971x_BANDING_STEP_H, tmp);
 	return 0;
 }
 
@@ -1098,6 +1131,7 @@ static int ov971x_queryctrl(struct v4l2_subdev *sd,
 static int ov971x_get_control(struct v4l2_subdev *sd,
 			       struct v4l2_control *ctrl)
 {
+	struct ov971x *ov971x = to_ov971x(sd);
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int data;
 
@@ -1133,6 +1167,9 @@ static int ov971x_get_control(struct v4l2_subdev *sd,
 		data <<= 4;
 		data |= reg_read(client, 0x99);
 		ctrl->value = data;
+		break;
+	case V4L2_CID_POWER_LINE_FREQUENCY:
+		ctrl->value = ov971x->pwrline_fr;
 		break;
 	}
 	return 0;
@@ -1283,6 +1320,9 @@ static int ov971x_set_control(struct v4l2_subdev *sd,
 		data &= 0x0F;
 		reg_write(client, 0x9A, data);
 		break;
+	case V4L2_CID_POWER_LINE_FREQUENCY:
+		ov971x->pwrline_fr = ctrl->value;
+		break;
 	}
 	return 0;
 }
@@ -1413,6 +1453,7 @@ static int ov971x_probe(struct i2c_client *client,
 	ov971x->autoexposure = 1;
 	ov971x->xskip = 1;
 	ov971x->yskip = 1;
+	ov971x->pwrline_fr = V4L2_CID_POWER_LINE_FREQUENCY_DISABLED;
 
 	/* Register with V4L2 layer as slave device */
 	sd = &ov971x->sd;
