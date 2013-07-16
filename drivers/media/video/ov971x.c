@@ -119,7 +119,7 @@
 #define VPT 0x92
 
 /* Debug functions */
-static int debug = 4;
+static int debug = 0;
 module_param(debug, bool, 0644);
 MODULE_PARM_DESC(debug, "Debug level (0-1)");
 
