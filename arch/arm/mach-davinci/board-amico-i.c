@@ -166,7 +166,7 @@ static struct mtd_partition amico_nand_partitions[] = {
 	}, {	/* Primary copy of rootfs */
 		.name           = "rootfs",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = SZ_128M + 60 * SZ_1M, /* 188 MByte */
+		.size           = SZ_128M, /* 128 MByte */
 		.mask_flags     = 0,
 	}, {	/* Configurations and extras */
 		.name           = "extras",
