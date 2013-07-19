@@ -310,7 +310,7 @@ static int set_shutter(struct v4l2_subdev *sd, const u32 data)
 	int ret;
 
 	ret = reg_write(client, OV971x_WPT, (data < 256) ? data : 255);
-	ret |= reg_write(client, OV971x_BPT, (data > 10) ? data - 10 : 0);
+	ret |= reg_write(client, OV971x_BPT, (data > 16) ? data - 16 : 0);
 	return ret;
 }
 
