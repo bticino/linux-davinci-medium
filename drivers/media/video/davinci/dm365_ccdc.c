@@ -238,7 +238,7 @@ static struct ccdc_config_params_raw ccdc_config_defaults = {
 	},
 	.bclamp = {
 		.en = 0,
-		.dc_offset = 0,
+		.dc_offset = 50,
 		.bc_mode_color = 0,
 		.vert_start_sub = 1,
 		.horz = {
