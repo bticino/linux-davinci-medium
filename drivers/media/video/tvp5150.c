@@ -76,6 +76,15 @@ static struct v4l2_queryctrl tvp5150_qctrl[] = {
 		.step = 0x1,
 		.default_value = 0,
 		.flags = 0,
+	}, {
+		.id = V4L2_CID_SHARPNESS,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "sharpness",
+		.minimum = 0,
+		.maximum = 3,
+		.step = 0x1,
+		.default_value = 0,
+		.flags = 0,
 	}
 };
 
@@ -885,6 +894,7 @@ static int tvp5150_reset(struct v4l2_subdev *sd, u32 val)
 
 static int tvp5150_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
+	int read_val;
 	v4l2_dbg(1, debug, sd, "g_ctrl called\n");
 
 	switch (ctrl->id) {
@@ -900,14 +910,20 @@ static int tvp5150_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	case V4L2_CID_HUE:
 		ctrl->value = tvp5150_read(sd, TVP5150_HUE_CTL);
 		return 0;
+	case V4L2_CID_SHARPNESS:
+		read_val = tvp5150_read(sd, TVP5150_LUMA_PROC_CTL_2);
+		ctrl->value = (read_val & TVP5150_SHARPNESS_MASK)>>
+			       TVP5150_SHARPNESS_SHIFT;
+		return 0;
 	}
 	return -EINVAL;
 }
 
 static int tvp5150_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
-	u8 i, n;
+	u8 i, n, lock_status;
 	n = ARRAY_SIZE(tvp5150_qctrl);
+	int read_val;
 
 	for (i = 0; i < n; i++) {
 		if (ctrl->id != tvp5150_qctrl[i].id)
@@ -932,6 +948,19 @@ static int tvp5150_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 		return 0;
 	case V4L2_CID_HUE:
 		tvp5150_write(sd, TVP5150_HUE_CTL, ctrl->value);
+		return 0;
+	case V4L2_CID_SHARPNESS:
+		lock_status = tvp5150_read(sd, TVP5150_STATUS_REG_1);
+		if (TVP5150_LOCK_STATUS_MASK != (lock_status &
+						 TVP5150_LOCK_STATUS_MASK))
+			return -EAGAIN;
+		read_val = tvp5150_read(sd, TVP5150_LUMA_PROC_CTL_2);
+		read_val &= ~TVP5150_SHARPNESS_MASK;
+		/* writing 0 to TVP5150_LUMA_PROC_CTL_2 reg */
+		tvp5150_write(sd, TVP5150_LUMA_PROC_CTL_2, read_val);
+		read_val |= (ctrl->value)<<TVP5150_SHARPNESS_SHIFT;
+		/* writing requested value to TVP5150_LUMA_PROC_CTL_2 reg */
+		tvp5150_write(sd, TVP5150_LUMA_PROC_CTL_2, read_val);
 		return 0;
 	}
 	return -EINVAL;
