@@ -2303,6 +2303,18 @@ static int vpfe_s_ctrl(struct file *file, void *priv,
 					  core, s_ctrl, ctrl);
 }
 
+static int vpfe_s_ext_ctrls(struct file *file, void *priv,
+			     struct v4l2_ext_controls *ctrl)
+{
+	struct vpfe_device *vpfe_dev = video_drvdata(file);
+	struct vpfe_subdev_info *sub_dev = vpfe_dev->current_subdev;
+
+	v4l2_dbg(1, debug, &vpfe_dev->v4l2_dev, "vpfe_s_ext_ctrls\n");
+	return v4l2_device_call_until_err(&vpfe_dev->v4l2_dev, sub_dev->grp_id,
+					  core, s_ext_ctrls, ctrl);
+}
+
+
 static int vpfe_cropcap(struct file *file, void *priv,
 			      struct v4l2_cropcap *crop)
 {
@@ -2562,6 +2574,7 @@ static const struct v4l2_ioctl_ops vpfe_ioctl_ops = {
 	.vidioc_queryctrl	 = vpfe_queryctrl,
 	.vidioc_g_ctrl		 = vpfe_g_ctrl,
 	.vidioc_s_ctrl		 = vpfe_s_ctrl,
+	.vidioc_s_ext_ctrls	 = vpfe_s_ext_ctrls,
 	.vidioc_cropcap		 = vpfe_cropcap,
 	.vidioc_g_crop		 = vpfe_g_crop,
 	.vidioc_s_crop		 = vpfe_s_crop,
