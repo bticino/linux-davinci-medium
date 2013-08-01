@@ -67,6 +67,11 @@
 #define OV971x_DVP_CTRL_00		0xC2
 #define OV971x_DVP_CTRL_00_PCLK_POL	BIT(2)
 
+#define OV971x_REG4E			0x4E
+#define OV971x_REG4F			0x4F
+#define OV971x_REG50			0x50
+#define OV971x_REG51			0x51
+
 #define OV971x_REG5C			0x5C
 #define OV971x_REG5C_PREDIV_SHIFT	5
 #define OV971x_REG5C_PREDIV_MASK	(3 << OV971x_REG5C_PREDIV_SHIFT)
@@ -227,6 +232,14 @@ static const struct v4l2_queryctrl ov971x_controls[] = {
 		.maximum	= 2,   /* 0: 0, 1: 50Hz, 2:60Hz */
 		.step		= 1,
 		.default_value	= 0,
+	}, {
+		.id		= V4L2_CID_EXPOSURE_WINDOWS_WEIGHT,
+		.type		= V4L2_CTRL_TYPE_MENU,
+		.minimum	= 0,
+		.maximum	= 2,
+		.step		= 1,
+		.default_value	= 1,
+		.name		= "Exposure Window weights"
 	}
 };
 static const unsigned int ov971x_num_controls = ARRAY_SIZE(ov971x_controls);
@@ -1020,6 +1033,30 @@ int ov971x_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *param)
 	return 0;
 }
 
+int ov971x_s_ext_ctrls(struct v4l2_subdev *sd, struct v4l2_ext_controls *ctrls)
+{
+	unsigned int cnt, tot, tmp1, tmp2;
+	unsigned char val[4];
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct v4l2_ext_control *ec;
+
+	tot = (ctrls->count < 16) ? ctrls->count : 16;
+	for (cnt = 0; cnt < 4; cnt++)
+		val[cnt] = reg_read(client, OV971x_REG4E + cnt);
+	for (cnt = 0; cnt < tot; cnt++) {
+		ec = (ctrls->controls) + cnt;
+		if (ec->id != V4L2_CID_EXPOSURE_WINDOWS_WEIGHT)
+			continue;
+		tmp1 = cnt >> 2;
+		tmp2 = (cnt & 0x3)<<1;
+		val[tmp1] &= ~(3<<tmp2);
+		val[tmp1] |= (ec->value & 0x3)<<tmp2;
+	}
+	for (cnt = 0; cnt < 4; cnt++)
+		reg_write(client, OV971x_REG4E + cnt, val[cnt]);
+	return 0;
+}
+
 static int ov971x_get_chip_id(struct v4l2_subdev *sd,
 			       struct v4l2_dbg_chip_ident *id)
 {
@@ -1089,6 +1126,7 @@ static const struct v4l2_subdev_core_ops ov971x_core_ops = {
 	.g_ctrl	= ov971x_get_control,
 	.s_ctrl	= ov971x_set_control,
 	.s_std = ov971x_set_standard,
+	.s_ext_ctrls = ov971x_s_ext_ctrls,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.g_register = ov971x_get_register,
 	.s_register = ov971x_set_register,
@@ -1322,6 +1360,8 @@ static int ov971x_set_control(struct v4l2_subdev *sd,
 		break;
 	case V4L2_CID_POWER_LINE_FREQUENCY:
 		ov971x->pwrline_fr = ctrl->value;
+		break;
+	case V4L2_CID_EXPOSURE_WINDOWS_WEIGHT:
 		break;
 	}
 	return 0;
