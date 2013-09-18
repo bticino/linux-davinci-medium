@@ -152,6 +152,7 @@ static int tsc2005_cmd(struct tsc2005 *ts, u8 cmd)
 	u8 tx = TSC2005_CMD | TSC2005_CMD_12BIT | cmd;
 	struct spi_transfer xfer = {
 		.tx_buf		= &tx,
+		.rx_buf		= NULL,
 		.len		= 1,
 		.bits_per_word	= 8,
 	};
@@ -185,6 +186,7 @@ static int tsc2005_write(struct tsc2005 *ts, u8 reg, u16 value)
 			 ((value & 0xFF)<<16);
 
 	xfer.tx_buf = &tx;
+	xfer.rx_buf = NULL;
 	if (ts->bit_x_word == 24) {
 		xfer.len = 4;
 		xfer.bits_per_word = 24;
