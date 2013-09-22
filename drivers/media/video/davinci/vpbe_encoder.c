@@ -331,6 +331,25 @@ static struct vid_enc_mode_info vpbe_encoder_modes[VPBE_ENCODER_MAX_NUM_STD] = {
 	 .vzoom = 1,
 	 .hzoom = 1,
 	 .flags = 0},
+	{
+	 .name = VID_ENC_STD_480x272,
+	 .std = 1,
+	 .if_type = VID_ENC_IF_PRGB,
+	 .interlaced = 0,
+	 .xres = 480,
+	 .yres = 272,
+	 .fps = {60, 1},
+	 .left_margin = 41,
+	 .right_margin = 2,
+	 .upper_margin = 10,
+	 .lower_margin = 2,
+	 .hsync_len = 2,
+	 .vsync_len = 2,
+	 .pixclock = 111111,
+	 .dofst = DOFST_NONE,
+	 .vzoom = 1,
+	 .hzoom = 1,
+	 .flags = 0},
 };
 
 static struct vpbe_encoder_config vpbe_encoder_configuration = {
@@ -359,10 +378,12 @@ static struct vpbe_encoder_config vpbe_encoder_configuration = {
 	.output[3] = {
 		      .output_name = VID_ENC_OUTPUT_LCD,
 		      .no_of_standard = VPBE_DM644X_ENCODER_PRGB_NUM_STD,
-		      .standards = {VID_ENC_STD_NON_STANDARD,
-							VID_ENC_STD_800x480_7,
-							VID_ENC_STD_800x480_10
-					},
+		      .standards = {
+					VID_ENC_STD_NON_STANDARD,
+					VID_ENC_STD_800x480_7,
+					VID_ENC_STD_800x480_10,
+					VID_ENC_STD_480x272,
+				   },
 		      },
 };
 
@@ -745,6 +766,7 @@ static int vpbe_encoder_setmode(struct vid_enc_mode_info *mode_info,
 			}
 			venc_reg_out(VENC_XHINTVL, xh);
 		} else if ((!strcmp(mymode, VID_ENC_STD_NON_STANDARD) ||
+			   !strcmp(mymode, VID_ENC_STD_480x272) ||
 			   !strcmp(mymode, VID_ENC_STD_800x480_7) ||
 			   !strcmp(mymode, VID_ENC_STD_800x480_10)) && dm365)
 			enc->start_display(enc);
@@ -1060,6 +1082,8 @@ static int vpbe_encoder_init(void)
 		    VID_ENC_STD_800x480_7;
 		vpbe_encoder_configuration.output[2].standards[2] =
 		    VID_ENC_STD_800x480_10;
+		vpbe_encoder_configuration.output[2].standards[3] =
+		    VID_ENC_STD_480x272;
   } else
 		return -1;
 
