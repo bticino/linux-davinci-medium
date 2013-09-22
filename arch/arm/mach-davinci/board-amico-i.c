@@ -682,6 +682,7 @@ static void amico_bl_set_intensity(int level)
 	} else
 		__raw_writel(level<<2, base + PWM_PH1D);
 
+	gpio_direction_output(poEN_BACKLIGHT, 1);
 	return ;
 };
 
@@ -1092,7 +1093,7 @@ static void amico_gpio_configure(void)
 	gpio_configure_out(DM365_GPIO78_73, poEN_LCD_5V, 1, "Enable LCD 5V");
 	gpio_configure_out(DM365_GPIO78_73, poLCD_GAMMA_CTRL, 1,
 			"Lcd gamma control");
-	gpio_configure_out(DM365_GPIO78_73, poEN_BACKLIGHT, 1,
+	gpio_configure_out(DM365_GPIO78_73, poEN_BACKLIGHT, 0,
 			"Lcd backlight control");
 	gpio_configure_out(DM365_GPIO51, poTOUCH_CSn, 1,
 			"Touch screen chip select");
