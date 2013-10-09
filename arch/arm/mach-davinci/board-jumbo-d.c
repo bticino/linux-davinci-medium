@@ -93,9 +93,7 @@ MODULE_PARM_DESC(jumbo_debug, "Debug level 0-1");
 extern unsigned int system_rev;
 extern int lookup_resistors(int cnt);
 
-/*
- * wp_set: set/unset the at24 eeprom write protect
- */
+/* wp_set: set/unset the at24 eeprom write protect */
 void wp_set(int enable)
 {
 	gpio_direction_output(poE2_WPn, enable);
@@ -226,7 +224,7 @@ static struct vpfe_config vpfe_cfg = {
 
 void jumbo_phy_power(int on)
 {
-	printk(KERN_INFO "Reset eth controller \n");
+	printk(KERN_DEBUG "Reset eth controller \n");
 	gpio_set_value(poENET_RESETn, !on);
 	mdelay(2); /* Measured by oscilloscope : must be at least 1,6ms */
 	gpio_set_value(poENET_RESETn, on);
@@ -332,7 +330,7 @@ static void pinmux_check(void)
 
 		for (i = 0; i < 5; i++) {
 			pinmux[i] = __raw_readl(pinmux_reg[i]);
-		printk(KERN_INFO "pinmux%d=%X\n",i,pinmux[i]);
+		printk(KERN_DEBUG "pinmux%d=%X\n", i, pinmux[i]);
 	}
 }
 
@@ -429,7 +427,7 @@ static void jumbo_uart_configure(void)
 
 	davinci_cfg_reg(DM365_GPIO51);
 	gpio_direction_output(poRES_EXTUART, 1);
-        mdelay(10);
+	mdelay(10);
 	gpio_direction_output(poRES_EXTUART, 0);
 
 	set_irq_type(gpio_to_irq(0), IRQ_TYPE_EDGE_BOTH);
@@ -453,21 +451,21 @@ static struct irq_on_gpio jumbo_irq_on_gpio0 [] = {
 		.type = EDGE,
 		.mode = GPIO_EDGE_FALLING,
 	}, {
-                .gpio = piINT_UART_An,
-                .irq = IRQ_DM365_GPIO0_3,
+		.gpio = piINT_UART_An,
+		.irq = IRQ_DM365_GPIO0_3,
 		.type = LEVEL,
 		.mode = GPIO_EDGE_FALLING,
-        }, {
-                .gpio = piTMK_INTn,
-                .irq = IRQ_DM365_GPIO0_4,
+	}, {
+		.gpio = piTMK_INTn,
+		.irq = IRQ_DM365_GPIO0_4,
 		.type = LEVEL,
 		.mode = GPIO_EDGE_FALLING,
-        }, {
-	        .gpio = piGPIO_INTn,
-                .irq = IRQ_DM365_GPIO0_5,
+	}, {
+		.gpio = piGPIO_INTn,
+		.irq = IRQ_DM365_GPIO0_5,
 		.type = EDGE,
 		.mode = GPIO_EDGE_FALLING,
-        },
+	},
 };
 
 static struct irq_gpio_platform_data jumbo_irq_gpio_platform_data = {
@@ -627,9 +625,7 @@ int platform_pm_loss_power_changed(struct device *dev,
 #define jumbo_powerfail_configure()
 #endif
 
-/*
- *	Macro : gpio_configure_out
- */
+/* gpio_configure in/out */
 int inline gpio_configure_out (int DM365_Pin,int Name,int DefVualue, char* str)
 {
 	int status;
@@ -644,9 +640,6 @@ int inline gpio_configure_out (int DM365_Pin,int Name,int DefVualue, char* str)
 	return status;
 }
 
-/*
- *	Macro : gpio_configure_in
- */
 int inline gpio_configure_in (int DM365_Pin,int Name, char* str)
 {
 	int status;
@@ -661,9 +654,6 @@ int inline gpio_configure_in (int DM365_Pin,int Name, char* str)
 	return status;
 }
 
-/*
- *	jumbo_gpio_configure
- */
 static void jumbo_gpio_configure(void)
 {
 	void __iomem *pupdctl0 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x78);
@@ -673,11 +663,10 @@ static void jumbo_gpio_configure(void)
 	__raw_writel(0, pupdctl0);
 	__raw_writel(0x40000, pupdctl1); /* EM_WAIT active pull-up */
 
-
-	/*  -- Configure Input ---------------------------------------------- */
+	/*  -- Configure Digital Board--------------------------------------- */
+	dm365_setup_debounce(1, 0, 2048);
 	gpio_request(0, "GIO0"); /* pi_INTERRUPT */
 	gpio_direction_input(0);
-
 	gpio_configure_in(DM365_GPIO50, piPOWER_FAILn, "piPOWER_FAILn");
 	gpio_configure_in(DM365_GPIO64_57, piINT_UART_An, "piINT_UART_An");
 	gpio_configure_in(DM365_GPIO64_57, piTMK_INTn, "piTMK_INTn (RTC)");
@@ -860,13 +849,15 @@ static struct platform_device jumbo_asoc_device[] = {
 };
 
 static struct snd_platform_data dm365_jumbo_snd_data[] = {
-        {
-        },
-        {
+	{
 		.asp_chan_q = EVENTQ_3,
-		.i2s_accurate_sck = 1,
-		.clk_input_pin = MCBSP_CLKS,
-        },
+		.ram_chan_q = EVENTQ_2,
+	},
+    {
+	.asp_chan_q = EVENTQ_3,
+	.i2s_accurate_sck = 1,
+	.clk_input_pin = MCBSP_CLKS,
+    },
 };
 
 static struct mcp453x_platform_data mcp453x_2e_data = {
