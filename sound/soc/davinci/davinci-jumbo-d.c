@@ -120,12 +120,45 @@ static int jumbo_d_hw_params_uda(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int dingo_startup_uda(struct snd_pcm_substream *substream)
+{
+	struct clk *clkout2;
+	davinci_cfg_reg(DM365_CLKOUT2);
+	clkout2 = clk_get(NULL, "clkout2");
+	if (IS_ERR(clkout2) || clk_enable(clkout2)) {
+		pr_err("couldn't get clkout2 CLOCK!\n");
+		return -1;
+	}
+	clk_put(clkout2);
+	dm365_clkout2_enable();
+
+	return 0;
+}
+
+static void dingo_shutdown_uda(struct snd_pcm_substream *substream)
+{
+	struct clk *clkout2;
+
+	clkout2 = clk_get(NULL, "clkout2");
+	if (IS_ERR(clkout2)) {
+		pr_err("couldn't get clkout2 CLOCK!\n");
+		return;
+	}
+	clk_disable(clkout2);
+	dm365_clkout2_disable();
+	clk_put(clkout2);
+
+	return;
+}
+
 static struct snd_soc_ops jumbo_d_ops_cq93 = {
 	.hw_params = jumbo_d_hw_params_cq93,
 };
 
 static struct snd_soc_ops jumbo_d_ops_uda = {
 	.hw_params = jumbo_d_hw_params_uda,
+	.startup = dingo_startup_uda,
+	.shutdown = dingo_shutdown_uda,
 };
 
 static void ext_codec_power_work(struct work_struct *work)
