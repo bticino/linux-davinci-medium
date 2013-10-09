@@ -392,6 +392,7 @@ static void basi_gpio_configure(void)
 	__raw_writel(0, pupdctl0);
 	__raw_writel(0, pupdctl1);
 
+	dm365_setup_debounce(1, 0, 2048);
 	gpio_request(0, "GIO0");
 	gpio_direction_input(0);
 
