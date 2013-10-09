@@ -509,7 +509,7 @@ static void jumbo_uart_configure(void)
 
 	davinci_cfg_reg(DM365_GPIO51);
 	gpio_direction_output(poRES_EXTUART, 1);
-        mdelay(10);
+	mdelay(10);
 	gpio_direction_output(poRES_EXTUART, 0);
 
 	set_irq_type(gpio_to_irq(0), IRQ_TYPE_EDGE_BOTH);
@@ -533,21 +533,21 @@ static struct irq_on_gpio jumbo_irq_on_gpio0 [] = {
 		.type = EDGE,
 		.mode = GPIO_EDGE_FALLING,
 	}, {
-                .gpio = piINT_UART_An,
-                .irq = IRQ_DM365_GPIO0_3,
+		.gpio = piINT_UART_An,
+		.irq = IRQ_DM365_GPIO0_3,
 		.type = LEVEL,
 		.mode = GPIO_EDGE_FALLING,
-        }, {
-                .gpio = piTMK_INTn,
-                .irq = IRQ_DM365_GPIO0_4,
+	}, {
+		.gpio = piTMK_INTn,
+		.irq = IRQ_DM365_GPIO0_4,
 		.type = LEVEL,
 		.mode = GPIO_EDGE_FALLING,
-        }, {
-	        .gpio = piGPIO_INTn,
-                .irq = IRQ_DM365_GPIO0_5,
+	}, {
+		.gpio = piGPIO_INTn,
+		.irq = IRQ_DM365_GPIO0_5,
 		.type = EDGE,
 		.mode = GPIO_EDGE_FALLING,
-        },
+	},
 };
 
 static struct irq_gpio_platform_data jumbo_irq_gpio_platform_data = {
@@ -746,6 +746,7 @@ static void jumbo_gpio_configure(void)
 	__raw_writel(0x40000, pupdctl1); /* EM_WAIT active pull-up */
 
 	/*  -- Configure Digital Board--------------------------------------- */
+	dm365_setup_debounce(1, 0, 2048);
 	gpio_request(0, "GIO0"); /* pi_INTERRUPT */
 	gpio_direction_input(0);
 	gpio_configure_in(DM365_GPIO50, piPOWER_FAILn, "piPOWER_FAILn");
