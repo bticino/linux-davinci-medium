@@ -1096,13 +1096,6 @@ static long vpfe_param_handler(struct file *file, void *priv,
 			"Invalid user ptr\n");
 	}
 
-	if (vpfe_dev->started) {
-		/* only allowed if streaming is not started */
-		v4l2_err(&vpfe_dev->v4l2_dev, "device already started\n");
-		return -EBUSY;
-	}
-
-
 	switch (cmd) {
 	case VPFE_CMD_S_CCDC_RAW_PARAMS:
 		v4l2_warn(&vpfe_dev->v4l2_dev,
@@ -1116,11 +1109,13 @@ static long vpfe_param_handler(struct file *file, void *priv,
 				"Error in setting parameters in CCDC\n");
 			goto unlock_out;
 		}
-
-		if (vpfe_get_ccdc_image_format(vpfe_dev, &vpfe_dev->fmt) < 0) {
-			v4l2_err(&vpfe_dev->v4l2_dev,
-				"Invalid image format at CCDC\n");
-			ret = -EINVAL;
+		if (!vpfe_dev->started) {
+			if (vpfe_get_ccdc_image_format(vpfe_dev,
+						       &vpfe_dev->fmt) < 0) {
+				v4l2_err(&vpfe_dev->v4l2_dev,
+					"Invalid image format at CCDC\n");
+				ret = -EINVAL;
+			}
 		}
 unlock_out:
 		mutex_unlock(&vpfe_dev->lock);
