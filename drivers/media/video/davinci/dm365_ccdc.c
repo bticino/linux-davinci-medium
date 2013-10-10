@@ -1502,10 +1502,12 @@ static int ccdc_set_params(void __user *params)
 		goto free_out;
 	}
 
+	ccdc_raw_params->bclamp.dc_offset &= 0x1FFF;
 	if (!validate_ccdc_config_params_raw(ccdc_raw_params)) {
 		memcpy(&ccdc_cfg.bayer.config_params,
 			ccdc_raw_params,
 			sizeof(*ccdc_raw_params));
+		ccdc_config_bclamp(&ccdc_cfg.bayer.config_params.bclamp);
 		ret = 0;
 	} else
 		ret = -EINVAL;
