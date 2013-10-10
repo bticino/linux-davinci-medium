@@ -47,8 +47,9 @@ static void print_buf_info(int slot, char *name)
 static struct snd_pcm_hardware pcm_hardware_playback = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
 		 SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID |
-		 SNDRV_PCM_INFO_PAUSE | SNDRV_PCM_INFO_RESUME),
-	.formats = (SNDRV_PCM_FMTBIT_S16_LE),
+		 SNDRV_PCM_INFO_PAUSE | SNDRV_PCM_INFO_RESUME |
+		 SNDRV_PCM_INFO_BATCH),
+	.formats = (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_U8),
 	.rates = (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 |
 		  SNDRV_PCM_RATE_22050 | SNDRV_PCM_RATE_32000 |
 		  SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000 |
@@ -69,8 +70,8 @@ static struct snd_pcm_hardware pcm_hardware_playback = {
 static struct snd_pcm_hardware pcm_hardware_capture = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
 		 SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID |
-		 SNDRV_PCM_INFO_PAUSE),
-	.formats = (SNDRV_PCM_FMTBIT_S16_LE),
+		 SNDRV_PCM_INFO_PAUSE | SNDRV_PCM_INFO_BATCH),
+	.formats = (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_U8),
 	.rates = (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 |
 		  SNDRV_PCM_RATE_22050 | SNDRV_PCM_RATE_32000 |
 		  SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000 |
@@ -136,6 +137,22 @@ struct davinci_runtime_data {
 	struct edmacc_param asp_params;
 	struct edmacc_param ram_params;
 };
+static void davinci_pcm_period_elapsed(struct snd_pcm_substream *substream)
+{
+	struct davinci_runtime_data *prtd = substream->runtime->private_data;
+	struct snd_pcm_runtime *runtime = substream->runtime;
+
+	prtd->period++;
+	if (unlikely(prtd->period >= runtime->periods))
+		prtd->period = 0;
+}
+
+static void davinci_pcm_period_reset(struct snd_pcm_substream *substream)
+{
+	struct davinci_runtime_data *prtd = substream->runtime->private_data;
+
+	prtd->period = 0;
+}
 
 static void davinci_pcm_enqueue_dma(struct snd_pcm_substream *substream)
 {
@@ -183,21 +200,21 @@ static void davinci_pcm_enqueue_dma(struct snd_pcm_substream *substream)
 	}
 
 	acnt = prtd->params->acnt;
-	edma_set_src(link, src, INCR, W8BIT);
-	edma_set_dest(link, dst, INCR, W8BIT);
+	edma_set_src(prtd->asp_link[0], src, INCR, W8BIT);
+	edma_set_dest(prtd->asp_link[0], dst, INCR, W8BIT);
 
-	edma_set_src_index(link, src_bidx, src_cidx);
-	edma_set_dest_index(link, dst_bidx, dst_cidx);
+	edma_set_src_index(prtd->asp_link[0], src_bidx, src_cidx);
+	edma_set_dest_index(prtd->asp_link[0], dst_bidx, dst_cidx);
 
 	if (!fifo_level)
-		edma_set_transfer_params(link, acnt, count, 1, 0, ASYNC);
+		edma_set_transfer_params(prtd->asp_link[0], acnt, count, 1, 0,
+							ASYNC);
 	else
-		edma_set_transfer_params(link, acnt, fifo_level, count,
-							fifo_level, ABSYNC);
+		edma_set_transfer_params(prtd->asp_link[0], acnt,
+						fifo_level,
+						count, fifo_level,
+						ABSYNC);
 
-	prtd->period++;
-	if (unlikely(prtd->period >= runtime->periods))
-		prtd->period = 0;
 }
 
 static void davinci_pcm_dma_irq(unsigned link, u16 ch_status, void *data)
@@ -212,12 +229,11 @@ static void davinci_pcm_dma_irq(unsigned link, u16 ch_status, void *data)
 		return;
 
 	if (snd_pcm_running(substream)) {
-		if (prtd->ram_channel < 0) {
-
 		spin_lock(&prtd->lock);
-		davinci_pcm_enqueue_dma(substream);
+		if (prtd->ram_channel < 0)
+			davinci_pcm_enqueue_dma(substream);
+		davinci_pcm_period_elapsed(substream);
 		spin_unlock(&prtd->lock);
-	}
 		snd_pcm_period_elapsed(substream);
 	}
 }
@@ -240,9 +256,9 @@ static int allocate_sram(struct snd_pcm_substream *substream, unsigned size,
 	iram_dma = kzalloc(sizeof(*iram_dma), GFP_KERNEL);
 	if (!iram_dma)
 		goto exit2;
+
 	iram_dma->area = iram_virt;
 	iram_dma->addr = iram_phys;
-	memset(iram_dma->area, 0, size);
 	iram_dma->bytes = size;
 	buf->private_data = iram_dma;
 	return 0;
@@ -272,6 +288,7 @@ static int ping_pong_dma_setup(struct snd_pcm_substream *substream)
 	int link = prtd->asp_link[1];
 	unsigned int fifo_level = prtd->params->fifo_level;
 	unsigned int count;
+
 	if ((data_type == 0) || (data_type > 4)) {
 		printk(KERN_ERR "%s: data_type=%i\n", __func__, data_type);
 		return -EINVAL;
@@ -280,28 +297,26 @@ static int ping_pong_dma_setup(struct snd_pcm_substream *substream)
 		dma_addr_t asp_src_pong = iram_dma->addr + ping_size;
 		ram_src_cidx = ping_size;
 		ram_dst_cidx = -ping_size;
-		edma_set_src(link, asp_src_pong, INCR, W8BIT);
+		edma_set_src(prtd->asp_link[1], asp_src_pong, INCR, W8BIT);
 
-		link = prtd->asp_link[0];
-		edma_set_src_index(link, data_type, data_type * fifo_level);
-		link = prtd->asp_link[1];
-		edma_set_src_index(link, data_type, data_type * fifo_level);
+		edma_set_src_index(prtd->asp_link[0], data_type,
+				data_type * fifo_level);
+		edma_set_src_index(prtd->asp_link[1], data_type,
+				data_type * fifo_level);
 
-		link = prtd->ram_link;
-		edma_set_src(link, runtime->dma_addr, INCR, W32BIT);
+		edma_set_src(prtd->ram_link, runtime->dma_addr, INCR, W32BIT);
 	} else {
 		dma_addr_t asp_dst_pong = iram_dma->addr + ping_size;
 		ram_src_cidx = -ping_size;
 		ram_dst_cidx = ping_size;
-		edma_set_dest(link, asp_dst_pong, INCR, W8BIT);
+		edma_set_dest(prtd->asp_link[1], asp_dst_pong, INCR, W8BIT);
 
-		link = prtd->asp_link[0];
-		edma_set_dest_index(link, data_type, data_type * fifo_level);
-		link = prtd->asp_link[1];
-		edma_set_dest_index(link, data_type, data_type * fifo_level);
+		edma_set_dest_index(prtd->asp_link[0], data_type,
+				data_type * fifo_level);
+		edma_set_dest_index(prtd->asp_link[1], data_type,
+				data_type * fifo_level);
 
-		link = prtd->ram_link;
-		edma_set_dest(link, runtime->dma_addr, INCR, W32BIT);
+		edma_set_dest(prtd->ram_link, runtime->dma_addr, INCR, W32BIT);
 	}
 
 	if (!fifo_level) {
@@ -318,10 +333,9 @@ static int ping_pong_dma_setup(struct snd_pcm_substream *substream)
 				count, fifo_level, ABSYNC);
 	}
 
-	link = prtd->ram_link;
-	edma_set_src_index(link, ping_size, ram_src_cidx);
-	edma_set_dest_index(link, ping_size, ram_dst_cidx);
-	edma_set_transfer_params(link, ping_size, 2,
+	edma_set_src_index(prtd->ram_link, ping_size, ram_src_cidx);
+	edma_set_dest_index(prtd->ram_link, ping_size, ram_dst_cidx);
+	edma_set_transfer_params(prtd->ram_link, ping_size, 2,
 			runtime->periods, 2, ASYNC);
 
 	/* init master params */
@@ -412,35 +426,33 @@ static int request_ping_pong(struct snd_pcm_substream *substream,
 		asp_dst_ping = iram_dma->addr;
 	}
 	/* ping */
-	link = prtd->asp_link[0];
-	edma_set_src(link, asp_src_ping, INCR, W16BIT);
-	edma_set_dest(link, asp_dst_ping, INCR, W16BIT);
-	edma_set_src_index(link, 0, 0);
-	edma_set_dest_index(link, 0, 0);
+	edma_set_src(prtd->asp_link[0], asp_src_ping, INCR, W16BIT);
+	edma_set_dest(prtd->asp_link[0], asp_dst_ping, INCR, W16BIT);
+	edma_set_src_index(prtd->asp_link[0], 0, 0);
+	edma_set_dest_index(prtd->asp_link[0], 0, 0);
 
-	edma_read_slot(link, &prtd->asp_params);
+	edma_read_slot(prtd->asp_link[0], &prtd->asp_params);
 	prtd->asp_params.opt &= ~(TCCMODE | EDMA_TCC(0x3f) | TCINTEN);
-	prtd->asp_params.opt |= TCCHEN | EDMA_TCC(prtd->ram_channel & 0x3f);
-	edma_write_slot(link, &prtd->asp_params);
+	prtd->asp_params.opt |= TCCHEN |
+		EDMA_TCC(prtd->ram_channel & 0x3f);
+	edma_write_slot(prtd->asp_link[0], &prtd->asp_params);
 
 	/* pong */
-	link = prtd->asp_link[1];
-	edma_set_src(link, asp_src_ping, INCR, W16BIT);
-	edma_set_dest(link, asp_dst_ping, INCR, W16BIT);
-	edma_set_src_index(link, 0, 0);
-	edma_set_dest_index(link, 0, 0);
+	edma_set_src(prtd->asp_link[1], asp_src_ping, INCR, W16BIT);
+	edma_set_dest(prtd->asp_link[1], asp_dst_ping, INCR, W16BIT);
+	edma_set_src_index(prtd->asp_link[1], 0, 0);
+	edma_set_dest_index(prtd->asp_link[1], 0, 0);
 
-	edma_read_slot(link, &prtd->asp_params);
+	edma_read_slot(prtd->asp_link[1], &prtd->asp_params);
 	prtd->asp_params.opt &= ~(TCCMODE | EDMA_TCC(0x3f));
 	/* interrupt after every pong completion */
 	prtd->asp_params.opt |= TCINTEN | TCCHEN |
-		EDMA_TCC(EDMA_CHAN_SLOT(prtd->ram_channel));
-	edma_write_slot(link, &prtd->asp_params);
+		EDMA_TCC(prtd->ram_channel & 0x3f);
+	edma_write_slot(prtd->asp_link[1], &prtd->asp_params);
 
 	/* ram */
-	link = prtd->ram_link;
-	edma_set_src(link, iram_dma->addr, INCR, W32BIT);
-	edma_set_dest(link, iram_dma->addr, INCR, W32BIT);
+	edma_set_src(prtd->ram_link, iram_dma->addr, INCR, W32BIT);
+	edma_set_dest(prtd->ram_link, iram_dma->addr, INCR, W32BIT);
 	pr_debug("%s: audio dma channels/slots in use for ram:%u %u %u,"
 		"for asp:%u %u %u\n", __func__,
 		prtd->ram_channel, prtd->ram_link, prtd->ram_link2,
@@ -501,11 +513,11 @@ static int davinci_pcm_dma_request(struct snd_pcm_substream *substream)
 	 * the buffer and its length (ccnt) ... use it as a template
 	 * so davinci_pcm_enqueue_dma() takes less time in IRQ.
 	 */
-	edma_read_slot(link, &prtd->asp_params);
+	edma_read_slot(prtd->asp_link[0], &prtd->asp_params);
 	prtd->asp_params.opt |= TCINTEN |
 		EDMA_TCC(EDMA_CHAN_SLOT(prtd->asp_channel));
-	prtd->asp_params.link_bcntrld = EDMA_CHAN_SLOT(link) << 5;
-	edma_write_slot(link, &prtd->asp_params);
+	prtd->asp_params.link_bcntrld = EDMA_CHAN_SLOT(prtd->asp_link[0]) << 5;
+	edma_write_slot(prtd->asp_link[0], &prtd->asp_params);
 	return 0;
 exit2:
 	edma_free_channel(prtd->asp_channel);
@@ -524,11 +536,9 @@ static int davinci_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 		edma_start(prtd->asp_channel);
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK &&
-		    prtd->ram_channel >= 0) {
 			/* copy 1st iram buffer */
+		if (prtd->ram_channel >= 0)
 			edma_start(prtd->ram_channel);
-		}
 		break;
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
@@ -554,6 +564,7 @@ static int davinci_pcm_prepare(struct snd_pcm_substream *substream)
 	struct davinci_runtime_data *prtd = substream->runtime->private_data;
 	// struct edmacc_param temp;
 
+	davinci_pcm_period_reset(substream);
 	if (prtd->ram_channel >= 0) {
 		int ret = ping_pong_dma_setup(substream);
 		if (ret < 0)
@@ -568,16 +579,20 @@ static int davinci_pcm_prepare(struct snd_pcm_substream *substream)
 		print_buf_info(prtd->asp_channel, "asp_channel");
 		print_buf_info(prtd->asp_link[0], "asp_link[0]");
 		print_buf_info(prtd->asp_link[1], "asp_link[1]");
+		davinci_pcm_period_elapsed(substream);
+		davinci_pcm_period_elapsed(substream);
 
 		return 0;
 	}
 	prtd->period = 0;
 	davinci_pcm_enqueue_dma(substream);
+	davinci_pcm_period_elapsed(substream);
 
 	/* Copy self-linked parameter RAM entry into master channel */
 	edma_read_slot(prtd->asp_link[0], &prtd->asp_params);
 	edma_write_slot(prtd->asp_channel, &prtd->asp_params);
 	davinci_pcm_enqueue_dma(substream);
+	davinci_pcm_period_elapsed(substream);
 
 	return 0;
 }
@@ -591,51 +606,17 @@ davinci_pcm_pointer(struct snd_pcm_substream *substream)
 
 	int asp_count;
 	dma_addr_t asp_src, asp_dst;
+	unsigned int period_size = snd_pcm_lib_period_bytes(substream);
 
 	spin_lock(&prtd->lock);
 
-	if (prtd->ram_channel >= 0) {
-		int ram_count;
-		int mod_ram;
-		dma_addr_t ram_src, ram_dst;
-		unsigned int period_size = snd_pcm_lib_period_bytes(substream);
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			/* reading ram before asp should be safe
-			 * as long as the asp transfers less than a ping size
-			 * of bytes between the 2 reads
-			 */
-			edma_get_position(prtd->ram_channel,
-					&ram_src, &ram_dst);
-			edma_get_position(prtd->asp_channel,
-					&asp_src, &asp_dst);
-			asp_count = asp_src - prtd->asp_params.src;
-			ram_count = ram_src - prtd->ram_params.src;
-			mod_ram = ram_count % period_size;
-			mod_ram -= asp_count;
-			if (mod_ram < 0)
-				mod_ram += period_size;
-			else if (mod_ram == 0) {
-				if (snd_pcm_running(substream))
-					mod_ram += period_size;
-			}
-			ram_count -= mod_ram;
-			if (ram_count < 0)
-				ram_count += period_size * runtime->periods;
-		} else {
-			edma_get_position(prtd->ram_channel,
-					&ram_src, &ram_dst);
-			ram_count = ram_dst - prtd->ram_params.dst;
-		}
-		asp_count = ram_count;
-	} else {
-		edma_get_position(prtd->asp_channel, &asp_src, &asp_dst);
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-			asp_count = asp_src - runtime->dma_addr;
-	else
-			asp_count = asp_dst - runtime->dma_addr;
-	}
+	asp_count = prtd->period - 2;
 
 	spin_unlock(&prtd->lock);
+
+	if (asp_count < 0)
+		asp_count += runtime->periods;
+	asp_count *= period_size;
 
 	offset = bytes_to_frames(runtime, asp_count);
 	if (offset >= runtime->buffer_size)
@@ -811,7 +792,7 @@ static void davinci_pcm_free(struct snd_pcm *pcm)
 	}
 }
 
-static u64 davinci_pcm_dmamask = 0xffffffff;
+static u64 davinci_pcm_dmamask = DMA_BIT_MASK(32);
 
 static int davinci_pcm_new(struct snd_card *card,
 			   struct snd_soc_dai *dai, struct snd_pcm *pcm)
@@ -821,9 +802,9 @@ static int davinci_pcm_new(struct snd_card *card,
 	if (!card->dev->dma_mask)
 		card->dev->dma_mask = &davinci_pcm_dmamask;
 	if (!card->dev->coherent_dma_mask)
-		card->dev->coherent_dma_mask = 0xffffffff;
+		card->dev->coherent_dma_mask = DMA_BIT_MASK(32);
 
-	if (dai->playback.channels_min) {
+	if (pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream) {
 		ret = davinci_pcm_preallocate_dma_buffer(pcm,
 			SNDRV_PCM_STREAM_PLAYBACK,
 			pcm_hardware_playback.buffer_bytes_max);
@@ -831,7 +812,7 @@ static int davinci_pcm_new(struct snd_card *card,
 			return ret;
 	}
 
-	if (dai->capture.channels_min) {
+	if (pcm->streams[SNDRV_PCM_STREAM_CAPTURE].substream) {
 		ret = davinci_pcm_preallocate_dma_buffer(pcm,
 			SNDRV_PCM_STREAM_CAPTURE,
 			pcm_hardware_capture.buffer_bytes_max);
