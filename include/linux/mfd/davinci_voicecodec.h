@@ -138,6 +138,8 @@ struct davinci_vc {
 	/* event queue number for ASP & RAM channels */
 	enum dma_event_q asp_chan_q;
 	enum dma_event_q ram_chan_q;
+	unsigned sram_size_p;
+	unsigned sram_size_c;
 };
 
 #endif

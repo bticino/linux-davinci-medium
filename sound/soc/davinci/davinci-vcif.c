@@ -146,9 +146,9 @@ static int davinci_vcif_hw_params(struct snd_pcm_substream *substream,
 
 	dma_params->acnt  = dma_params->data_type;
 
-	dma_params->fifo_level = 8;
-	MOD_REG_BIT(w, DAVINCI_VC_CTRL_RFIFOMD_WORD_1, 0);
-	MOD_REG_BIT(w, DAVINCI_VC_CTRL_WFIFOMD_WORD_1, 0);
+	dma_params->fifo_level = 1;
+	MOD_REG_BIT(w, DAVINCI_VC_CTRL_RFIFOMD_WORD_1, 1);
+	MOD_REG_BIT(w, DAVINCI_VC_CTRL_WFIFOMD_WORD_1, 1);
 	writel(w, davinci_vc->base + DAVINCI_VC_CTRL);
 
 	/* Notch filter coefficient update */
@@ -235,6 +235,8 @@ static int davinci_vcif_probe(struct platform_device *pdev)
 					davinci_vc->asp_chan_q;
 	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_PLAYBACK].ram_chan_q =
 					davinci_vc->ram_chan_q;
+	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_PLAYBACK].sram_size =
+					davinci_vc->sram_size_p;
 
 	/* DMA rx params */
 	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].channel =
@@ -245,6 +247,8 @@ static int davinci_vcif_probe(struct platform_device *pdev)
 					davinci_vc->asp_chan_q;
 	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].ram_chan_q =
 					davinci_vc->ram_chan_q;
+	davinci_vcif_dev->dma_params[SNDRV_PCM_STREAM_CAPTURE].sram_size =
+					davinci_vc->sram_size_c;
 
 	davinci_vcif_dai.dev = &pdev->dev;
 	davinci_vcif_dai.capture.dma_data = davinci_vcif_dev->dma_params;

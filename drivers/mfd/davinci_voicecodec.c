@@ -66,6 +66,8 @@ static int __init davinci_vc_probe(struct platform_device *pdev)
 			davinci_vc->asp_chan_q = pdata->asp_chan_q;
 		if (pdata->ram_chan_q)
 			davinci_vc->ram_chan_q = pdata->ram_chan_q;
+		davinci_vc->sram_size_p = pdata->sram_size_playback;
+		davinci_vc->sram_size_c = pdata->sram_size_capture;
 	}
 
 	davinci_vc->clk = clk_get(&pdev->dev, NULL);
