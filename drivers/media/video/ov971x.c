@@ -171,7 +171,7 @@ static const struct v4l2_queryctrl ov971x_controls[] = {
 		.id		= V4L2_CID_EXPOSURE,
 		.type		= V4L2_CTRL_TYPE_INTEGER,
 		.name		= "Exposure",
-		.minimum	= 1,
+		.minimum	= 30,
 		.maximum	= 255,
 		.step		= 1,
 		.default_value	= 96,
@@ -323,7 +323,7 @@ static int set_shutter(struct v4l2_subdev *sd, const u32 data)
 	int ret;
 
 	ret = reg_write(client, OV971x_WPT, (data < 256) ? data : 255);
-	ret |= reg_write(client, OV971x_BPT, (data > 16) ? data - 16 : 0);
+	ret |= reg_write(client, OV971x_BPT, (data > 32) ? data - 16 : 10);
 	return ret;
 }
 
