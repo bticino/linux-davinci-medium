@@ -218,7 +218,7 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 	/* Version is coded in the CSD_STRUCTURE byte in the EXT_CSD register */
 	if (card->csd.structure == 3) {
 		int ext_csd_struct = ext_csd[EXT_CSD_STRUCTURE];
-		if (ext_csd_struct > 2) {
+		if (ext_csd_struct > 6) {
 			printk(KERN_ERR "%s: unrecognised EXT_CSD structure "
 				"version %d\n", mmc_hostname(card->host),
 					ext_csd_struct);
@@ -228,7 +228,7 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 	}
 
 	card->ext_csd.rev = ext_csd[EXT_CSD_REV];
-	if (card->ext_csd.rev > 5) {
+	if (card->ext_csd.rev > 6) {
 		printk(KERN_ERR "%s: unrecognised EXT_CSD revision %d\n",
 			mmc_hostname(card->host), card->ext_csd.rev);
 		err = -EINVAL;
