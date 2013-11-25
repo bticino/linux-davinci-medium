@@ -101,6 +101,17 @@ config SND_DAVINCI_SOC_AMICO_E
 	  Say Y if you want to add support for SoC audio on
 	  Shidean amico-e board.
 
+config SND_DAVINCI_SOC_AMICO_S
+	tristate "SoC Audio support for DM365 amico-s board"
+	depends on SND_DAVINCI_SOC && MACH_AMICO_S
+	select SND_DM365_VOICE_CODEC
+	select SND_SOC_CQ0093VC
+	select SND_SOC_ZL38005
+	select SND_DAVINCI_SOC_VCIF
+	help
+	  Say Y if you want to add support for SoC audio on
+	  Shidean amico-s board.
+
 config SND_DM365_UDA134X_CODEC
 	bool "Audio Codec - UDA134X"
 	select SND_DAVINCI_SOC_I2S

@@ -21,6 +21,7 @@ snd-soc-jumbo-d-objs := davinci-jumbo-d.o
 snd-soc-owl-objs := davinci-owl.o
 snd-soc-amico-i-objs := davinci-amico-i.o
 snd-soc-amico-e-objs := davinci-amico-e.o
+snd-soc-amico-s-objs := davinci-amico-s.o
 
 obj-$(CONFIG_SND_DAVINCI_SOC_EVM) += snd-soc-evm.o
 obj-$(CONFIG_SND_DM6467_SOC_EVM) += snd-soc-evm.o
@@ -34,3 +35,4 @@ obj-$(CONFIG_SND_DAVINCI_SOC_JUMBO_D) += snd-soc-jumbo-d.o
 obj-$(CONFIG_SND_DAVINCI_SOC_OWL) += snd-soc-owl.o
 obj-$(CONFIG_SND_DAVINCI_SOC_AMICO_I) += snd-soc-amico-i.o
 obj-$(CONFIG_SND_DAVINCI_SOC_AMICO_E) += snd-soc-amico-e.o
+obj-$(CONFIG_SND_DAVINCI_SOC_AMICO_S) += snd-soc-amico-s.o
