@@ -652,10 +652,11 @@ static void amico_bl_set_intensity(int level)
 		/* wait the soft start completion */
 		udelay(50);
 		davinci_cfg_reg(DM365_PWM0_G23);
+
+		gpio_direction_output(poEN_BACKLIGHT, 1);
 	} else
 		__raw_writel(level<<2, base + PWM_PH1D);
 
-	gpio_direction_output(poEN_BACKLIGHT, 1);
 	return ;
 };
 
