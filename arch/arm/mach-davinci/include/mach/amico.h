@@ -49,6 +49,8 @@
 #define poSN74CBT_S0		66	/* */
 #define poUNLOCK_365_cathode 70 /* Amico-s: Door control, H: enable */
 #define poUNLOCK_365_anode	 73 /* Amico-s: Door control, H: enable */
+#define poEN_Handle_MIC      67 /* Amico-p: Enable handle microphone */
+#define poSPK_Handle_PWR     42 /* Amico-p: Speaker power control */
 #if 0
 #define piButton1	72	/* use for future,work in polling mode */
 #define piButton2	71	/* */
