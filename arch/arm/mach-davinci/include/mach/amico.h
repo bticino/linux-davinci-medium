@@ -47,6 +47,8 @@
 #define poEN_LCD_5V		75	/* Enable LCD 5v */
 #define poSN74CBT_S1		65	/* SN74CBT16214 switch video channel */
 #define poSN74CBT_S0		66	/* */
+#define poUNLOCK_365_cathode 70 /* Amico-s: Door control, H: enable */
+#define poUNLOCK_365_anode	 73 /* Amico-s: Door control, H: enable */
 #if 0
 #define piButton1	72	/* use for future,work in polling mode */
 #define piButton2	71	/* */

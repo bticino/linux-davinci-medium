@@ -837,6 +837,7 @@ CONFIG_GPIO_SYSFS=y
 #
 # Memory mapped GPIO expanders:
 #
+CONFIG_GPIO_BUTTONS=y
 
 #
 # I2C GPIO expanders:

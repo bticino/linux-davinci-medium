@@ -446,6 +446,11 @@ static struct irq_on_gpio amico_irq_on_gpio0[] = {
 		.type = EDGE,
 		.mode = GPIO_EDGE_FALLING,
 	}, {
+		.gpio = piGPIO_INTn,
+		.irq = IRQ_DM365_GPIO0_3,
+		.type = EDGE,
+		.mode = GPIO_EDGE_FALLING,
+	}, {
 		.gpio = piPENIRQn,
 		.irq = IRQ_DM365_GPIO0_5,
 		.type = EDGE,
@@ -658,6 +663,8 @@ static void amico_gpio_configure(void)
 	gpio_request(0, "GIO0"); /* pi_INTERRUPT */
 	gpio_direction_input(0);
 	gpio_configure_in(DM365_GPIO50, piPOWER_FAILn, "piPOWER_FAILn");
+	gpio_configure_in(DM365_GPIO64_57, piGPIO_INTn, "call IU");
+	gpio_configure_in(DM365_GPIO64_57, piPENIRQn, "call MC");
 
 	/* -- Configure Output -----------------------------------------------*/
 	gpio_configure_out(DM365_GPIO41, poAUDIO_SEP_ZL, 0, "AUDIO SEP ZALINK");
@@ -713,10 +720,17 @@ static void amico_gpio_configure(void)
 	gpio_configure_out(DM365_GPIO42, poEN_CAMERA_LED, 0,
 			"Enable compensation LED for camera");
 
+	/* DM365 control open the door: enable: 1, disable: 0 */
+	gpio_configure_out(DM365_GPIO78_73, poUNLOCK_365_cathode, 0,
+				"DM365 control open the cathode lock");
+	gpio_configure_out(DM365_GPIO78_73, poUNLOCK_365_anode, 0,
+			"DM365 control open the anode lock");
+
 	/* -- Export For Debug -----------------------------------------------*/
 	if (amico_debug) {
 		gpio_export(piPOWER_FAILn, 0);
 		gpio_export(piPENIRQn, 0);
+		gpio_export(piGPIO_INTn, 0);
 		gpio_export(poAUDIO_SEP_ZL, 0);
 		gpio_export(poNAND_WPn, 0);
 		gpio_export(poEN_LOCAL_MIC, 0);
@@ -734,6 +748,8 @@ static void amico_gpio_configure(void)
 		gpio_export(poWATCHDOG, 0);
 		gpio_export(poZARLINK_PWR, 0);
 		gpio_export(poEN_CAMERA_LED, 0);
+		gpio_export(poUNLOCK_365_cathode, 0);
+		gpio_export(poUNLOCK_365_anode, 0);
 	}
 }
 

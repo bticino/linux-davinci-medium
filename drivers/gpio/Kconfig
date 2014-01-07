@@ -67,6 +67,12 @@ config GPIO_SYSFS
 
 comment "Memory mapped GPIO expanders:"
 
+config GPIO_BUTTONS
+	bool "Call buttons support"
+	depends on MACH_AMICO_S
+	help
+	  Say yes here to support the amico-s board call buttons.
+
 config GPIO_PL061
 	bool "PrimeCell PL061 GPIO support"
 	depends on ARM_AMBA
