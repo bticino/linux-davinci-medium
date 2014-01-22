@@ -1,20 +1,19 @@
 /*
- * BTicino S.p.A. lago platform support
- * based on evm-dm365 board
+ * BTicino S.p.A. lago platform support based on evm-dm365 board
  *
- * Copyright (C) 2010 raffaele.recalcati@bticino.it
- *                    davide.bonfanti@bticino.it
- *               BTicino S.p.A.
+ * raffaele.recalcati@bticino.it, davide.bonfanti@bticino.it ,
+ * simone.cianni@bticino.it
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation version 2.
+ * Copyright (C) 2013 , BTicino S.p.A.
  *
- * This program is distributed "as is" WITHOUT ANY WARRANTY of any
- * kind, whether express or implied; without even the implied warranty
- * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation version 2.
  *
+ * This program is distributed "as is" WITHOUT ANY WARRANTY of any kind,
+ * whether express or implied; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General
+ * Public License for more details.
  */
 
 #include <linux/kernel.h>
@@ -63,30 +62,29 @@
 #include <linux/i2c/tda9885.h>
 #include <linux/i2c/tvp5150.h>
 #include <mach/aemif.h>
-#include <sound/davinci_basi_asoc.h>
 #include <linux/irq_gpio.h>
 
-#include <mach/basi.h>
+#include <mach/lago.h>
 #include <mach/aemif.h>
 
 #define DM365_ASYNC_EMIF_CONTROL_BASE   0x01d10000
 #define DM365_ASYNC_EMIF_DATA_CE0_BASE  0x02000000
 #define DM365_ASYNC_EMIF_DATA_CE1_BASE  0x04000000
-#define BASI_PHY_MASK              (0x2)
-#define BASI_MDIO_FREQUENCY        (2200000)	/* PHY bus frequency */
+#define LAGO_PHY_MASK              (0x2)
+#define LAGO_MDIO_FREQUENCY        (2200000)	/* PHY bus frequency */
 #define HW_IN_CLOCKOUT2_UDA_I2S
 
 #define DAVINCI_BOARD_MAX_NR_UARTS 3
 
+struct work_struct late_init_work;
+static struct timer_list startup_timer;
 #define TIME_TO_LATE_INIT 1500
 
-static int basi_debug = 1;
-module_param(basi_debug, int, 0644);
-MODULE_PARM_DESC(basi_debug, "Debug level 0-1");
+static int lago_debug = 1;
+module_param(lago_debug, int, 0644);
+MODULE_PARM_DESC(lago_debug, "Debug level 0-1");
 
-/*
-wp_set: set/unset the at24 eeprom write protect
-*/
+/* wp_set: set/unset the at24 eeprom write protect */
 void wp_set(int enable)
 {
 	gpio_direction_output(E2_WPn, enable);
@@ -101,21 +99,21 @@ static struct at24_platform_data at24_info = {
 	.wpset = wp_set,
 };
 
-static struct timer_list startup_timer;
-
-void basi_phy_power(int on)
+void lago_phy_power(int on)
 {
+	printk(KERN_DEBUG "Reset eth controller \n");
+	gpio_set_value(ENET_RESETn, !on);
+	mdelay(2); /* Measured by oscilloscope : must be at least 1,6ms */
 	gpio_set_value(ENET_RESETn, on);
-	udelay(100);
 }
 
-static void basi_emac_configure(void)
+static void lago_emac_configure(void)
 {
 	struct davinci_soc_info *soc_info = &davinci_soc_info;
 
-	soc_info->emac_pdata->phy_mask = BASI_PHY_MASK;
-	soc_info->emac_pdata->mdio_max_freq = BASI_MDIO_FREQUENCY;
-	soc_info->emac_pdata->power = basi_phy_power;
+	soc_info->emac_pdata->phy_mask = LAGO_PHY_MASK;
+	soc_info->emac_pdata->mdio_max_freq = LAGO_MDIO_FREQUENCY;
+	soc_info->emac_pdata->power = lago_phy_power;
 
 	/*
 	 * EMAC pins are multiplexed with GPIO and UART
@@ -151,7 +149,7 @@ static void basi_emac_configure(void)
 	davinci_cfg_reg(DM365_INT_EMAC_MISCPULSE);
 }
 
-static struct davinci_adc_platform_data basi_adc_data = {
+static struct davinci_adc_platform_data lago_adc_data = {
 	.adc_configuration = ADC_CH0_EANBLE | ADC_CH1_EANBLE | ADC_CH2_EANBLE |
 			     ADC_CH3_EANBLE | ADC_CH4_EANBLE | ADC_CH5_EANBLE |
 			     ADC_CH0_ONESHOOT | ADC_CH1_ONESHOOT |
@@ -159,15 +157,15 @@ static struct davinci_adc_platform_data basi_adc_data = {
 			     ADC_CH4_ONESHOOT | ADC_CH5_ONESHOOT,
 };
 
-static struct platform_device basi_hwmon_device = {
+static struct platform_device lago_hwmon_device = {
 	.name = "bt_nexmed_hwmon",
 	.dev = {
-		.platform_data = &basi_adc_data,
+		.platform_data = &lago_adc_data,
 		},
 	.id = 0,
 };
 
-static struct gpio_led basi_gpio_led[] = {
+static struct gpio_led lago_gpio_led[] = {
 	{
 		.name                   = "LED_SYSTEM",
 		.gpio                   = LED_1,
@@ -177,23 +175,23 @@ static struct gpio_led basi_gpio_led[] = {
 	},
 };
 
-static struct gpio_led_platform_data basi_gpio_led_info = {
-	.leds = &basi_gpio_led,
+static struct gpio_led_platform_data lago_gpio_led_info = {
 	.num_leds = 1,
+	.leds = &lago_gpio_led,
 };
 
-static struct platform_device basi_leds_gpio_device = {
+static struct platform_device lago_leds_gpio_device = {
 	.name = "leds-gpio",
 	.dev = {
-		.platform_data = &basi_gpio_led_info,
+		.platform_data = &lago_gpio_led_info,
 		},
 	.id = 0,
 };
 
-static void __init basi_led_init(void)
+static void __init lago_led_init(void)
 {
 	davinci_cfg_reg(DM365_GPIO40);
-	platform_device_register(&basi_leds_gpio_device);
+	platform_device_register(&lago_leds_gpio_device);
 }
 
 static void pinmux_check(void)
@@ -209,11 +207,11 @@ static void pinmux_check(void)
 
 		for (i = 0; i < 5; i++) {
 			pinmux[i] = __raw_readl(pinmux_reg[i]);
-		printk(KERN_INFO, "pinmux%d=%X\n", i, pinmux[i]);
+		printk(KERN_DEBUG "pinmux%d=%X\n", i, pinmux[i]);
 	}
 }
 
-static struct irq_on_gpio basi_irq_on_gpio0[] = {
+static struct irq_on_gpio lago_irq_on_gpio0[] = {
 	{
 		.gpio = POWER_FAIL,
 		.irq = IRQ_DM365_GPIO0_0,
@@ -224,23 +222,28 @@ static struct irq_on_gpio basi_irq_on_gpio0[] = {
 		.irq = IRQ_DM365_GPIO0_2,
 		.type = EDGE,
 		.mode = GPIO_EDGE_FALLING,
-	},
+	},/* {
+		.gpio = TMK_INTn,
+		.irq = IRQ_DM365_GPIO0_4,
+		.type = LEVEL,
+		.mode = GPIO_EDGE_FALLING,
+	},*/
 };
 
-static struct irq_gpio_platform_data basi_irq_gpio_platform_data = {
-	.gpio_list = basi_irq_on_gpio0,
-	.len = ARRAY_SIZE(basi_irq_on_gpio0),
+static struct irq_gpio_platform_data lago_irq_gpio_platform_data = {
+	.gpio_list = lago_irq_on_gpio0,
+	.len = ARRAY_SIZE(lago_irq_on_gpio0),
 	.gpio_common = 0,
 	.irq_gpio = IRQ_DM365_GPIO0,
 };
 
-static struct platform_device basi_irq_gpio_device = {
+static struct platform_device lago_irq_gpio_device = {
 	.name			= "irq_gpio",
 	.id			= 0,
 	.num_resources		= 0,
 	.resource		= NULL,
 	.dev			= {
-		.platform_data	= &basi_irq_gpio_platform_data,
+		.platform_data	= &lago_irq_gpio_platform_data,
 	},
 };
 
@@ -249,11 +252,12 @@ static struct platform_device basi_irq_gpio_device = {
 
 static int powerfail_status;
 
-static irqreturn_t basi_powerfail_stop(int irq, void *dev_id);
+static irqreturn_t lago_powerfail_stop(int irq, void *dev_id);
 
-static irqreturn_t basi_powerfail_quick_check_start(int irq, void *dev_id)
+static irqreturn_t lago_powerfail_quick_check_start(int irq, void *dev_id)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
+
 	desc->chip->mask(IRQ_DM365_GPIO0_2);
 	desc->chip->unmask(IRQ_DM365_GPIO0_0);
 
@@ -261,7 +265,7 @@ static irqreturn_t basi_powerfail_quick_check_start(int irq, void *dev_id)
 	return IRQ_WAKE_THREAD;
 }
 
-static irqreturn_t basi_powerfail_start(int irq, void *dev_id)
+static irqreturn_t lago_powerfail_start(int irq, void *dev_id)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
 
@@ -272,10 +276,12 @@ static irqreturn_t basi_powerfail_start(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	powerfail_status = 1;
 	pm_loss_power_changed(SYS_PWR_FAILING);
+
+	/* PowerFail situation - START: power is going away */
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t basi_powerfail_quick_check_stop(int irq, void *dev_id)
+static irqreturn_t lago_powerfail_quick_check_stop(int irq, void *dev_id)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
 
@@ -286,7 +292,7 @@ static irqreturn_t basi_powerfail_quick_check_stop(int irq, void *dev_id)
 	return IRQ_WAKE_THREAD;
 }
 
-static irqreturn_t basi_powerfail_stop(int irq, void *dev_id)
+static irqreturn_t lago_powerfail_stop(int irq, void *dev_id)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
 
@@ -294,70 +300,73 @@ static irqreturn_t basi_powerfail_stop(int irq, void *dev_id)
 	pm_loss_power_changed(SYS_PWR_GOOD);
 	desc->chip->unmask(IRQ_DM365_GPIO0_2);
 	desc->chip->mask(IRQ_DM365_GPIO0_0);
+
+	/* PowerFail situation - STOP: power is coming back */
 	return IRQ_HANDLED;
 }
 
-enum basi_pwrfail_prio {
-	BASI_PWR_FAIL_PRIO_0,
-	BASI_PWR_FAIL_MIN_PRIO = BASI_PWR_FAIL_PRIO_0,
-	BASI_PWR_FAIL_PRIO_1,
-	BASI_PWR_FAIL_PRIO_2,
-	BASI_PWR_FAIL_PRIO_3,
-	BASI_PWR_FAIL_MAX_PRIO = BASI_PWR_FAIL_PRIO_3,
+enum lago_pwrfail_prio {
+	LAGO_PWR_FAIL_PRIO_0,
+	LAGO_PWR_FAIL_MIN_PRIO = LAGO_PWR_FAIL_PRIO_0,
+	LAGO_PWR_FAIL_PRIO_1,
+	LAGO_PWR_FAIL_PRIO_2,
+	LAGO_PWR_FAIL_PRIO_3,
+	LAGO_PWR_FAIL_MAX_PRIO = LAGO_PWR_FAIL_PRIO_3,
 };
 
-struct pm_loss_default_policy_item basi_pm_loss_policy_items[] = {
+struct pm_loss_default_policy_item lago_pm_loss_policy_items[] = {
 	{
 		.bus_name = "mmc",
-		.bus_priority = BASI_PWR_FAIL_PRIO_1,
+		.bus_priority = LAGO_PWR_FAIL_PRIO_1,
 	},
 	{
 		.bus_name = "platform",
-		.bus_priority = BASI_PWR_FAIL_PRIO_2,
+		.bus_priority = LAGO_PWR_FAIL_PRIO_2,
 	},
 };
 
-#define BASI_POLICY_NAME "basi-default"
+#define LAGO_POLICY_NAME "lago-default"
 
-struct pm_loss_default_policy_table basi_pm_loss_policy_table = {
-	.name = BASI_POLICY_NAME,
-	.items = basi_pm_loss_policy_items,
-	.nitems = ARRAY_SIZE(basi_pm_loss_policy_items),
+struct pm_loss_default_policy_table lago_pm_loss_policy_table = {
+	.name = LAGO_POLICY_NAME,
+	.items = lago_pm_loss_policy_items,
+	.nitems = ARRAY_SIZE(lago_pm_loss_policy_items),
 };
 
-struct work_struct late_init_work;
-
-static void basi_powerfail_configure(struct work_struct *work)
+static void lago_powerfail_configure(struct work_struct *work)
 {
 	int stat;
 	struct pm_loss_policy *p;
 	struct irq_desc *desc;
 
 	stat = request_threaded_irq(IRQ_DM365_GPIO0_2,
-				    basi_powerfail_quick_check_start,
-				    basi_powerfail_start,
+				    lago_powerfail_quick_check_start,
+				    lago_powerfail_start,
 				    0,
 				    "pwrfail-on", NULL);
 	if (stat < 0)
 		printk(KERN_ERR "request_threaded_irq for IRQ%d (pwrfail-on) "
 		       "failed\n", IRQ_DM365_GPIO0_2);
 	stat = request_threaded_irq(IRQ_DM365_GPIO0_0,
-				    basi_powerfail_quick_check_stop,
-				    basi_powerfail_stop, 0,
+				    lago_powerfail_quick_check_stop,
+				    lago_powerfail_stop, 0,
 				    "pwrfail-off", NULL);
 	if (stat < 0)
 		printk(KERN_ERR "request_threaded_irq for IRQ%d (pwrfail-off) "
 		       "failed\n", IRQ_DM365_GPIO0_0);
 	desc = irq_to_desc(IRQ_DM365_GPIO0_0);
 	desc->chip->mask(IRQ_DM365_GPIO0_0);
-	p = pm_loss_setup_default_policy(&basi_pm_loss_policy_table);
+
+	p = pm_loss_setup_default_policy(&lago_pm_loss_policy_table);
 
 	if (!p)
 		printk(KERN_ERR "Could not register pwr change policy\n");
 
-	if (pm_loss_set_policy(BASI_POLICY_NAME) < 0)
+	if (pm_loss_set_policy(LAGO_POLICY_NAME) < 0)
 		printk(KERN_ERR "Could not set %s power loss policy\n",
-		       BASI_POLICY_NAME);
+		       LAGO_POLICY_NAME);
+
+	printk(KERN_ERR "%s OK\n", __func__);
 }
 
 int platform_pm_loss_power_changed(struct device *dev,
@@ -375,125 +384,70 @@ int platform_pm_loss_power_changed(struct device *dev,
 }
 
 #else /* !CONFIG_PM_LOSS */
-#define basi_powerfail_configure()
+#define lago_powerfail_configure()
 #endif
 
-static void basi_gpio_configure(void)
+/* gpio_configure in/out */
+inline int gpio_configure_out(int DM365_Pin, int Name, int DefVualue, \
+				char *str)
 {
 	int status;
+	davinci_cfg_reg(DM365_Pin);
+	status = gpio_request(Name, str);
+	if (status) {
+		printk(KERN_ERR "%s: Failed to request GPIO %s \
+				 det: %d\n", __func__, str, status);
+		return status;
+	}
+	gpio_direction_output(Name, DefVualue);
+	return status;
+}
+
+inline int gpio_configure_in(int DM365_Pin, int Name, char *str)
+{
+	int status;
+	davinci_cfg_reg(DM365_Pin);
+	status = gpio_request(Name, str);
+	if (status) {
+		printk(KERN_ERR "%s: Failed to request GPIO %s \
+				 det: %d\n", __func__, str, status);
+		return status;
+	}
+	gpio_direction_input(Name);
+	return status;
+}
+
+static void lago_gpio_configure(void)
+{
 	void __iomem *pupdctl0 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x78);
 	void __iomem *pupdctl1 = IO_ADDRESS(DAVINCI_SYSTEM_MODULE_BASE + 0x7c);
 
-	/*
-	 * Configure (disable) pull down control because can give problems:
-	 * for example it is needed to disable "CIN[7:0] and PCLK Pull down
-	 * enable" in order to read correctly I2CSEL TVP5151 input.
-	 */
+	/* Configure (disable) pull down control */
 	__raw_writel(0, pupdctl0);
-	__raw_writel(0, pupdctl1);
+	__raw_writel(0x40000, pupdctl1); /* EM_WAIT active pull-up */
 
+	/*  -- Configure Digital Board--------------------------------------- */
 	dm365_setup_debounce(1, 0, 2048);
-	gpio_request(0, "GIO0");
+	gpio_request(0, "GIO0"); /* pi_INTERRUPT */
 	gpio_direction_input(0);
+	gpio_configure_in(DM365_GPIO50, POWER_FAIL, "Advise of power down");
+	gpio_configure_in(DM365_GPIO39, OC2_VBUS_USB, "Over Current VBUS");
+	gpio_configure_in(DM365_GPIO41, SD_CARD_DET, "Always true eMMC det");
+	gpio_configure_in(DM365_GPIO96, PB_IN, "External Push Button");
 
-	davinci_cfg_reg(DM365_GPIO45);
-	status = gpio_request(BOOT_FL_WP, "Protecting SPI chip select");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO: Protecting SPI \
-					chip select: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(BOOT_FL_WP, 0);
+	/* -- Configure Output -----------------------------------------------*/
 
-	davinci_cfg_reg(DM365_GPIO97);
-	status = gpio_request(E2_WPn, "Eeprom write protect");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO eeprom \
-				      write protect: %d\n", __func__,
-				      status);
-		return;
-	}
-	gpio_direction_output(E2_WPn, 0);
+	gpio_configure_out(DM365_GPIO45, BOOT_FL_WP, 0,
+			"Protect SPI ChipSelect");
+	gpio_configure_out(DM365_GPIO97, E2_WPn, 0, "EEprom write protect");
+	gpio_configure_out(DM365_GPIO100, REG_ERR_AVn, 1, "Reset pic SCS AV");
+	gpio_configure_out(DM365_GPIO99, EN_RTC, 1, "RTC power enable");
+	gpio_configure_out(DM365_GPIO42, EMMC_RESET, 1, "eMMC reset");
+	gpio_configure_out(DM365_GPIO44, ENET_RESETn, 1, "ENET RESET");
 
-	davinci_cfg_reg(DM365_GPIO100);
-	status = gpio_request(REG_ERR_AVn, "Reset pic SCS AV");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO reset pic \
-					scs av: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(REG_ERR_AVn, 1);
+	/* -- Export For Debug -----------------------------------------------*/
 
-	davinci_cfg_reg(DM365_GPIO99);
-	status = gpio_request(EN_RTC, "RTC power enable");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO enable \
-				 external rtc powering: %d\n", __func__,
-				 status);
-		return;
-	}
-	gpio_direction_output(EN_RTC, 1); /* enabled */
-
-	davinci_cfg_reg(DM365_GPIO39);
-	status = gpio_request(OC2_VBUS_USB, "Over Current VBUS");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request Over Current \
-				 VBUS: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_input(OC2_VBUS_USB);
-
-	davinci_cfg_reg(DM365_GPIO41);
-	status = gpio_request(SD_CARD_DET, "Always true eMMC det");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request always true \
-				 eMMC det: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_input(SD_CARD_DET);
-
-	davinci_cfg_reg(DM365_GPIO42);
-	status = gpio_request(EMMC_RESET, "eMMC reset");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request eMMC \
-				 reset %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(EMMC_RESET, 1);
-
-	davinci_cfg_reg(DM365_GPIO44);
-	status = gpio_request(ENET_RESETn, "ENET RESET");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request ENET \
-				 RESET %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(ENET_RESETn, 1);
-
-/*
- *	TODO
- *	davinci_cfg_reg(DM365_GPIO69); see PINMUX2 .. difficult
- */
-
-	davinci_cfg_reg(DM365_GPIO50);
-	status = gpio_request(POWER_FAIL, "POWER_FAIL");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO POWER \
-				 FAIL: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_input(POWER_FAIL);
-
-	davinci_cfg_reg(DM365_GPIO96);
-	status = gpio_request(PB_IN, "External Push Button");
-	if (status) {
-		printk(KERN_ERR "%s: failed to request GPIO push button \
-				 in: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_input(PB_IN);
-
-	if (basi_debug) {
+	if (lago_debug) {
 		gpio_export(BOOT_FL_WP, 0); /* danger */
 		gpio_export(PIC_RESET_N, 0);
 		gpio_export(E2_WPn, 0);
@@ -507,23 +461,81 @@ static void basi_gpio_configure(void)
 	}
 }
 
-static int basi_mmc_get_ro(int module)
+#if 0
+static int jumbo_mmc_get_ro(int module)
+{
+	/* high == card's write protect switch active */
+	return 0;
+}
+
+static int jumbo_mmc1_get_cd(int module)
+{
+	/* low == card present */
+	return gpio_get_value(piSD_DETECTn);
+}
+
+static struct davinci_mmc_config jumbo_mmc_config[] = {
+	{
+		/*/ .get_cd is not defined since it seems it useless... the MMC
+		 controller detects anyway the card! O_o */
+		.get_ro		= jumbo_mmc_get_ro,
+		.wires		= 4,
+		.max_freq	= 50000000,
+		.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
+		.version	= MMC_CTLR_VERSION_2,
+	}, {
+		/*.get_cd		= jumbo_mmc1_get_cd, */
+		.get_ro		= jumbo_mmc_get_ro,
+		.wires		= 4,
+		.max_freq	= 50000000,
+		.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
+		.version	= MMC_CTLR_VERSION_2,
+	},
+};
+
+static void jumbo_mmc0_configure(void)
+{
+	/* MMC/SD 0 */
+	davinci_cfg_reg(DM365_MMCSD0);
+
+	davinci_setup_mmc(0, &jumbo_mmc_config[0]);
+
+	return;
+}
+
+static void jumbo_mmc1_sd1_configure(void)
+{
+	/* MMC/SD 1 */
+	davinci_cfg_reg(DM365_SD1_CLK);
+	davinci_cfg_reg(DM365_SD1_CMD);
+	davinci_cfg_reg(DM365_SD1_DATA3);
+	davinci_cfg_reg(DM365_SD1_DATA2);
+	davinci_cfg_reg(DM365_SD1_DATA1);
+	davinci_cfg_reg(DM365_SD1_DATA0);
+
+	davinci_setup_mmc(1, &jumbo_mmc_config[1]);
+
+	return;
+}
+#endif
+
+static int lago_mmc_get_ro(int module)
 {
 	return gpio_get_value(SD_WR_PR);
 }
 
-static struct davinci_mmc_config basi_mmc_config = {
+static struct davinci_mmc_config lago_mmc_config = {
 	/* .get_cd is not defined since it seems it useless... the MMC
 	 * controller detects anyway the card! O_o
 	 */
-	.get_ro		= basi_mmc_get_ro,
+	.get_ro		= lago_mmc_get_ro,
 	.wires		= 4,
 	.max_freq	= 50000000,
 	.caps		= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
 	.version	= MMC_CTLR_VERSION_2,
 };
 
-static void basi_mmc_configure(void)
+static void lago_mmc_configure(void)
 {
 	int ret;
 
@@ -532,24 +544,25 @@ static void basi_mmc_configure(void)
 
 	ret = gpio_request(SD_WR_PR, "MMC WP");
 	if (ret)
-		pr_warning("basi: cannot request GPIO %d!\n", SD_WR_PR);
+		pr_warning("lago: cannot request GPIO %d!\n", SD_WR_PR);
 	gpio_direction_input(SD_WR_PR);
-	davinci_setup_mmc(0, &basi_mmc_config);
+	davinci_setup_mmc(0, &lago_mmc_config);
 
 	return;
 }
 
-static void basi_usb_configure(void)
+static void lago_usb_configure(void)
 {
 	pr_notice("Launching setup_usb\n");
 	setup_usb(500, 8);
 }
 
-static struct i2c_board_info __initdata basi_i2c_info[] = {
-	{
+/* I2C 7bit Adr */
+static struct i2c_board_info __initdata lago_i2c_info[] = {
+	{	/* RTC */
 		I2C_BOARD_INFO("pcf8563", 0x51),
-	},
-	{
+		/* .irq = IRQ_DM365_GPIO0_4, */
+	}, {	/* EEprom */
 		I2C_BOARD_INFO("24c256", 0x53),
 		.platform_data = &at24_info,
 	},
@@ -560,22 +573,22 @@ static struct davinci_i2c_platform_data i2c_pdata = {
 	.bus_delay = 0 /* usec */ ,
 };
 
-static void __init basi_init_i2c(void)
+static void __init lago_init_i2c(void)
 {
 	davinci_init_i2c(&i2c_pdata);
-	i2c_register_board_info(1, basi_i2c_info, ARRAY_SIZE(basi_i2c_info));
+	i2c_register_board_info(1, lago_i2c_info, ARRAY_SIZE(lago_i2c_info));
 }
 
-static struct platform_device *basi_devices[] __initdata = {
-	&basi_hwmon_device,
-	&basi_irq_gpio_device,
+static struct platform_device *lago_devices[] __initdata = {
+	&lago_hwmon_device,
+	&lago_irq_gpio_device,
 };
 
 static struct davinci_uart_config uart_config __initdata = {
 	.enabled_uarts = (1 << 0) | (1 << 1),
 };
 
-static void __init basi_map_io(void)
+static void __init lago_map_io(void)
 {
 	dm365_init();
 }
@@ -589,15 +602,15 @@ static struct spi_eeprom at25640 = {
 };
 #endif
 
-static struct spi_board_info basi_spi_info[] __initconst = {
+static struct spi_board_info lago_spi_info[] __initconst = {
+#ifdef ENABLING_SPI_FLASH
 	/*
 	 * DANGEROUS, because spi flash contains bubl bootloader
 	 */
-#ifdef ENABLING_SPI_FLASH
 	{
 		.modalias       = "at25",
 		.platform_data  = &at25640,
-		.max_speed_hz   = 20 * 1000 * 1000,     /* at 3v3 */
+		.max_speed_hz   = 20 * 1000 * 1000, /* at 3v3 */
 		.bus_num        = 0,
 		.chip_select    = 0,
 		.mode           = SPI_MODE_0,
@@ -605,14 +618,12 @@ static struct spi_board_info basi_spi_info[] __initconst = {
 #endif
 };
 
-static void basi_late_init(unsigned long data)
+int read_hw_vers()
 {
 	void __iomem *adc_mem;
 	u32 regval, index;
 
-	del_timer(&startup_timer);
 	index = 1;
-
 	adc_mem = ioremap(DM365_ADCIF_BASE, SZ_1K);
 	__raw_writel(1 << index, adc_mem + CHSEL);
 	regval = ADCTL_SCNIEN | ADCTL_SCNFLG;
@@ -621,54 +632,88 @@ static void basi_late_init(unsigned long data)
 	__raw_writel(regval, adc_mem + ADCTL);
 	do { } while (__raw_readl(adc_mem + ADCTL) & ADCTL_START);
 	regval = __raw_readl(adc_mem + AD_DAT(index));
-
-	system_rev = lookup_resistors(regval);
-	/* system_serial_low & system_serial_high can also be set here*/
-
-	INIT_WORK(&late_init_work, basi_powerfail_configure);
-	schedule_work(&late_init_work);
-
-	davinci_cfg_reg(DM365_UART1_RXD_34);
-	davinci_cfg_reg(DM365_UART1_TXD_25);
+	return lookup_resistors(regval);
 }
 
-static __init void basi_init(void)
+static void lago_late_init(unsigned long data)
 {
-	if (basi_debug > 1)
+	int status;
+
+	del_timer(&startup_timer);
+	davinci_cfg_reg(DM365_GPIO45);
+	status = gpio_request(BOOT_FL_WP, "Protecting SPI0 chip select");
+	if (status) {
+		pr_err("%s: fail GPIO request: Protecting SPI0" \
+				" chip select: %d\n", __func__, status);
+		return;
+	}
+	gpio_direction_output(BOOT_FL_WP, 1);
+
+	/* setting /proc/cpuinfo hardware_version information */
+	system_rev = read_hw_vers();
+	/* system_serial_low & system_serial_high can also be set here*/
+
+	INIT_WORK(&late_init_work, lago_powerfail_configure);
+	schedule_work(&late_init_work);
+
+	/* uart for expansion */
+	davinci_cfg_reg(DM365_UART1_RXD_34);
+	davinci_cfg_reg(DM365_UART1_TXD_25);
+	/* gpio_direction_input(LONG_RESET_BUTTON); */
+}
+
+static __init void lago_init(void)
+{
+	pr_warning("Board_Init: START\n");
+	if (lago_debug > 1)
 		pinmux_check();
-	basi_gpio_configure();
-	basi_led_init();
+
+	lago_gpio_configure();
+	lago_led_init();
+
+	/* usart for pic */
 	davinci_serial_init(&uart_config);
 	mdelay(1);
+	pr_warning("starting ...\n");
+
+	/* I2C */
 	davinci_cfg_reg(DM365_I2C_SDA);
 	davinci_cfg_reg(DM365_I2C_SCL);
-	basi_init_i2c();
-	basi_emac_configure();
+	lago_init_i2c();
 
-	dm365_init_spi0(0, basi_spi_info, ARRAY_SIZE(basi_spi_info));
+	lago_emac_configure();
 
-	basi_mmc_configure();
-	basi_usb_configure();
-	platform_add_devices(basi_devices, ARRAY_SIZE(basi_devices));
+	/* SPI */
+	dm365_init_spi0(0, lago_spi_info, ARRAY_SIZE(lago_spi_info));
+
+	lago_mmc_configure();
+
+	lago_usb_configure();
+
+	platform_add_devices(lago_devices, ARRAY_SIZE(lago_devices));
+
 	dm365_init_rtc();
-	dm365_init_adc(&basi_adc_data);
+	dm365_init_adc(&lago_adc_data);
 
 	init_timer(&startup_timer);
-	startup_timer.function = basi_late_init;
+	startup_timer.function = lago_late_init;
 	startup_timer.expires =
 			jiffies + msecs_to_jiffies(TIME_TO_LATE_INIT);
 	add_timer(&startup_timer);
 
-	if (basi_debug)
+	if (lago_debug > 1)
 		pinmux_check();
+	pr_warning("Init: DONE\n");
 }
 
 MACHINE_START(LAGO, "BTicino LAGO board")
 	.phys_io = IO_PHYS,
 	.io_pg_offst = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params = (0x80000100),
-	.map_io = basi_map_io,
+	.map_io = lago_map_io,
 	.init_irq = davinci_irq_init,
 	.timer = &davinci_timer,
-	.init_machine = basi_init,
+	.init_machine = lago_init,
 MACHINE_END
+
+/* End Of File -------------------------------------------------------------- */
