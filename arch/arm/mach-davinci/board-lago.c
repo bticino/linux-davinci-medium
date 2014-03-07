@@ -72,9 +72,6 @@
 #define DM365_ASYNC_EMIF_DATA_CE1_BASE  0x04000000
 #define LAGO_PHY_MASK              (0x2)
 #define LAGO_MDIO_FREQUENCY        (2200000)	/* PHY bus frequency */
-#define HW_IN_CLOCKOUT2_UDA_I2S
-
-#define DAVINCI_BOARD_MAX_NR_UARTS 3
 
 struct work_struct late_init_work;
 static struct timer_list startup_timer;
@@ -83,6 +80,9 @@ static struct timer_list startup_timer;
 static int lago_debug = 1;
 module_param(lago_debug, int, 0644);
 MODULE_PARM_DESC(lago_debug, "Debug level 0-1");
+
+extern unsigned int system_rev;
+extern int lookup_resistors(int cnt);
 
 /* wp_set: set/unset the at24 eeprom write protect */
 void wp_set(int enable)
@@ -640,19 +640,11 @@ static void lago_late_init(unsigned long data)
 	int status;
 
 	del_timer(&startup_timer);
-	davinci_cfg_reg(DM365_GPIO45);
-	status = gpio_request(BOOT_FL_WP, "Protecting SPI0 chip select");
-	if (status) {
-		pr_err("%s: fail GPIO request: Protecting SPI0" \
-				" chip select: %d\n", __func__, status);
-		return;
-	}
-	gpio_direction_output(BOOT_FL_WP, 1);
 
 	/* setting /proc/cpuinfo hardware_version information */
 	system_rev = read_hw_vers();
-	/* system_serial_low & system_serial_high can also be set here*/
 
+	/* system_serial_low & system_serial_high can also be set here*/
 	INIT_WORK(&late_init_work, lago_powerfail_configure);
 	schedule_work(&late_init_work);
 
