@@ -895,6 +895,8 @@ static void phy_state_machine(struct work_struct *work)
 			if (PHY_POLL != phydev->irq)
 				err = phy_config_interrupt(phydev,
 						PHY_INTERRUPT_ENABLED);
+			else
+				phy_clear_interrupt(phydev);
 			break;
 		case PHY_HALTED:
 			if (phydev->link) {
