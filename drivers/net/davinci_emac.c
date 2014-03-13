@@ -2359,7 +2359,7 @@ static int emac_devioctl(struct net_device *ndev, struct ifreq *ifrq, int cmd)
 	case SIOCGMIIPHY:
 	/* Read MII PHY register. */
 	case SIOCGMIIREG:
-		if (data->reg_num >= 0x1f)
+		if (data->reg_num > 0x1f)
 			result = -EIO;
 		else
 			data->val_out = emac_mii_read(priv->mii_bus,
