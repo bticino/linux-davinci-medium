@@ -20,6 +20,8 @@
 #include <linux/module.h>
 #include <linux/phy.h>
 #include <linux/mod_devicetable.h>
+#include <linux/delay.h>
+#include <mach/gpio.h>
 
 #define	PHY_ID_KSZ9021			0x00221611
 #define	PHY_ID_KS8737			0x00221720
@@ -40,9 +42,15 @@
 #define	KSZPHY_INTCS_LINK_UP			(1 << 8)
 #define	KSZPHY_INTCS_ALL			(KSZPHY_INTCS_LINK_UP |\
 						KSZPHY_INTCS_LINK_DOWN)
+#define KSZPHY_INTCS_RECEIVE_ERR_RD		(1 << 6)
+#define KSZPHY_INTCS_DISC			(1 << 2)
 
 /* general PHY control reg in vendor specific block. */
 #define	MII_KSZPHY_CTRL			0x1F
+
+/* bitmap of PHY register to check Scramber status */
+#define KSZPHY_CTRL_SCR			(1)
+
 /* bitmap of PHY register to set interrupt mode */
 #define KSZPHY_CTRL_INT_ACTIVE_HIGH		(1 << 9)
 #define KSZ9021_CTRL_INT_ACTIVE_HIGH		(1 << 14)
@@ -53,7 +61,21 @@ static int kszphy_ack_interrupt(struct phy_device *phydev)
 	/* bit[7..0] int status, which is a read and clear register. */
 	int rc;
 
+	rc = phy_read(phydev, MII_KSZPHY_CTRL);
+
+	if (rc & KSZPHY_CTRL_SCR) {
+		printk(KERN_INFO "Force enable Scrambler\n");
+		phy_write(phydev, MII_KSZPHY_CTRL, rc & ~KSZPHY_CTRL_SCR);
+	}
+
 	rc = phy_read(phydev, MII_KSZPHY_INTCS);
+
+	if (rc & KSZPHY_INTCS_RECEIVE_ERR_RD) {
+		printk(KERN_DEBUG "Reset eth controller\n");
+		gpio_set_value(44, 0);
+		mdelay(2);
+		gpio_set_value(44, 1);
+	}
 
 	return (rc < 0) ? rc : 0;
 }
