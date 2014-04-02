@@ -34,42 +34,36 @@
 #include <linux/poll.h>
 #include <linux/err.h>
 #include <mach/amico.h>
+#include <linux/gpio_keys.h>
 
 /* For registration of charatcer device */
-#define DEVCOUNT 1
-#define DRIVER_NAME "call_buttons"
-#define CALL_BUTTONS_DEVICE_NAME "call_buttons"
+#define DEVCOUNT					1
+#define DRIVER_NAME					"call_buttons"
+#define CALL_BUTTONS_DEVICE_NAME	"call_buttons"
 
 /* Key status */
-#define KEY_STATUS_DOWN			0
-#define KEY_STATUS_UP			1
-#define KEY_STATUS_DOWNX		2
-#define KEY_STATUS_LPRESS		3
+#define KEY_STATUS_DOWN		0
+#define KEY_STATUS_LPRESS		1
+#define KEY_STATUS_LUP			2
+#define KEY_STATUS_UP			3
 
 /* Key set */
-#define GPIO_DEBOUNCE_TO		10
-#define KEY_LDOWN_TIMER			100
 #define LPRESS_TIMES			20
+#define GPIO_DEBOUNCE_TO		10
+#define KEY_LDOWN_TIMER		125
 
 /* Key code*/
-#define CALL_IU_CODE		0x27
-#define CALL_MC_CODE		0x0c
-#define CALL_IP_CODE		0x28	/* means read IP address */
+#define CALL_MC_CODE			0x0c
+#define CALL_IU_CODE			0x27
 
-/* Key number  */
-#define IU_CALL			0
-#define MC_CALL			1
+#define DATA_BUFF				2
 
-/*
-*	code: short key code
-*	locde: long key code
-*/
 struct irq_call_key {
-	int gpio;
 	int irq;
 	int status;
-	int code;
-	int lcode;
+	int ltime;	/* long press time (unit: second) */
+	int enable_lpress; /*enable long press */
+	struct gpio_keys_button call_key;
 	struct timer_list key_timer;
 };
 
@@ -78,24 +72,34 @@ static struct cdev c_dev;
 static struct class *buttons_class;
 static const char module_name[] = "call_buttons";
 
-static struct irq_call_key call_key[] = {
-	{	/* Call_IU */
-		.gpio = piGPIO_INTn,
-		.irq = IRQ_DM365_GPIO0_3,
-		.code = CALL_IU_CODE,
-		.lcode = CALL_IP_CODE,
-	} , { /* Call MC */
-		.gpio = piPENIRQn,
-		.irq = IRQ_DM365_GPIO0_5,
-		.code = CALL_MC_CODE,
-	},
-};
-
 /* For interrupt procedure */
 static DECLARE_WAIT_QUEUE_HEAD(buttons_waitq);
-static int lpress;
 static int gpio_num;
 static volatile int gpio_int;
+
+static struct irq_call_key sda_call_key[] = {
+	{
+		.call_key = {
+			.gpio = piGPIO_INTn,
+			.code = CALL_IU_CODE,
+			.desc = "Call IU",
+			.active_low = 1,
+		},
+		.irq = IRQ_DM365_GPIO0_3,
+		.ltime = 2,
+		.enable_lpress = 1,
+	}, {
+		.call_key = {
+			.gpio = piPENIRQn,
+			.code = CALL_MC_CODE,
+			.desc = "Call MC",
+			.active_low = 1,
+		},
+		.irq = IRQ_DM365_GPIO0_5,
+		.ltime = 2,
+		.enable_lpress = 1,
+	},
+};
 
 /*
  * ISR
@@ -106,8 +110,8 @@ static irqreturn_t buttons_int_handler(int irq, void *dev_id)
 	int button;
 
 	/* Get irqs for call buttons */
-	for (i = 0, irqs = 0, button = 0; i < ARRAY_SIZE(call_key); i++) {
-		if (!gpio_get_value(call_key[i].gpio)) {
+	for (i = 0, irqs = 0, button = 0; i < ARRAY_SIZE(sda_call_key); i++) {
+		if (!gpio_get_value(sda_call_key[i].call_key.gpio)) {
 			button = i;
 			irqs++;
 		}
@@ -117,7 +121,7 @@ static irqreturn_t buttons_int_handler(int irq, void *dev_id)
 	if (irqs == 1) {
 		gpio_num = button;
 		disable_irq(IRQ_DM365_GPIO0);
-		mod_timer(&call_key[gpio_num].key_timer, jiffies
+		mod_timer(&sda_call_key[gpio_num].key_timer, jiffies
 			+ msecs_to_jiffies(GPIO_DEBOUNCE_TO));
 	}
 
@@ -140,7 +144,7 @@ static int buttons_release(struct inode *inode, struct file *file)
 static ssize_t buttons_read(struct file *file, char __user *buf,
 		size_t count, loff_t *ppos)
 {
-	char key_code;
+	char key_code[DATA_BUFF];
 
 	if (!count)
 		return 0;
@@ -150,17 +154,10 @@ static ssize_t buttons_read(struct file *file, char __user *buf,
 	/*running to this line, gpio_int is 1*/
 	gpio_int = 0;
 
-	if (lpress == 1) {
-		lpress = 0;
-		key_code = call_key[gpio_num].lcode;
-		enable_irq(IRQ_DM365_GPIO0);
-	} else {
-		key_code = call_key[gpio_num].code;
-	}
+	key_code[0] = sda_call_key[gpio_num].call_key.code;
+	key_code[1] = sda_call_key[gpio_num].status;
 
-	copy_to_user(buf, &key_code, 1);
-
-	return 1;
+	return copy_to_user(buf, &key_code, DATA_BUFF);
 }
 
 static unsigned int buttons_poll(struct file *file, poll_table *wait)
@@ -190,78 +187,73 @@ static void buttons_callback(unsigned long data)
 {
 	static int times;
 	int key_num = data;
+	struct irq_call_key *irq_key = &sda_call_key[data];
+	struct gpio_keys_button *button = &irq_key->call_key;
+	int limtime = irq_key->ltime << 3;
+	int state = (gpio_get_value(button->gpio) ? 1 : 0) ^ button->active_low;
 
-	if (!gpio_get_value(call_key[key_num].gpio)) {
-		/* Long Press IU */
-		if ((key_num == IU_CALL) && (times++ > LPRESS_TIMES)) {
-			times = 0;
-			lpress = 1;
-			call_key[key_num].status = KEY_STATUS_LPRESS;
+	if (!!state) {
+		if (irq_key->enable_lpress && (times++ > limtime)
+			&& (irq_key->status != KEY_STATUS_LPRESS)) {
+			irq_key->status = KEY_STATUS_LPRESS;
 			gpio_int = 1;
 			wake_up_interruptible(&buttons_waitq);
-			return;
 		}
 
-		call_key[key_num].status = KEY_STATUS_DOWN;
-		mod_timer(&call_key[key_num].key_timer,
+		mod_timer(&sda_call_key[key_num].key_timer,
 			jiffies + msecs_to_jiffies(KEY_LDOWN_TIMER));
 	} else {
-		/* Short Press */
-		switch (call_key[key_num].status) {
-		case KEY_STATUS_DOWN:
-			gpio_int = 1;
-			wake_up_interruptible(&buttons_waitq);
-			break;
-		default:
-			gpio_int = 0;
-		}
+		if (irq_key->status == KEY_STATUS_LPRESS)
+			irq_key->status = KEY_STATUS_LUP;
+		else
+			irq_key->status = KEY_STATUS_UP;
 
 		times = 0;
-		call_key[key_num].status = KEY_STATUS_UP;
+		gpio_int = 1;
+		wake_up_interruptible(&buttons_waitq);
 		enable_irq(IRQ_DM365_GPIO0);
 	}
 }
 
 static int call_buttons_init(void)
 {
-	int i;
-	int result;
+	int i, ret;
 
-	for (i = 0; i < ARRAY_SIZE(call_key); i++) {
-		result = request_threaded_irq(call_key[i].irq,
+	for (i = 0; i < ARRAY_SIZE(sda_call_key); i++) {
+		ret = request_threaded_irq(sda_call_key[i].irq,
 			buttons_int_handler, NULL, 0, "buttons_irq",
 			(void *)gpio_int);
-		if (result < 0) {
+		if (ret < 0) {
 			printk(KERN_ERR "[buttons_driver] unable to get IRQ %d.\n",
-				result);
+				ret);
 			goto err;
 		}
 
 		printk(KERN_INFO "[buttons_driver] get IRQ %d successful!\n",
-			call_key[i].irq);
-		call_key[i].status = KEY_STATUS_UP;
-		call_key[i].key_timer.function = buttons_callback;
-		call_key[i].key_timer.data = i;
-		init_timer(&call_key[i].key_timer);
+			sda_call_key[i].irq);
+		sda_call_key[i].status = KEY_STATUS_UP;
+		sda_call_key[i].key_timer.function = buttons_callback;
+		sda_call_key[i].key_timer.data = i;
+		init_timer(&sda_call_key[i].key_timer);
 	}
 
 	return 0;
 err:
 	for (i -= 1; i >= 0; i--) {
-		free_irq(call_key[i].irq, (void *)gpio_int);
-		del_timer(&call_key[i].key_timer);
+		free_irq(sda_call_key[i].irq, (void *)gpio_int);
+		del_timer(&sda_call_key[i].key_timer);
 	}
 
-	return result;
+	return ret;
 }
 
 static void call_buttons_del(void)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(call_key); i++) {
-		del_timer(&call_key[i].key_timer);
-		free_irq(call_key[i].irq, (void *)gpio_int);
+	for (i = 0; i < ARRAY_SIZE(sda_call_key); i++) {
+		del_timer(&sda_call_key[i].key_timer);
+		free_irq(sda_call_key[i].irq, (void *)gpio_int);
 	}
 }
 
@@ -270,10 +262,10 @@ static void call_buttons_del(void)
  */
 static int __init buttons_drv_init(void)
 {
-	struct device *dev;
-	dev_t dev_id;
 	int result;
 	int minor = 0;
+	dev_t dev_id;
+	struct device *dev;
 
 	/***** character driver stuff *****/
 	result = alloc_chrdev_region(&dev_id, 0, DEVCOUNT,
@@ -284,14 +276,6 @@ static int __init buttons_drv_init(void)
 	}
 
 	buttons_major = MAJOR(dev_id);
-	register_chrdev(buttons_major, DRIVER_NAME, &buttons_fops);
-
-	buttons_class = class_create(THIS_MODULE, module_name);
-	if (!buttons_class) {
-		printk(KERN_ERR "[buttons_driver] class_create failed!\n");
-		goto fail1;
-	}
-
 	cdev_init(&c_dev, &buttons_fops);
 	c_dev.owner = THIS_MODULE;
 	c_dev.ops   = &buttons_fops;
@@ -301,6 +285,12 @@ static int __init buttons_drv_init(void)
 		printk(KERN_ERR "[buttons_driver] Error %d adding buttons",
 			result);
 		goto fail2;
+	}
+
+	buttons_class = class_create(THIS_MODULE, module_name);
+	if (!buttons_class) {
+		printk(KERN_ERR "[buttons_driver] class_create failed!\n");
+		goto fail1;
 	}
 
 	dev = device_create(buttons_class, NULL, MKDEV(buttons_major, minor),
@@ -341,8 +331,8 @@ static void __exit buttons_drv_exit(void)
 module_exit(buttons_drv_exit);
 
 /* Module information */
-MODULE_DESCRIPTION("call buttons device driver with GPIO signal as interrupt");
+MODULE_DESCRIPTION("Call buttons device driver with GPIO signal as interrupt");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.0.0.2");
+MODULE_VERSION("1.0.0.3");
 
 /* End of File*/
