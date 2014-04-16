@@ -211,7 +211,13 @@ static struct vpfe_config vpfe_cfg = {
 void basi_phy_power(int on)
 {
 	gpio_set_value(ENET_RESETn, on);
-	udelay(100);
+	if (!on) {
+		/* must be at least 10ms due to board hw */
+		msleep(10);
+	} else {
+		/* 60msec to rise to 2V, with 40msec margin */
+		msleep_interruptible(100);
+	}
 }
 
 static void basi_emac_configure(void)
@@ -708,7 +714,9 @@ static void basi_gpio_configure(void)
 		return;
 	}
 	gpio_direction_output(ENET_RESETn, 1);
-
+	/* Resetting the phy in order re-init again after u-boot */
+	basi_phy_power(0);
+	basi_phy_power(1);
 /*
  *      TODO
  * 	davinci_cfg_reg(DM365_GPIO69); see PINMUX2 .. difficult
