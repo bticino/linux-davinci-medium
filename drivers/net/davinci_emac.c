@@ -2491,10 +2491,10 @@ static int emac_dev_open(struct net_device *ndev)
 		dev_notice(emac_dev, "DaVinci EMAC: Opened %s\n", ndev->name);
 
 	if (priv->phy_mask){
-		priv->ext_circ_power(1);
+		if (priv->ext_circ_power)
+			priv->ext_circ_power(1);
 		phy_start(priv->phydev);
 	}
-
 	return 0;
 
 rollback:
@@ -2541,7 +2541,8 @@ static int emac_dev_stop(struct net_device *ndev)
 
 	if (priv->phydev){
 		phy_disconnect(priv->phydev);
-		priv->ext_circ_power(0);
+		if ((priv->phy_mask) && (priv->ext_circ_power))
+			priv->ext_circ_power(0);
 	}
 
 	/* Free IRQ */
