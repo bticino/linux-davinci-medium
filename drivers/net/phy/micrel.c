@@ -43,6 +43,7 @@
 
 /* general PHY control reg in vendor specific block. */
 #define	MII_KSZPHY_CTRL			0x1F
+#define MII_KS8041ZPHY_CTRL_DEFAULT	0x8100
 /* bitmap of PHY register to set interrupt mode */
 #define KSZPHY_CTRL_INT_ACTIVE_HIGH		(1 << 9)
 #define KSZ9021_CTRL_INT_ACTIVE_HIGH		(1 << 14)
@@ -107,6 +108,11 @@ static int kszphy_config_init(struct phy_device *phydev)
 	return 0;
 }
 
+static int ks8041nl_config_init(struct phy_device *phydev)
+{
+	return phy_write(phydev, MII_KSZPHY_CTRL, MII_KS8041ZPHY_CTRL_DEFAULT);
+}
+
 static struct phy_driver ks8737_driver = {
 	.phy_id		= PHY_ID_KS8737,
 	.phy_id_mask	= 0x00fffff0,
@@ -128,7 +134,7 @@ static struct phy_driver ks8041_driver = {
 	.features	= (PHY_BASIC_FEATURES | SUPPORTED_Pause
 				| SUPPORTED_Asym_Pause),
 	.flags		= PHY_HAS_MAGICANEG | PHY_HAS_INTERRUPT,
-	.config_init	= kszphy_config_init,
+	.config_init	= ks8041nl_config_init,
 	.config_aneg	= genphy_config_aneg,
 	.read_status	= genphy_read_status,
 	.ack_interrupt	= kszphy_ack_interrupt,
