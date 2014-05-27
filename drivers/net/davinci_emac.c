@@ -2457,6 +2457,10 @@ static int emac_dev_open(struct net_device *ndev)
 			return -1;
 		}
 
+		if (priv->phy_mask)
+			if (priv->ext_circ_power)
+				priv->ext_circ_power(1);
+
 		printk("%s %d %s\n", __func__, __LINE__, ndev->name);
 
 		priv->phydev = phy_connect(ndev, dev_name(&priv->phydev->dev),
@@ -2491,8 +2495,6 @@ static int emac_dev_open(struct net_device *ndev)
 		dev_notice(emac_dev, "DaVinci EMAC: Opened %s\n", ndev->name);
 
 	if (priv->phy_mask){
-		if (priv->ext_circ_power)
-			priv->ext_circ_power(1);
 		phy_start(priv->phydev);
 	}
 	return 0;
