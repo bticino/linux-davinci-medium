@@ -216,7 +216,7 @@ void basi_phy_power(int on)
 		msleep(10);
 	} else {
 		/* 60msec to rise to 2V, with 40msec margin */
-		msleep_interruptible(100);
+		msleep(120);
 	}
 }
 
