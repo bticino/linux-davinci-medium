@@ -101,10 +101,13 @@ static struct at24_platform_data at24_info = {
 
 void lago_phy_power(int on)
 {
-	printk(KERN_DEBUG "Reset eth controller \n");
-	gpio_set_value(ENET_RESETn, !on);
-	mdelay(2); /* Measured by oscilloscope : must be at least 1,6ms */
 	gpio_set_value(ENET_RESETn, on);
+	if (!on)
+		/* must be at least 10ms due to board hw */
+		msleep(10);
+	else
+		/* 80msec to rise to 2V, with 40msec margin */
+		msleep(120);
 }
 
 static void lago_emac_configure(void)
@@ -444,6 +447,8 @@ static void lago_gpio_configure(void)
 	gpio_configure_out(DM365_GPIO99, EN_RTC, 1, "RTC power enable");
 	gpio_configure_out(DM365_GPIO42, EMMC_RESET, 1, "eMMC reset");
 	gpio_configure_out(DM365_GPIO44, ENET_RESETn, 1, "ENET RESET");
+	lago_phy_power(0);
+	lago_phy_power(1);
 
 	/* -- Export For Debug -----------------------------------------------*/
 
