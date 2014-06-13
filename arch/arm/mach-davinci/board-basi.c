@@ -211,13 +211,12 @@ static struct vpfe_config vpfe_cfg = {
 void basi_phy_power(int on)
 {
 	gpio_set_value(ENET_RESETn, on);
-	if (!on) {
+	if (!on)
 		/* must be at least 10ms due to board hw */
 		msleep(10);
-	} else {
+	else
 		/* 60msec to rise to 2V, with 40msec margin */
 		msleep(120);
-	}
 }
 
 static void basi_emac_configure(void)
