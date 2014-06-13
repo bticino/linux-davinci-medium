@@ -447,6 +447,7 @@ static void lago_gpio_configure(void)
 	gpio_configure_out(DM365_GPIO99, EN_RTC, 1, "RTC power enable");
 	gpio_configure_out(DM365_GPIO42, EMMC_RESET, 1, "eMMC reset");
 	gpio_configure_out(DM365_GPIO44, ENET_RESETn, 1, "ENET RESET");
+	/* Reset cycle for ethernet phy */
 	lago_phy_power(0);
 	lago_phy_power(1);
 
