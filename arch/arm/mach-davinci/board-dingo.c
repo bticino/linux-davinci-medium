@@ -216,12 +216,13 @@ static struct platform_device davinci_nand_device = {
 
 void dingo_phy_power(int on)
 {
-	if (on) {
-		gpio_set_value(ENET_RESETn, !on);
-		mdelay(2); /* must be at least 1,6ms due o board hw */
-		schedule();
-	}
 	gpio_set_value(ENET_RESETn, on);
+	if (!on)
+		/* must be at least 10ms due to board hw */
+		msleep(10);
+	else
+		/* 60msec to rise to 2V, with 40msec margin */
+		msleep(120);
 }
 
 static void dingo_emac_configure(void)
@@ -880,6 +881,9 @@ static void dingo_gpio_configure(void)
 		return;
 	}
 	gpio_direction_output(ENET_RESETn, 1);
+	/* Resetting the phy in order re-init again after u-boot */
+	dingo_phy_power(0);
+	dingo_phy_power(1);
 
 	/* davinci_cfg_reg(DM365_GPIO74); */
 	status = gpio_request(TOUCH_BUSY, "Touch interface busy");
