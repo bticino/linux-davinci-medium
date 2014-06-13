@@ -306,10 +306,13 @@ static struct vpfe_config vpfe_cfg = {
 
 void jumbo_phy_power(int on)
 {
-	printk(KERN_DEBUG "Reset eth controller \n");
-	gpio_set_value(poENET_RESETn, !on);
-	mdelay(2); /* Measured by oscilloscope : must be at least 1,6ms */
 	gpio_set_value(poENET_RESETn, on);
+	if (!on)
+		/* must be at least 10ms due to board hw */
+		msleep(10);
+	else
+		/* 80msec to rise to 2V, with 40msec margin */
+		msleep(120);
 }
 
 static void jumbo_emac_configure(void)
@@ -758,6 +761,10 @@ static void jumbo_gpio_configure(void)
 	gpio_configure_in(DM365_GPIO28, piRESET_CONF, "piRESET_CONF");
 
 	gpio_configure_out(DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
+	/* Reset cycle for ethernet phy */
+	jumbo_phy_power(0);
+	jumbo_phy_power(1);
+
 	gpio_configure_out(DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
 	gpio_configure_out(DM365_GPIO90, po_AUDIO_RESET, 1, "po_AUDIO_RESET");
 	gpio_configure_out(DM365_GPIO91, po_AUDIO_DEEMP, 0, "po_AUDIO_DEEMP");

@@ -224,10 +224,13 @@ static struct vpfe_config vpfe_cfg = {
 
 void jumbo_phy_power(int on)
 {
-	printk(KERN_DEBUG "Reset eth controller \n");
-	gpio_set_value(poENET_RESETn, !on);
-	mdelay(2); /* Measured by oscilloscope : must be at least 1,6ms */
 	gpio_set_value(poENET_RESETn, on);
+	if (!on)
+		/* must be at least 10ms due to board hw */
+		msleep(10);
+	else
+		/* 80msec to rise to 2V, with 40msec margin */
+		msleep(120);
 }
 
 static void jumbo_emac_configure(void)
@@ -684,6 +687,10 @@ static void jumbo_gpio_configure(void)
 			"Audio modulator Enable on external connector");
 
 	gpio_configure_out(DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
+	/* Reset cycle for ethernet phy */
+	jumbo_phy_power(0);
+	jumbo_phy_power(1);
+
 	gpio_configure_out(DM365_GPIO64_57, poEMMC_RESETn, 1, "eMMC reset(n)");
 	gpio_configure_out(DM365_GPIO51, poRES_EXTUART, 0, "poRES_EXT_UART");
 	gpio_configure_out(DM365_GPIO45, poBOOT_FL_WPn, 1,
