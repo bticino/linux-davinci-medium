@@ -384,7 +384,12 @@ static struct vpfe_config vpfe_cfg = {
 void amico_phy_power(int on)
 {
 	gpio_set_value(poENET_RESETn, on);
-	udelay(100);
+	if (!on)
+		/* must be at least 10ms due to board hw */
+		msleep(10);
+	else
+		/* 80msec to rise to 2V, with 40msec margin */
+		msleep(120);
 }
 
 static void amico_emac_configure(void)
@@ -1065,6 +1070,10 @@ static void amico_gpio_configure(void)
 	gpio_configure_out(DM365_GPIO43, poEN_LOCAL_MIC, 0,
 			"Local microphone control");
 	gpio_configure_out(DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
+	/* Reset cycle for ethernet phy */
+	amico_phy_power(0);
+	amico_phy_power(1);
+
 	gpio_configure_out(DM365_GPIO45, poBOOT_FL_WPn, 1,
 			"Protect SPI ChipSelect");
 	gpio_configure_out(DM365_GPIO64_57, poEN_LCD_3_3V, 1,
