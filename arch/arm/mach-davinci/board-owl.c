@@ -215,14 +215,13 @@ static struct platform_device davinci_nand_device = {
 
 void owl_phy_power(int on)
 {
-	if (on) {
-		/* be sure to reset the chip */
-		gpio_set_value(ENET_RESETn, !on);
-		mdelay(2); /* must be at least 1,6ms due o board hw */
-		schedule();
-	}
-
 	gpio_set_value(ENET_RESETn, on);
+	if (!on)
+		/* must be at least 10ms due to board hw */
+		msleep(10);
+	else
+		/* 80msec to rise to 2V, with 40msec margin */
+		msleep(120);
 }
 
 static void owl_emac_configure(void)
@@ -565,6 +564,9 @@ static void owl_gpio_configure(void)
 		return;
 	}
 	gpio_direction_output(ENET_RESETn, 1);
+	/* Reset cycle for ethernet phy */
+	owl_phy_power(0);
+	owl_phy_power(1);
 
 	davinci_cfg_reg(DM365_GPIO50);
 	status = gpio_request(POWER_FAIL, "Early advise of power down");
