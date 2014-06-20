@@ -640,6 +640,8 @@ static void calculate_sdram_dma_divide_ratio(struct ipipe_params *param,
 	clk_put(vpss_clk);
 
 	pixels = (param->ipipe_hsz + 1) * (param->ipipe_vsz + 1);
+	if (param->deinterlace)
+		pixels <<= 1;
 	if (param->rsz_en[RSZ_A]) {
 		if (pixels < (param->rsz_rsc_param[RSZ_A].o_hsz + 1) *
 			     (param->rsz_rsc_param[RSZ_A].o_vsz + 1))
@@ -3045,8 +3047,7 @@ static int validate_ipipeif_decimation(struct device *dev,
 static int configure_resizer_in_ss_mode(struct device *dev,
 					void *user_config,
 					int resizer_chained,
-					struct ipipe_params *param,
-					unsigned int deinterlace)
+					struct ipipe_params *param)
 {
 	/* resizer in standalone mode. In this mode if serializer
 	 * is enabled, we need to set config params in the hw.
@@ -3054,7 +3055,7 @@ static int configure_resizer_in_ss_mode(struct device *dev,
 	struct rsz_single_shot_config *ss_config =
 	    (struct rsz_single_shot_config *)user_config;
 	int ret = 0, line_len, line_len_c;
-	int tmp = deinterlace ? ss_config->input.ppln - 8 :
+	int tmp = param->deinterlace ? ss_config->input.ppln - 8 :
 					      ss_config->input.image_width;
 	ret = rsz_validate_input_image_format(dev,
 					      ss_config->input.pix_fmt,
@@ -3353,11 +3354,12 @@ static int ipipe_set_resize_config(struct device *dev,
 	       (void *)&dm365_ipipe_defs,
 	       sizeof(struct ipipe_params));
 
+	param->deinterlace = deinterlace;
 	if (oper_mode == IMP_MODE_SINGLE_SHOT) {
 		ret = configure_resizer_in_ss_mode(dev,
 						   user_config,
 						   resizer_chained,
-						   param, deinterlace);
+						   param);
 		if (!ret && (!en_serializer && !resizer_chained))
 			ret = ipipe_hw_setup(config);
 	} else

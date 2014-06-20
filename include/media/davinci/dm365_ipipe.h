@@ -1329,6 +1329,8 @@ struct ipipe_params {
 	struct ipipe_ext_mem_param ext_mem_param[2];
 	enum enable_disable_t rsz_en[2];
 
+	unsigned int deinterlace;
+
 };
 
 void ipipe_hw_dump_config(void);
