@@ -545,10 +545,10 @@ static void seah_gpio_configure(void)
 	gpio_configure_in(DM365_GPIO50, piPOWER_FAILn, "piPOWER_FAILn");
 	gpio_configure_in(DM365_GPIO42, piRESET_CONF, "piRESET_CONF");
 
-	gpio_configure_out(DM365_GPIO44, poENET_RESETn, 1, "poENET_RESETn");
+	gpio_configure_out(DM365_GPIO44, ENET_RESETn, 1, "ENET_RESETn");
 	/* Reset cycle for ethernet phy */
-	lago_phy_power(0);
-	lago_phy_power(1);
+	seah_phy_power(0);
+	seah_phy_power(1);
 
 	gpio_configure_out(DM365_GPIO45, poBOOT_FL_WPn, 1, "Protect SPI CS");
 	gpio_configure_out(DM365_GPIO64_57, poE2_WPn, 0,\
@@ -563,7 +563,7 @@ static void seah_gpio_configure(void)
 	if (seah_debug) {
 		gpio_export(piPOWER_FAILn, 0);
 		gpio_export(piRESET_CONF, 0);
-		gpio_export(poENET_RESETn, 0);
+		gpio_export(ENET_RESETn, 0);
 		gpio_export(poBOOT_FL_WPn, 0); /* danger */
 		gpio_export(poE2_WPn, 0);
 		gpio_export(poPIC_RESETn, 0);

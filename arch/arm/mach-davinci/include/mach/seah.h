@@ -16,7 +16,7 @@
 #define piRESET_CONF		42	/* Configuration Recovery */
 
 /* -- GPIO ------------------------------------------------------------------ */
-#define poENET_RESETn		44	/* */
+#define ENET_RESETn		44	/* */
 #define poBOOT_FL_WPn		45	/* Protecting SPI chip select */
 #define poE2_WPn		61	/* E2prom Write Protect */
 #define poPIC_RESETn		99	/* poMCU_RESETn */
