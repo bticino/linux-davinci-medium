@@ -164,6 +164,7 @@ struct tvp5150 {
 	enum tvp5150_std current_std;
 	int num_stds;
 	struct tvp5150_std_info *std_list;
+	int powered;
 
 	struct mutex lock;
 };
@@ -866,7 +867,11 @@ static int tvp5150_set_std(struct v4l2_subdev *sd, v4l2_std_id std)
 
 static int tvp5150_s_std(struct v4l2_subdev *sd, v4l2_std_id std)
 {
-	return tvp5150_set_std(sd, std);
+	struct tvp5150 *decoder = to_tvp5150(sd);
+
+	if (decoder->powered)
+		return tvp5150_set_std(sd, std);
+	return 0;
 }
 
 static int tvp5150_reset(struct v4l2_subdev *sd, u32 val)
@@ -1086,12 +1091,15 @@ static int tvp5150_detect(struct v4l2_subdev *sd)
 static int tvp5150_querystd(struct v4l2_subdev *sd, v4l2_std_id *std_id)
 {
 	enum tvp5150_std current_std;
+	struct tvp5150 *decoder = to_tvp5150(sd);
 
 	if (std_id == NULL)
 		return -EINVAL;
 
 	*std_id = STD_INVALID;
 
+	if (!decoder->powered)
+		return 0;
 	/* query the current standard */
 	current_std = tvp5150_read_std(sd);
 	if (current_std == STD_INVALID)
@@ -1349,6 +1357,7 @@ static int tvp5150_s_power(struct v4l2_subdev *sd, int power)
 {
 	struct tvp5150 *decoder = to_tvp5150(sd);
 
+	decoder->powered = power;
 	if (!power)
 		mutex_lock(&decoder->lock);
 	gpio_set_value(decoder->pdata->pdn, power);
@@ -1662,6 +1671,7 @@ static const struct v4l2_subdev_ops tvp5150_ops = {
 
 static struct tvp5150 tvp5150_dev = {
 	.streaming = 0,
+	.powered = 0,
 	.input = TVP5150_COMPOSITE0,
 	.enable = 1,
 	.bright = 128,
