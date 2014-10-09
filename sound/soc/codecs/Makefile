@@ -47,6 +47,7 @@ snd-soc-wm9712-objs := wm9712.o
 snd-soc-wm9713-objs := wm9713.o
 snd-soc-zl38005-objs := zl38005.o
 snd-soc-wm-hubs-objs := wm_hubs.o
+snd-soc-tpa2028d1-objs := tpa2028d1.o
 
 # Amp
 snd-soc-max9877-objs := max9877.o
@@ -103,3 +104,4 @@ obj-$(CONFIG_SND_SOC_ZL38005)	+= snd-soc-zl38005.o
 
 # Amp
 obj-$(CONFIG_SND_SOC_MAX9877)	+= snd-soc-max9877.o
+obj-$(CONFIG_SND_SOC_TPA2028D1)	+= snd-soc-tpa2028d1.o
