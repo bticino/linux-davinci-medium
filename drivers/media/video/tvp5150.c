@@ -1360,7 +1360,8 @@ static int tvp5150_s_power(struct v4l2_subdev *sd, int power)
 	decoder->powered = power;
 	if (!power)
 		mutex_lock(&decoder->lock);
-	gpio_set_value(decoder->pdata->pdn, power);
+	if ((power == 0) || ((power == 1) && (decoder->streaming == 1)))
+		gpio_set_value(decoder->pdata->pdn, power);
 	if (power)
 		mutex_unlock(&decoder->lock);
 
@@ -1548,6 +1549,7 @@ static int tvp5150_s_stream(struct v4l2_subdev *sd, int enable)
 		v4l2_dbg(1, debug, sd, "Power Down Sequence \n");
 		tvp5150_write(sd, TVP5150_OP_MODE_CTL, 0x01);
 		decoder->streaming = enable;
+		gpio_set_value(decoder->pdata->pdn, 0);
 		break;
 	}
 	case 1:
