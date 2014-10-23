@@ -73,9 +73,10 @@ char* boards[]={
 	"ARGES",
 	"LAGO",
 	"AMICO_I",
-	"AMICO_E"
-	"AMICO_S"
-	"AMICO_P"
+	"AMICO_E",
+	"AMICO_S",
+	"AMICO_P",
+	"GEKKO"
 };
 
 /* calculating (2^(0,1*index))*100 */

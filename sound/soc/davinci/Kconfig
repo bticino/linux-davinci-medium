@@ -101,6 +101,17 @@ config SND_DAVINCI_SOC_AMICO_P
 	  Say Y if you want to add support for SoC audio on
 	  Shidean amico-i board.
 
+config SND_DAVINCI_SOC_GEKKO
+        tristate "SoC Audio support for DM365 amico-i board"
+        depends on SND_DAVINCI_SOC && MACH_GEKKO
+        select SND_DM365_VOICE_CODEC
+        select SND_SOC_CQ0093VC
+        select SND_DAVINCI_SOC_VCIF
+	select SND_SOC_TPA2028D1
+        help
+          Say Y if you want to add support for SoC audio on
+          Bticino gekko board.
+
 config SND_DAVINCI_SOC_AMICO_E
 	tristate "SoC Audio support for DM365 amico-e board"
 	depends on SND_DAVINCI_SOC && MACH_AMICO_E

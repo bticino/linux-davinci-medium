@@ -23,6 +23,7 @@ snd-soc-amico-i-objs := davinci-amico-i.o
 snd-soc-amico-e-objs := davinci-amico-e.o
 snd-soc-amico-s-objs := davinci-amico-s.o
 snd-soc-amico-p-objs := davinci-amico-p.o
+snd-soc-gekko-objs := davinci-gekko.o
 
 obj-$(CONFIG_SND_DAVINCI_SOC_EVM) += snd-soc-evm.o
 obj-$(CONFIG_SND_DM6467_SOC_EVM) += snd-soc-evm.o
@@ -38,3 +39,4 @@ obj-$(CONFIG_SND_DAVINCI_SOC_AMICO_I) += snd-soc-amico-i.o
 obj-$(CONFIG_SND_DAVINCI_SOC_AMICO_E) += snd-soc-amico-e.o
 obj-$(CONFIG_SND_DAVINCI_SOC_AMICO_S) += snd-soc-amico-s.o
 obj-$(CONFIG_SND_DAVINCI_SOC_AMICO_P) += snd-soc-amico-p.o
+obj-$(CONFIG_SND_DAVINCI_SOC_GEKKO) += snd-soc-gekko.o

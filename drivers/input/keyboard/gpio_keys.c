@@ -45,10 +45,17 @@ static void gpio_keys_report_event(struct work_struct *work)
 	struct gpio_keys_button *button = bdata->button;
 	struct input_dev *input = bdata->input;
 	unsigned int type = button->type ?: EV_KEY;
+	static int old_state = -1;
 	int state = (gpio_get_value(button->gpio) ? 1 : 0) ^ button->active_low;
 
-	input_event(input, type, button->code, !!state);
-	input_sync(input);
+	if (state != old_state) {
+		input_event(input, type, button->code, !!state);
+		input_sync(input);
+	}
+	if (state)
+		mod_timer(&bdata->timer,
+		jiffies + msecs_to_jiffies(button->debounce_interval));
+	old_state = state;
 }
 
 static void gpio_keys_timer(unsigned long _data)

@@ -441,9 +441,11 @@ int davinci_enc_select_venc_clock(int clk)
 
 	pll1_venc_clk = clk_get(NULL, "pll1_sysclk6");
 	pll1_venc_clk_rate = clk_get_rate(pll1_venc_clk);
+	clk_put(pll1_venc_clk);
 
 	pll2_venc_clk = clk_get(NULL, "pll2_sysclk5");
 	pll2_venc_clk_rate = clk_get_rate(pll2_venc_clk);
+	clk_put(pll2_venc_clk);
 
 	if (clk == pll1_venc_clk_rate)
 		__raw_writel(0x18, IO_ADDRESS(SYS_VPSS_CLKCTL));

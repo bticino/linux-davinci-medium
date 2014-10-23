@@ -46,3 +46,4 @@ obj-$(CONFIG_MACH_AMICO_E)		+= board-amico-e.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_AMICO_S)		+= board-amico-s.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_AMICO_P)		+= board-amico-p.o bt_nexmed-hwmon.o
 obj-$(CONFIG_MACH_SEAH)			+= board-seah.o bt_nexmed-hwmon.o
+obj-$(CONFIG_MACH_GEKKO)		+= board-gekko.o bt_nexmed-hwmon.o
