@@ -36,6 +36,10 @@ struct tda9885 {
 	struct v4l2_subdev sd;
 	const struct tda9885_platform_data *pdata;
 	int status;
+	u8 power_state;
+	u8 state_powerfail;
+	u8 state_power_mem;
+
 };
 
 static inline struct tda9885 *to_state(struct v4l2_subdev *sd)
@@ -63,12 +67,17 @@ static int tda9885_set_status(struct v4l2_subdev *sd, int enable)
 
 	if (enable == 1) {
 		/* Power up */
+		if (t->state_powerfail == 1) {
+			(t->power_state) = 1;
+			return 0;
+		}
+
 		v4l2_dbg(1, debug, sd, "Switching ON the demodulator\n");
 		gpio_set_value(t->pdata->power, 1);
 
-		/* Little delay for power up */
-		mdelay(5);
-
+		/* Little delay for power up(5ms) */
+		mdelay(8);
+		t->power_state = 1;
 		/* Setting Up the device */
 		ret = i2c_master_send(client, buf, ARRAY_SIZE(buf));
 		ret = (ret == ARRAY_SIZE(buf)) ? 0 : ret;
@@ -85,9 +94,19 @@ static int tda9885_set_status(struct v4l2_subdev *sd, int enable)
 		ret = 0;
 	} else {
 		/* Power Down */
+		if (t->state_powerfail) {
+			if (t->power_state == 1) {
+				t->state_power_mem = 1;
+				t->power_state = 0;
+			} else
+			t->state_power_mem = 0;
+		} else
+			t->power_state = 0;
+
 		v4l2_dbg(1, debug, sd, "Switching OFF the demodulator\n");
 		gpio_set_value(t->pdata->power, 0);
 		ret = 0;
+		return 0;
 	}
 	return ret;
 }
@@ -127,7 +146,18 @@ static int tda9885_s_stream(struct v4l2_subdev *sd, int enable)
 
 static int tda9885_s_power(struct v4l2_subdev *sd, int power)
 {
-	return tda9885_set_status(sd, power);
+	struct tda9885 *t = to_state(sd);
+
+	if (power == 0) {
+		t->state_powerfail = 1;
+		return tda9885_set_status(sd, power);
+	} else if (power == 1) {
+			t->state_powerfail = 0;
+			if (t->state_power_mem)
+				return tda9885_set_status(sd, power);
+	}
+
+	return 0;
 }
 
 static const struct v4l2_subdev_video_ops tda9885_video_ops = {
@@ -195,6 +225,9 @@ static int tda9885_probe(struct i2c_client *client,
 
 	/* Power Down */
 	gpio_set_value(data->pdata->power, 0);
+	data->state_power_mem = 0;
+	data->state_powerfail = 0;
+	data->power_state = 0;
 
 	return 0;
 
