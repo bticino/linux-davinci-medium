@@ -433,4 +433,9 @@ config KEYBOARD_DAVINCI
 	  To compile this driver as a module, choose M here: the
 	  module will be called davinci_keyscan.
 
+config KEYBOARD_I2C_KB_TOUCH
+	tristate "bticino custom Key Scan"
+	depends on I2C
+	help
+	  Say Y to enable bticino keypad module support
 endif

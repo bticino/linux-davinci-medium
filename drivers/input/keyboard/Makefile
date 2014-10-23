@@ -38,3 +38,4 @@ obj-$(CONFIG_KEYBOARD_TWL4030)		+= twl4030_keypad.o
 obj-$(CONFIG_KEYBOARD_XTKBD)		+= xtkbd.o
 obj-$(CONFIG_KEYBOARD_W90P910)		+= w90p910_keypad.o
 obj-$(CONFIG_KEYBOARD_DAVINCI)		+= davinci_keyscan.o
+obj-$(CONFIG_KEYBOARD_I2C_KB_TOUCH)     += i2c_kb_touch.o
