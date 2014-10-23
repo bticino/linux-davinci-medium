@@ -159,6 +159,9 @@ struct i2c_driver {
 
 	struct device_driver driver;
 	const struct i2c_device_id *id_table;
+#ifdef CONFIG_PM_LOSS
+	int (*power_changed)(struct i2c_client *client, enum sys_power_state);
+#endif
 
 	/* Device detection callback for automatic device creation */
 	int (*detect)(struct i2c_client *, int kind, struct i2c_board_info *);

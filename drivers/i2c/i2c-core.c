@@ -219,6 +219,76 @@ static const struct attribute_group *i2c_dev_attr_groups[] = {
 	NULL
 };
 
+#ifdef CONFIG_PM
+
+static int i2c_suspend(struct device *dev, pm_message_t message)
+{
+	int                     value = 0;
+	struct i2c_driver       *drv = to_i2c_driver(dev->driver);
+
+	/* suspend will stop irqs and dma; no more i/o */
+	if (drv) {
+		if (drv->suspend)
+			value = drv->suspend(i2c_verify_client(dev), message);
+		else
+			dev_dbg(dev, "... can't suspend\n");
+	}
+	return value;
+}
+
+static int i2c_resume(struct device *dev)
+{
+	int                     value = 0;
+	struct i2c_driver       *drv = to_i2c_driver(dev->driver);
+
+	/* resume may restart the i/o queue */
+	if (drv) {
+		if (drv->resume)
+			value = drv->resume(i2c_verify_client(dev));
+		else
+			dev_dbg(dev, "... can't resume\n");
+	}
+	return value;
+}
+
+
+#ifdef CONFIG_PM_LOSS
+static int i2c_power_changed(struct device *dev, enum sys_power_state s)
+{
+	int                     value = 0;
+	struct i2c_client *client = i2c_verify_client(dev);
+	struct i2c_driver *driver;
+
+
+	if (!client || !dev->driver)
+		return 0;
+	driver = to_i2c_driver(dev->driver);
+
+	/* resume may restart the i/o queue */
+	if (driver) {
+		if (driver->power_changed)
+			value =
+			      driver->power_changed(i2c_verify_client(dev), s);
+		else
+			dev_dbg(dev, "... can't manage power_changed\n");
+	}
+	return value;
+}
+#endif
+const struct dev_pm_ops i2c_pm = {
+	.suspend        = i2c_suspend,
+	.resume         = i2c_resume,
+#ifdef CONFIG_PM_LOSS
+	.power_changed  = i2c_power_changed,
+#endif
+};
+
+#else
+#define i2c_device_suspend     NULL
+#define i2c_device_resume      NULL
+#endif
+
+
 struct bus_type i2c_bus_type = {
 	.name		= "i2c",
 	.match		= i2c_device_match,
@@ -227,6 +297,9 @@ struct bus_type i2c_bus_type = {
 	.shutdown	= i2c_device_shutdown,
 	.suspend	= i2c_device_suspend,
 	.resume		= i2c_device_resume,
+#ifdef CONFIG_PM
+	.pm		= &i2c_pm,
+#endif
 };
 EXPORT_SYMBOL_GPL(i2c_bus_type);
 
@@ -853,7 +926,6 @@ static int __attach_adapter(struct device *dev, void *data)
 int i2c_register_driver(struct module *owner, struct i2c_driver *driver)
 {
 	int res;
-
 	/* Can't register until after driver model init */
 	if (unlikely(WARN_ON(!i2c_bus_type.p)))
 		return -EAGAIN;
