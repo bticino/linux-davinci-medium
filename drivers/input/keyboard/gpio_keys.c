@@ -69,9 +69,7 @@ static irqreturn_t gpio_keys_isr(int irq, void *dev_id)
 {
 	struct gpio_button_data *bdata = dev_id;
 	struct gpio_keys_button *button = bdata->button;
-
-	BUG_ON(irq != gpio_to_irq(button->gpio));
-
+	BUG_ON(irq != button->interrupt);
 	if (button->debounce_interval)
 		mod_timer(&bdata->timer,
 			jiffies + msecs_to_jiffies(button->debounce_interval));
@@ -118,7 +116,6 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 	for (i = 0; i < pdata->nbuttons; i++) {
 		struct gpio_keys_button *button = &pdata->buttons[i];
 		struct gpio_button_data *bdata = &ddata->data[i];
-		int irq;
 		unsigned int type = button->type ?: EV_KEY;
 
 		bdata->input = input;
@@ -143,9 +140,10 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 			goto fail2;
 		}
 
-		irq = gpio_to_irq(button->gpio);
-		if (irq < 0) {
-			error = irq;
+		if (!button->interrupt)
+			button->interrupt = gpio_to_irq(button->gpio);
+		if (button->interrupt < 0) {
+			error = button->interrupt;
 			pr_err("gpio-keys: Unable to get irq number"
 				" for GPIO %d, error %d\n",
 				button->gpio, error);
@@ -153,14 +151,14 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 			goto fail2;
 		}
 
-		error = request_irq(irq, gpio_keys_isr,
+		error = request_irq(button->interrupt, gpio_keys_isr,
 				    IRQF_SHARED |
 				    IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 				    button->desc ? button->desc : "gpio_keys",
 				    bdata);
 		if (error) {
 			pr_err("gpio-keys: Unable to claim irq %d; error %d\n",
-				irq, error);
+				button->interrupt, error);
 			gpio_free(button->gpio);
 			goto fail2;
 		}
@@ -184,7 +182,7 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 
  fail2:
 	while (--i >= 0) {
-		free_irq(gpio_to_irq(pdata->buttons[i].gpio), &ddata->data[i]);
+		free_irq(pdata->buttons[i].interrupt, &ddata->data[i]);
 		if (pdata->buttons[i].debounce_interval)
 			del_timer_sync(&ddata->data[i].timer);
 		cancel_work_sync(&ddata->data[i].work);
@@ -209,8 +207,7 @@ static int __devexit gpio_keys_remove(struct platform_device *pdev)
 	device_init_wakeup(&pdev->dev, 0);
 
 	for (i = 0; i < pdata->nbuttons; i++) {
-		int irq = gpio_to_irq(pdata->buttons[i].gpio);
-		free_irq(irq, &ddata->data[i]);
+		free_irq(pdata->buttons[i].interrupt, &ddata->data[i]);
 		if (pdata->buttons[i].debounce_interval)
 			del_timer_sync(&ddata->data[i].timer);
 		cancel_work_sync(&ddata->data[i].work);
@@ -221,7 +218,6 @@ static int __devexit gpio_keys_remove(struct platform_device *pdev)
 
 	return 0;
 }
-
 
 #ifdef CONFIG_PM
 static int gpio_keys_suspend(struct device *dev)
@@ -234,8 +230,10 @@ static int gpio_keys_suspend(struct device *dev)
 		for (i = 0; i < pdata->nbuttons; i++) {
 			struct gpio_keys_button *button = &pdata->buttons[i];
 			if (button->wakeup) {
-				int irq = gpio_to_irq(button->gpio);
-				enable_irq_wake(irq);
+				if (!button->interrupt)
+					button->interrupt =
+						gpio_to_irq(button->gpio);
+				enable_irq_wake(button->interrupt);
 			}
 		}
 	}
@@ -252,10 +250,8 @@ static int gpio_keys_resume(struct device *dev)
 	if (device_may_wakeup(&pdev->dev)) {
 		for (i = 0; i < pdata->nbuttons; i++) {
 			struct gpio_keys_button *button = &pdata->buttons[i];
-			if (button->wakeup) {
-				int irq = gpio_to_irq(button->gpio);
-				disable_irq_wake(irq);
-			}
+			if (button->wakeup)
+				disable_irq_wake(button->interrupt);
 		}
 	}
 
