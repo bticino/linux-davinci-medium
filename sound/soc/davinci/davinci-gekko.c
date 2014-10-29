@@ -354,8 +354,7 @@ static int gekko_asoc_power_changed(struct device *dev,
 	switch (s) {
 	case SYS_PWR_GOOD:
 		gekko_asoc_priv.ext_circuit_power(1);
-		schedule_delayed_work(&gekko_asoc_priv.delayed_work,
-				      msecs_to_jiffies(100));
+		gekko_audio_late_setup(&gekko_asoc_priv.delayed_work.work);
 		break;
 	case SYS_PWR_FAILING:
 		gekko_asoc_priv.ext_circuit_power(0);
