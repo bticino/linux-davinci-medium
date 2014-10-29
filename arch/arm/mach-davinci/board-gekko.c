@@ -687,11 +687,11 @@ enum gekko_pwrfail_prio {
 struct pm_loss_default_policy_item gekko_pm_loss_policy_items[] = {
 	{
 		.bus_name = "platform",
-		.bus_priority = GEKKO_PWR_FAIL_PRIO_2,
+		.bus_priority = GEKKO_PWR_FAIL_PRIO_1,
 	},
 	{
 		.bus_name = "i2c",
-		.bus_priority = GEKKO_PWR_FAIL_PRIO_1,
+		.bus_priority = GEKKO_PWR_FAIL_PRIO_2,
 	}
 
 };
