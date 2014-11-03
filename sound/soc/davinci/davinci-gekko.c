@@ -148,7 +148,7 @@ void gekko_set_audio_state(void)
 	gpio_set_value(poEN_5V_FON, gekko_audio_enables[cnt][1]);
 
 	if (timer_pending(&gekko_audio_work.timer))
-		cancel_delayed_work_sync(&gekko_audio_work);
+		cancel_delayed_work(&gekko_audio_work);
 	INIT_DELAYED_WORK(&gekko_audio_work, gekko_audio_late_setup);
 	if ((my_data.state == EN_AUDIO_PASSTHROUGH) ||
 	    (my_data.state == EN_AUDIO_PASSTHR_INT))
@@ -157,12 +157,6 @@ void gekko_set_audio_state(void)
 	else
 		schedule_delayed_work(&gekko_audio_work,
 					msecs_to_jiffies(10));
-}
-
-int gekko_snd_startup(struct snd_pcm_substream *substream)
-{
-	gekko_set_audio_state();
-	return 0;
 }
 
 void gekko_snd_shutdown(struct snd_pcm_substream *substream)
@@ -186,7 +180,6 @@ static int gekko_snd_hw_params(struct snd_pcm_substream *substream,
 
 static struct snd_soc_ops gekko_snd_ops = {
 	.hw_params = gekko_snd_hw_params,
-	.prepare = gekko_snd_startup,
 	.shutdown = gekko_snd_shutdown,
 };
 
@@ -216,6 +209,8 @@ static const char *gekko_aud_states_txt[] = {"Rec Mic", "Rec SCS", "Play Loc",
 static int gekko_set(struct snd_kcontrol *kcontrol,
 		     struct snd_ctl_elem_value *ucontrol)
 {
+	if (my_data.state == ucontrol->value.enumerated.item[0])
+		return 0;
 	my_data.state = ucontrol->value.enumerated.item[0];
 
 	gekko_set_audio_state();
