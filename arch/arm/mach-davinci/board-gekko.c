@@ -844,7 +844,7 @@ static void gekko_gpio_configure(void)
 			"Enable LCD Power");
 	gpio_configure_out(DM365_GPIO72, poVideo_Mode, 1,
 			"Video Bus Mode");
-	gpio_configure_out(DM365_GPIO40, poENABLE_VIDEO_IN, 1,
+	gpio_configure_out(DM365_GPIO40, poENABLE_VIDEO_IN, 0,
 			"Enable video demodulator");
 	gpio_configure_out(DM365_GPIO64_57, poE2_WPn, 0,
 			"EEprom write protect");
