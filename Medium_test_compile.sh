@@ -38,3 +38,5 @@ make -j16 uImage && echo "Jumbo-d OK" >> Test_Compile.log
 make mrproper
 make seah_defconfig
 make -j16 uImage && echo "Seah OK" >> Test_Compile.log
+make gekko_defconfig
+make -j16 uImage && echo "Gekko OK" >> Test_Compile.log
