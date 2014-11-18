@@ -1249,6 +1249,9 @@ static int vpbe_streamon(struct file *file, void *priv,
 	struct davinci_fh *fh = file->private_data;
 	struct display_obj *layer = fh->layer;
 
+	if (!davinci_enc_is_enabled())
+		davinci_enc_enable_output(0, 1);
+
 	dev_dbg(davinci_display_dev, "VIDIOC_STREAMON, layer id = %d\n",
 			layer->device_id);
 	/* If file handle is not allowed IO, return error */
