@@ -44,6 +44,7 @@ struct vid_enc_device_mgr {
 	char current_output[VID_ENC_NAME_MAX_CHARS];	/* current output */
 	struct vid_enc_mode_info current_mode;	/* current mode */
 	struct vid_encoder_device *encoder[DAVINCI_ENC_MAX_ENCODERS];
+	int is_enabled;
 };
 
 struct enc_config {

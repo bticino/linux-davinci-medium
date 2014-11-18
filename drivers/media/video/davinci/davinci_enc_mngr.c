@@ -157,7 +157,13 @@ mode_store(struct device *cdev, struct device_attribute *attr, const char *buffe
 
 static ssize_t enable_show(struct device *cdev, struct device_attribute *attr, char *buf)
 {
-	return 0;
+	struct display_device *dev = to_display_dev(cdev);
+	if (enc_dev[dev->channel].is_enabled == 1) {
+		strncpy(buf, "ON\n", 3);
+		return 3;
+	}
+	strncpy(buf, "OFF\n", 4);
+	return 4;
 }
 
 static ssize_t
@@ -180,6 +186,7 @@ enable_store(struct device *cdev, struct device_attribute *attr, const char *buf
 	if (ret < 0)
 		return ret;
 
+	enc_dev[dev->channel].is_enabled = enable_output_state;
 	return count;
 }
 
@@ -488,6 +495,15 @@ int davinci_enc_getparams(int channel, void *params)
 }
 
 EXPORT_SYMBOL(davinci_enc_getparams);
+
+int davinci_enc_is_enabled()
+{
+	int cnt, res = 0;
+	for (cnt = 0; cnt < DAVINCI_ENC_MAX_CHANNELS; cnt++)
+		res |= enc_dev[cnt].is_enabled;
+	return res;
+}
+EXPORT_SYMBOL(davinci_enc_is_enabled);
 
 /**
  * function davinci_enc_set_control

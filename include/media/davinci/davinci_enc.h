@@ -67,6 +67,15 @@ int davinci_enc_setparams(int channel, void *params);
 int davinci_enc_getparams(int channel, void *params);
 
 /**
+ * function davinci_is_enabled
+ * Returns: Zero no channel is enabled at present, 1 otherwise
+ *
+ * Description:
+ *   Retrieves if a channel is enabled or not.
+ */
+int davinci_enc_is_enabled(void);
+
+/**
  * function davinci_enc_set_mode
  * @channel: channel number.
  * @mode_info: ptr to vid_enc_mode_info structure
