@@ -69,6 +69,7 @@ enum gekko_audio_states {
 	EN_AUDIO_HALF_DUPL_IN,
 	EN_AUDIO_OFF,
 	EN_AUDIO_RINGING_LOC,
+	EN_AUDIO_PTH_MUTE_MIC,
 };
 
 struct gekko_data {
@@ -87,6 +88,7 @@ char gekko_audio_enables[][8] = {
 	{EN_AUDIO_HALF_DUPL_IN, 1, 1, 0, 0, 1, 1, 1},
 	{EN_AUDIO_OFF,		0, 0, 1, 0, 0, 0, 0},
 	{EN_AUDIO_RINGING_LOC,  0, 1, 1, 0, 0, 1, 0},
+	{EN_AUDIO_PTH_MUTE_MIC, 1, 1, 0, 0, 1, 1, 0},
 };
 
 struct gekko_data my_data;
@@ -151,7 +153,8 @@ void gekko_set_audio_state(void)
 		cancel_delayed_work(&gekko_audio_work);
 	INIT_DELAYED_WORK(&gekko_audio_work, gekko_audio_late_setup);
 	if ((my_data.state == EN_AUDIO_PASSTHROUGH) ||
-	    (my_data.state == EN_AUDIO_PASSTHR_INT))
+	    (my_data.state == EN_AUDIO_PASSTHR_INT) ||
+	    (my_data.state == EN_AUDIO_PTH_MUTE_MIC))
 		schedule_delayed_work(&gekko_audio_work,
 					msecs_to_jiffies(500));
 	else
@@ -204,7 +207,7 @@ static const char *gekko_aud_states_txt[] = {"Rec Mic", "Rec SCS", "Play Loc",
 					     "Play Loc Scs", "Passthrough",
 					     "Ringing", "Passthrough Intercom",
 					     "Half Duplex IN", "OFF",
-					     "Ringing Loc"};
+					     "Ringing Loc", "Passth mute mic"};
 
 static int gekko_set(struct snd_kcontrol *kcontrol,
 		     struct snd_ctl_elem_value *ucontrol)
@@ -225,7 +228,7 @@ static int gekko_get(struct snd_kcontrol *kcontrol,
 }
 
 static const struct soc_enum gekko_aud_states =
-	SOC_ENUM_SINGLE(0, 0, 10,  gekko_aud_states_txt);
+	SOC_ENUM_SINGLE(0, 0, 11,  gekko_aud_states_txt);
 
 static const struct snd_kcontrol_new gekko_controls[] = {
 	{
