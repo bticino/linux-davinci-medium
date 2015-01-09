@@ -74,6 +74,8 @@ enum gekko_audio_states {
 
 struct gekko_data {
 	enum gekko_audio_states state;
+	char input_on;
+	char output_on;
 };
 
 char gekko_audio_enables[][8] = {
@@ -164,8 +166,23 @@ void gekko_set_audio_state(void)
 
 void gekko_snd_shutdown(struct snd_pcm_substream *substream)
 {
+	if (!substream->stream)
+		my_data.output_on = 0;
+	else
+		my_data.input_on = 0;
+	if (my_data.output_on || my_data.input_on)
+		return;
 	gekko_snd_teardown();
 	my_data.state = EN_AUDIO_OFF;
+}
+
+int gekko_snd_startup(struct snd_pcm_substream *substream)
+{
+	if (!substream->stream)
+		my_data.output_on = 1;
+	else
+		my_data.input_on = 1;
+	return 0;
 }
 
 static int gekko_snd_hw_params(struct snd_pcm_substream *substream,
@@ -184,6 +201,7 @@ static int gekko_snd_hw_params(struct snd_pcm_substream *substream,
 static struct snd_soc_ops gekko_snd_ops = {
 	.hw_params = gekko_snd_hw_params,
 	.shutdown = gekko_snd_shutdown,
+	.startup = gekko_snd_startup,
 };
 
 /* davinci-gekko machine dapm widgets */
