@@ -48,6 +48,8 @@
 #include <sound/soc.h>
 
 #include "zl38005.h"
+#include <asm/mach-types.h>
+
 
 static const char module_name[] = "zl38005";
 
@@ -80,65 +82,46 @@ static const char module_name[] = "zl38005";
 /*
  * zl38005 register default settings
  */
-static struct zl38005_regs_s {
+struct zl38005_regs_s {
 	u16 reg;
 	u16 val;
-} zl38005_default_reg[] = {
+};
+
+static struct zl38005_regs_s zl38005_default_reg[] = {
 	/* dummy registers */
 	{ 0x0000, 0x0000 },		/* on/off status */
 
 	/* real registers */
-	{ 0x044a, 0x7e1c },
-	{ 0x044b, 0x1072 },
-	{ 0x047b, 0x0072 },
-	{ 0x0529, 0x7fff },
-	{ 0x044d, 0x8710 },
-	{ 0x05e8, 0x0043 },
-	{ 0x0451, 0x7fff },
-	{ 0x0450, 0xd3d3 },
-	{ 0x05ec, 0x0043 },
-	{ 0x046b, 0x0037 },
-	{ 0x0472, 0x7fff },
-	{ 0x0473, 0x7fff },
-	{ 0x0453, 0x7fff },
+	{ 0x044a, 0 },
+	{ 0x044b, 0 },
+	{ 0x047b, 0 },
+	{ 0x0529, 0 },
+	{ 0x044d, 0 },
+	{ 0x05e8, 0 },
+	{ 0x0451, 0 },
+	{ 0x0450, 0 },
+	{ 0x05ec, 0 },
+	{ 0x046b, 0 },
+	{ 0x0472, 0 },
+	{ 0x0473, 0 },
+	{ 0x0453, 0 },
 
 	/* terminator */
 	{ 0xffff, 0xffff }
 };
 
-#if 0
-/*
- * zl38005 register AEC enabled settings
- */
-static u16 zl38005_reg_aec[] = {
-        0x044a, 0x7e1c,
-       * 0x044b, 0x1032,
-       0x047b, 0x0072, /* AEC and LEC disabled and Bypass enable */
-        0x0529, 0x7fff, /* Noise canceller reset */
-        *0x044d, 0x8810, /* SOUT from +6dB to -3dB */
-        0x05e8, 0x0043, /* ANA0 set from 12dB to 0dB */
-       0x0451, 0x7fff, /* Sout upper limiter */
-        0x0450, 0xd3d3, /* HPASS FILTER from 320 to 98Hz */
-        0x05ec, 0x0043, /* ANA1 set from +6dB to 0dB */
-        *0x046b, 0x0060, /* ROUT to -3.37dB */
-        0x0472, 0x7fff,
-       0x0473, 0x7fff, /* COMPRESS set to zero */
-        0x0453, 0x7fff, /* ROUT limiter set to zero */
-};
-#endif
-
 /* ZL38005 driver private data */
 struct zl38005 {
-	dev_t			dev;
-	int			minor;
-	struct spi_device	*spi;
-	struct list_head	device_entry;
-	char			cs_gpio_label[15]; /*chip_select_label*/
-	int			reset_gpio;
-	char			reset_gpio_label[10];
-	atomic_t		usage;
+	dev_t dev;
+	int minor;
+	struct spi_device *spi;
+	struct list_head device_entry;
+	char cs_gpio_label[15]; /*chip_select_label*/
+	int reset_gpio;
+	char reset_gpio_label[10];
+	atomic_t usage;
 
-	struct zl38005_regs_s	reg_cache[0];	/* must be the last one! */
+	struct zl38005_regs_s reg_cache[0];	/* must be the last one! */
 };
 
 /* For registeration of charatcer device */
@@ -992,6 +975,49 @@ static int zl38005_sync_cache(struct spi_device *spi,
 
 		ret = zl38005_wr_reg(&spi->dev, reg_cache[i].reg,
 				reg_cache[i].val, DMEM);
+#if 0
+		printk(KERN_DEBUG "%s, sync reg %4X , value %4X ",
+				__func__, reg_cache[i].reg, reg_cache[i].val);
+#endif
+		if (ret)
+			return -EIO;
+	}
+
+	return 0;
+}
+
+static int zl38005_init_cache(struct zl38005 *zl38005,
+				struct zl38005_regs_s *reg_cache)
+{
+
+	struct spi_device *spi;
+
+	int i;
+	int ret;
+
+	spi = zl38005->spi;
+
+	i = 0;
+	do {
+		msleep(60);
+		ret = zl_checkConnection(&spi->dev);
+	} while (ret & (i++ < 10));
+
+	if (i == 10)
+		return -EIO;
+
+	for (i = 0; reg_cache[i].reg != 0xffff; i++) {
+		if (zl38005_reg_is_dummy(reg_cache[i].reg))
+			continue;
+		{
+		int valt = 0;
+		ret = zl38005_rd_reg(&spi->dev, reg_cache[i].reg, &valt, DMEM);
+		reg_cache[i].val = valt;
+		}
+#if 0
+		printk(KERN_DEBUG "%s, init reg %4X , value %4X ",
+				__func__, reg_cache[i].reg, reg_cache[i].val);
+#endif
 		if (ret)
 			return -EIO;
 	}
@@ -1002,17 +1028,17 @@ static int zl38005_sync_cache(struct spi_device *spi,
 static int zl38005_spi_write(struct snd_kcontrol *kcontrol,
                 struct snd_ctl_elem_value *ucontrol)
 {
-        struct soc_mixer_control *mc =
-                (struct soc_mixer_control *) kcontrol->private_value;
+	struct soc_mixer_control *mc =
+	(struct soc_mixer_control *) kcontrol->private_value;
 	struct zl38005 *zl38005;
 	struct spi_device *spi;
-        unsigned int reg = mc->reg;
-        unsigned int shift = mc->shift;
-        unsigned int mask = mc->max;
-        unsigned int invert = mc->invert;
-        unsigned int val = (ucontrol->value.integer.value[0] & mask);
+	unsigned int reg = mc->reg;
+	unsigned int shift = mc->shift;
+	unsigned int mask = mc->max;
+	unsigned int invert = mc->invert;
+	unsigned int val = (ucontrol->value.integer.value[0] & mask);
 	int minor, valt;
-        int ret;
+	int ret;
 
 	/* Dirty hack to get proper spi device... */
 	minor = kcontrol->id.name[2] - '0';
@@ -1038,17 +1064,26 @@ static int zl38005_spi_write(struct snd_kcontrol *kcontrol,
 
 	switch (reg) {
 	case 0x0000:
-		if (zl38005_is_on(zl38005->reg_cache)) {
+		if (valt == 1) {
+			/*printk(KERN_DEBUG "Zarlink Control:Zarlik UnReset");*/
 			gpio_set_value(zl38005->reset_gpio, 1);
-			ret = zl38005_sync_cache(spi, zl38005->reg_cache);
-			if (ret)
-				return ret;
-		} else
+			if (!machine_is_basi()) {
+				ret = zl38005_sync_cache(spi, zl38005->reg_cache);
+				if (ret)
+					return ret;
+			} else {
+				/*printk(KERN_DEBUG "Basi Board Don't use zalink cache!!");*/
+			}
+		} else {
+			/*printk(KERN_DEBUG "Zarlink Control : Zarlik Reset");*/
 			gpio_set_value(zl38005->reset_gpio, 0);
+		}
 		break;
 
 	default:
 		zl38005_wr_reg(&spi->dev, reg, valt, DMEM);
+		/*printk(KERN_DEBUG "%s (%d) : Zarlink Control write reg %4X, value %4X",
+			__func__, __LINE__, reg, valt);*/
 	}
 	return 1;
 }
@@ -1091,14 +1126,24 @@ static int zl38005_spi_read(struct snd_kcontrol *kcontrol,
 }
 
 static const struct snd_kcontrol_new zl38005_controls[] = {
-        SOC_SINGLE_EXT("ZLx-UGAIN", ZL38005_USRGAIN , 0, 0xffff, 0,
-                        zl38005_spi_read, zl38005_spi_write),
-        SOC_SINGLE_EXT("ZLx-SOUTGN", ZL38005_SYSGAIN , 8, 0xf, 0,
-                        zl38005_spi_read, zl38005_spi_write),
-        SOC_SINGLE_EXT("ZLx-MUTE_R", ZL38005_AEC_CTRL0 , 7, 1, 0,
-                        zl38005_spi_read, zl38005_spi_write),
-	SOC_SINGLE_EXT("ZLx-INJDIS", ZL38005_AEC_CTRL1, 6, 1, 0,
-                        zl38005_spi_read, zl38005_spi_write),
+	/* Controll compatible with ZLS38501 v3.2.07 */
+	SOC_SINGLE_EXT("ZLx AEC Bypass", ZL38005_AEC_CTRL0, 4, 1, 0,
+					zl38005_spi_read, zl38005_spi_write),
+	SOC_SINGLE_EXT("ZLx Mute Rout", ZL38005_AEC_CTRL0, 7, 1, 0,
+					zl38005_spi_read, zl38005_spi_write),
+	SOC_SINGLE_EXT("ZLx Mute Sout", ZL38005_AEC_CTRL0, 8, 1, 0,
+					zl38005_spi_read, zl38005_spi_write),
+	SOC_SINGLE_EXT("ZLx Adaptation Disable", ZL38005_AEC_CTRL1, 1, 1, 0,
+					zl38005_spi_read, zl38005_spi_write),
+
+	SOC_SINGLE_EXT("ZLx Sin Gain control", ZL38005_SYSGAIN, 0, 0xff, 0,
+					zl38005_spi_read, zl38005_spi_write),
+	SOC_SINGLE_EXT("ZLx Sout Gain control", ZL38005_SYSGAIN, 8, 0xf, 0,
+					zl38005_spi_read, zl38005_spi_write),
+
+	SOC_SINGLE_EXT("ZLx Rout Gain control", ZL38005_USRGAIN, 0, 0x7f, 0,
+					zl38005_spi_read, zl38005_spi_write),
+
 	SOC_SINGLE_EXT("ZLx-ON", 0x0000, 0, 1, 0,
 			zl38005_spi_read, zl38005_spi_write),
 };
@@ -1380,6 +1425,7 @@ static int zl38005_spi_probe(struct spi_device *spi)
 	int minor;
 
 	dev_dbg(&spi->dev, "probing zl38005 spi device\n");
+	/*printk(KERN_DEBUG "Probing zl38005 \n");*/
 
 	minor = pdata->minor;
 	if (minor >= DEVCOUNT)
@@ -1415,6 +1461,9 @@ static int zl38005_spi_probe(struct spi_device *spi)
 		printk(KERN_ERR "can't get %s \n", zl38005->cs_gpio_label);
 	gpio_direction_output((int)spi->controller_data, 1);
 
+	/*printk(KERN_DEBUG "UnReset zl38005 \n");*/
+	gpio_set_value(zl38005->reset_gpio, 1);
+
 	memcpy(zl38005->reg_cache, zl38005_default_reg,
 		ARRAY_SIZE(zl38005_default_reg) *
 			sizeof(struct zl38005_regs_s));
@@ -1434,6 +1483,8 @@ static int zl38005_spi_probe(struct spi_device *spi)
 
 	/* Save device data for the char device! */
 	zl38005_table[minor] = zl38005;
+
+	zl38005_init_cache(zl38005,  zl38005->reg_cache);
 
 	return 0;
 
